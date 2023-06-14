@@ -121,7 +121,7 @@ module RuboCop
         merge_with_default(config, config_file).tap do |merged_config|
           unless possible_new_cops?(merged_config)
             pending_cops = pending_cops_only_qualified(merged_config.pending_cops)
-            warn_on_pending_cops(pending_cops) unless pending_cops.empty?
+            #warn_on_pending_cops(pending_cops) unless pending_cops.empty?
           end
         end
       end
