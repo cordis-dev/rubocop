@@ -132,7 +132,7 @@ module RuboCop
           @options[:stdin] = new_source
         else
           filename = processed_source.file_path
-          File.write(filename, new_source)
+          File.open(filename, 'wb') { |f| f.write(new_source) }
         end
         @updated_source_file = true
       end
