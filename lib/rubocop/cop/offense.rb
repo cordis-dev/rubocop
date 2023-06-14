@@ -113,6 +113,11 @@ module RuboCop
       def corrected?
         @status == :corrected || @status == :corrected_with_todo
       end
+      
+      def uncorrected
+      @status == :uncorrected
+      end
+      alias uncorrected? uncorrected      
 
       # @api public
       #
