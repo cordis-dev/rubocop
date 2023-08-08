@@ -11,6 +11,126 @@
 
 ## master (unreleased)
 
+## 1.55.1 (2023-07-31)
+
+### Bug fixes
+
+* [#12068](https://github.com/rubocop/rubocop/pull/12068): Fix a false positive for `Style/ReturnNilInPredicateMethodDefinition` when the last method argument in method definition is `nil`. ([@koic][])
+* [#12082](https://github.com/rubocop/rubocop/issues/12082): Fix an error for `Lint/UselessAssignment` when a variable is assigned and unreferenced in `for` with multiple variables. ([@koic][])
+* [#12079](https://github.com/rubocop/rubocop/issues/12079): Fix an error for `Style/MixinGrouping` when mixin method has no arguments. ([@koic][])
+* [#11637](https://github.com/rubocop/rubocop/pull/11637): Correct Rubocop for `private_class_method` method documentation. ([@bigzed][])
+* [#12070](https://github.com/rubocop/rubocop/pull/12070): Fix false positive in `Style/ArgumentsForwarding` when receiver forwards args/kwargs. ([@owst][])
+
+## 1.55.0 (2023-07-25)
+
+### New features
+
+* [#11794](https://github.com/rubocop/rubocop/pull/11794): Add support to `Style/ArgumentsForwarding` for anonymous arg/kwarg forwarding in Ruby 3.2. ([@owst][])
+* [#12044](https://github.com/rubocop/rubocop/issues/12044): Make LSP server support `layoutMode` option to run layout cops. ([@koic][])
+* [#12056](https://github.com/rubocop/rubocop/pull/12056): Make LSP server support `lintMode` option to run lint cops. ([@koic][])
+* [#12046](https://github.com/rubocop/rubocop/issues/12046): Make `ReturnNilInPredicateMethodDefinition` aware of `nil` at the end of predicate method definition. ([@koic][])
+
+### Bug fixes
+
+* [#12055](https://github.com/rubocop/rubocop/pull/12055): Allow parentheses in single-line match patterns when using the `omit_parentheses` style of `Style/MethodCallWithArgsParentheses`. ([@gsamokovarov][])
+* [#12050](https://github.com/rubocop/rubocop/pull/12050): Fix a false positive for `Layout/RedundantLineBreak` when inspecting the `%` form string `%\n\n`. ([@koic][])
+* [#12063](https://github.com/rubocop/rubocop/pull/12063): Fix `Style/CombinableLoops` when one of the loops is empty. ([@fatkodima][])
+* [#12059](https://github.com/rubocop/rubocop/issues/12059): Fix a false negative for `Style/StringLiteralsInInterpolation` for symbols with interpolation. ([@fatkodima][])
+* [#11834](https://github.com/rubocop/rubocop/issues/11834): Fix false positive for when variable in inside conditional branch in nested node. ([@alexeyschepin][])
+* [#11802](https://github.com/rubocop/rubocop/issues/11802): Improve handling of `[]` and `()` with percent symbol arrays. ([@jasondoc3][])
+* [#12052](https://github.com/rubocop/rubocop/issues/12052): Fix "Subfolders can't include glob special characters". ([@meric426][], [@loveo][])
+* [#12062](https://github.com/rubocop/rubocop/pull/12062): Fix `LoadError` when loading RuboCop from a symlinked location on Windows. ([@p0deje][])
+
+### Changes
+
+* [#12064](https://github.com/rubocop/rubocop/pull/12064): Make `Style/RedundantArgument` aware of `exit` and `exit!`. ([@koic][])
+* [#12015](https://github.com/rubocop/rubocop/issues/12015): Mark `Style/HashConversion` as unsafe autocorrection. ([@koic][])
+
+## 1.54.2 (2023-07-13)
+
+### Bug fixes
+
+* [#12043](https://github.com/rubocop/rubocop/pull/12043): Fix a false negative for `Layout/ExtraSpacing` when some characters are vertically aligned. ([@koic][])
+* [#12040](https://github.com/rubocop/rubocop/pull/12040): Fix a false positive for `Layout/TrailingEmptyLines` to prevent the following incorrect autocorrection when inspecting the `%` form string `%\n\n`. ([@koic][])
+* [#1867](https://github.com/rubocop/rubocop/issues/1867): Fix an error when `AllCops:Exclude` is empty in .rubocop.yml. ([@koic][])
+* [#12034](https://github.com/rubocop/rubocop/issues/12034): Fix invalid byte sequence in UTF-8 error when using an invalid encoding string. ([@koic][])
+* [#12038](https://github.com/rubocop/rubocop/pull/12038): Output the "server restarting" message to stderr. ([@knu][])
+
+## 1.54.1 (2023-07-04)
+
+### Bug fixes
+
+* [#12024](https://github.com/rubocop/rubocop/issues/12024): Fix a false positive for `Lint/RedundantRegexpQuantifiers` when interpolation is used in a regexp literal. ([@koic][])
+* [#12020](https://github.com/rubocop/rubocop/issues/12020): This PR fixes an infinite loop error for `Layout/SpaceAfterComma` with `Layout/SpaceBeforeSemicolon` when autocorrection conflicts. ([@koic][])
+* [#12014](https://github.com/rubocop/rubocop/pull/12014): Fix an error for `Lint/UselessAssignment` when part of a multiple assignment is enclosed in parentheses. ([@koic][])
+* [#12011](https://github.com/rubocop/rubocop/pull/12011): Fix an error for `Metrics/MethodLength` when using a heredoc in a block without block arguments. ([@koic][])
+* [#12010](https://github.com/rubocop/rubocop/pull/12010): Fix false negatives for `Style/RedundantRegexpArgument` when using safe navigation operator. ([@koic][])
+
+## 1.54.0 (2023-07-01)
+
+### New features
+
+* [#12000](https://github.com/rubocop/rubocop/pull/12000): Support safe or unsafe autocorrect config for LSP. ([@koic][])
+
+### Bug fixes
+
+* [#12005](https://github.com/rubocop/rubocop/issues/12005): Fix a false negative for `Lint/Debugger` when using debugger method inside lambda. ([@koic][])
+* [#11986](https://github.com/rubocop/rubocop/issues/11986): Fix a false positive for `Lint/MixedCaseRange` when the number of characters at the start or end of range is other than 1. ([@koic][])
+* [#11992](https://github.com/rubocop/rubocop/issues/11992): Fix an unexpected `NoMethodError` for built-in language server when an internal error occurs. ([@koic][])
+* [#11994](https://github.com/rubocop/rubocop/issues/11994): Fix an error for `Layout/LineEndStringConcatenationIndentation` when inspecting the `%` from string `%\n\n`. ([@koic][])
+* [#12007](https://github.com/rubocop/rubocop/issues/12007): Fix an error for `Layout/SpaceAroundOperators` when using unary operator with double colon. ([@koic][])
+* [#11996](https://github.com/rubocop/rubocop/issues/11996): Fix an error for `Style/IfWithSemicolon` when without branch bodies. ([@koic][])
+* [#12009](https://github.com/rubocop/rubocop/pull/12009): Fix an error for `Style/YodaCondition` when equality check method is used without the first argument. ([@koic][])
+* [#11998](https://github.com/rubocop/rubocop/issues/11998): Fix an error when inspecting blank heredoc delimiter. ([@koic][])
+* [#11989](https://github.com/rubocop/rubocop/issues/11989): Fix an incorrect autocorrect for `Style/RedundantRegexpArgument` when using unicode chars. ([@koic][])
+* [#12001](https://github.com/rubocop/rubocop/issues/12001): Fix code length calculator for method calls with heredoc. ([@fatkodima][])
+* [#12002](https://github.com/rubocop/rubocop/pull/12002): Fix `Lint/Void` cop for `__ENCODING__` constant. ([@fatkodima][])
+
+### Changes
+
+* [#11983](https://github.com/rubocop/rubocop/pull/11983): Add Ridgepole files to default `Include` list. ([@ydah][])
+* [#11738](https://github.com/rubocop/rubocop/issues/11738): Enhances empty_line_between_defs to treat configured macros like defs. ([@catwomey][])
+
+## 1.53.1 (2023-06-26)
+
+### Bug fixes
+
+* [#11974](https://github.com/rubocop/rubocop/issues/11974): Fix an error for `Style/RedundantCurrentDirectoryInPath` when using string interpolation in `require_relative`. ([@koic][])
+* [#11981](https://github.com/rubocop/rubocop/issues/11981): Fix an incorrect autocorrect for `Style/RedundantRegexpArgument` when using double quote and single quote characters. ([@koic][])
+* [#11836](https://github.com/rubocop/rubocop/issues/11836): Should not offense single-quoted symbol containing double quotes in `Lint/SymbolConversion` . ([@KessaPassa][])
+
+## 1.53.0 (2023-06-23)
+
+### New features
+
+* [#11561](https://github.com/rubocop/rubocop/pull/11561): Add new `Lint/MixedCaseRange` cop. ([@rwstauner][])
+* [#11565](https://github.com/rubocop/rubocop/pull/11565): Add new `Lint/RedundantRegexpQuantifiers` cop. ([@jaynetics][])
+* [#11925](https://github.com/rubocop/rubocop/issues/11925): Add new `Style/RedundantCurrentDirectoryInPath` cop. ([@koic][])
+* [#11595](https://github.com/rubocop/rubocop/pull/11595): Add new `Style/RedundantRegexpArgument` cop. ([@koic][])
+* [#11967](https://github.com/rubocop/rubocop/pull/11967): Add new `Style/ReturnNilInPredicateMethodDefinition` cop. ([@koic][])
+* [#11745](https://github.com/rubocop/rubocop/pull/11745): Add new `Style/YAMLFileRead` cop. ([@koic][])
+* [#11926](https://github.com/rubocop/rubocop/pull/11926): Support built-in LSP server. ([@koic][])
+
+### Bug fixes
+
+* [#11953](https://github.com/rubocop/rubocop/issues/11953): Fix a false negative for `Lint/DuplicateHashKey` when there is a duplicated constant key in the hash literal. ([@koic][])
+* [#11945](https://github.com/rubocop/rubocop/issues/11945): Fix a false negative for `Style/RedundantSelfAssignmentBranch` when using method chaining or arguments in ternary branch. ([@koic][])
+* [#11949](https://github.com/rubocop/rubocop/issues/11949): Fix a false positive for `Layout/RedundantLineBreak` when using a line broken string. ([@koic][])
+* [#11931](https://github.com/rubocop/rubocop/pull/11931): Fix a false positive for `Lint/RedundantRequireStatement` when using `PP.pp`. ([@koic][])
+* [#11946](https://github.com/rubocop/rubocop/pull/11946): Fix an error for `Lint/NumberConversion` when using multiple number conversion methods. ([@koic][])
+* [#11972](https://github.com/rubocop/rubocop/issues/11972): Fix an error for `Lint/Void` when `CheckForMethodsWithNoSideEffects: true` and using a method definition. ([@koic][])
+* [#11958](https://github.com/rubocop/rubocop/pull/11958): Fix error for `Style/IdenticalConditionalBranches` when using empty parentheses in the `if` branch. ([@koic][])
+* [#11962](https://github.com/rubocop/rubocop/issues/11962): Fix an error for `Style/RedundantStringEscape` when an escaped double quote precedes interpolation in a symbol literal. ([@koic][])
+* [#11947](https://github.com/rubocop/rubocop/issues/11947): Fix an error for `Style/ConditionalAssignment` with an assignment that uses `if` branch bodies, which include a block. ([@koic][])
+* [#11959](https://github.com/rubocop/rubocop/pull/11959): Fix false negatives for `Layout/EmptyLinesAroundExceptionHandlingKeywords` when using Ruby 2.5's `rescue` inside block and Ruby 2.7's numbered block. ([@koic][])
+* [#10902](https://github.com/rubocop/rubocop/issues/10902): Fix an error for `Style/RedundantRegexpEscape` string with invalid byte sequence in UTF-8. ([@ydah][])
+* [#11562](https://github.com/rubocop/rubocop/pull/11562): Fixed escaped octal handling and detection in `Lint/DuplicateRegexpCharacterClassElement`. ([@rwstauner][])
+
+### Changes
+
+* [#11904](https://github.com/rubocop/rubocop/pull/11904): Mark `Layout/ClassStructure` as unsafe to autocorrect. ([@nevans][])
+* [#8506](https://github.com/rubocop/rubocop/issues/8506): Add `AllowedParentClasses` config to `Lint/MissingSuper`. ([@iMacTia][])
+
 ## 1.52.1 (2023-06-12)
 
 ### Bug fixes
@@ -89,7 +209,7 @@
 ### Changes
 
 * [#11859](https://github.com/rubocop/rubocop/pull/11859): Add rubocop-factory_bot to suggested extensions. ([@ydah][])
-* [#10791](https://github.com/rubocop/rubocop/pull/10791): **(Breaking)** Drop runtime support for Ruby 2.6 and JRuby 9.3 (CRuby 2.6 compatible). ([@koic][])
+* [#11791](https://github.com/rubocop/rubocop/pull/11791): **(Breaking)** Drop runtime support for Ruby 2.6 and JRuby 9.3 (CRuby 2.6 compatible). ([@koic][])
 * [#11826](https://github.com/rubocop/rubocop/pull/11826): Exclude `**/*.jb` from `Lint/TopLevelReturnWithArgument`. ([@r7kamura][])
 * [#11871](https://github.com/rubocop/rubocop/pull/11871): Mark `Style/DataInheritance` as unsafe autocorrect, `Style/OpenStructUse` as unsafe, and `Security/CompoundHash` as unsafe. ([@koic][])
 
@@ -7136,3 +7256,12 @@
 [@Bhacaz]: https://github.com/Bhacaz
 [@naveg]: https://github.com/naveg
 [@lucthev]: https://github.com/lucthev
+[@nevans]: https://github.com/nevans
+[@iMacTia]: https://github.com/iMacTia
+[@rwstauner]: https://github.com/rwstauner
+[@catwomey]: https://github.com/catwomey
+[@alexeyschepin]: https://github.com/alexeyschepin
+[@meric426]: https://github.com/meric426
+[@loveo]: https://github.com/loveo
+[@p0deje]: https://github.com/p0deje
+[@bigzed]: https://github.com/bigzed

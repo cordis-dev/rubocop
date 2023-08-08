@@ -26,6 +26,17 @@ RSpec.describe RuboCop::Cop::Style::Alias, :config do
       RUBY
     end
 
+    it 'registers an offense for `alias` with interpolated symbol argument' do
+      expect_offense(<<~'RUBY')
+        alias :"string#{interpolation}" :symbol
+        ^^^^^ Use `alias_method` instead of `alias`.
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        alias_method :"string#{interpolation}", :symbol
+      RUBY
+    end
+
     it 'does not register an offense for alias_method' do
       expect_no_offenses('alias_method :ala, :bala')
     end
@@ -111,6 +122,12 @@ RSpec.describe RuboCop::Cop::Style::Alias, :config do
         def foo
           alias :ala :bala
         end
+      RUBY
+    end
+
+    it 'does not register an offense for `alias` with interpolated symbol argument' do
+      expect_no_offenses(<<~'RUBY')
+        alias :"string#{interpolation}" :symbol
       RUBY
     end
 

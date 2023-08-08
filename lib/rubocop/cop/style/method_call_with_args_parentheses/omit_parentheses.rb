@@ -98,7 +98,7 @@ module RuboCop
 
           def call_in_literals?(node)
             parent = node.parent&.block_type? ? node.parent.parent : node.parent
-            return unless parent
+            return false unless parent
 
             parent.pair_type? ||
               parent.array_type? ||
@@ -109,7 +109,7 @@ module RuboCop
 
           def call_in_logical_operators?(node)
             parent = node.parent&.block_type? ? node.parent.parent : node.parent
-            return unless parent
+            return false unless parent
 
             logical_operator?(parent) ||
               (parent.send_type? &&
@@ -124,9 +124,10 @@ module RuboCop
             node.parent&.class_type? && node.parent&.single_line?
           end
 
-          def call_with_ambiguous_arguments?(node)
+          def call_with_ambiguous_arguments?(node) # rubocop:disable Metrics/PerceivedComplexity
             call_with_braced_block?(node) ||
               call_as_argument_or_chain?(node) ||
+              call_in_match_pattern?(node) ||
               hash_literal_in_arguments?(node) ||
               node.descendants.any? do |n|
                 n.forwarded_args_type? || ambiguous_literal?(n) || logical_operator?(n) ||
@@ -142,6 +143,10 @@ module RuboCop
             node.parent &&
               ((node.parent.send_type? && !assigned_before?(node.parent, node)) ||
               node.parent.csend_type? || node.parent.super_type? || node.parent.yield_type?)
+          end
+
+          def call_in_match_pattern?(node)
+            node.parent&.match_pattern_type?
           end
 
           def hash_literal_in_arguments?(node)

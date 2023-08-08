@@ -342,6 +342,12 @@ In Ruby 2.7, arguments forwarding has been added.
 This cop identifies places where `do_something(*args, &block)`
 can be replaced by `do_something(...)`.
 
+In Ruby 3.2, anonymous args/kwargs forwarding has been added.
+
+This cop also identifies places where `use_args(*args)`/`use_kwargs(**kwargs)` can be
+replaced by `use_args(*)`/`use_kwargs(**)`; if desired, this functionality can be disabled
+by setting UseAnonymousForwarding: false.
+
 === Examples
 
 [source,ruby]
@@ -362,7 +368,35 @@ def foo(...)
 end
 ----
 
-==== AllowOnlyRestArgument: true (default)
+==== UseAnonymousForwarding: true (default, only relevant for Ruby >= 3.2)
+
+[source,ruby]
+----
+# bad
+def foo(*args, **kwargs)
+  args_only(*args)
+  kwargs_only(**kwargs)
+end
+
+# good
+def foo(*, **)
+  args_only(*)
+  kwargs_only(**)
+end
+----
+
+==== UseAnonymousForwarding: false (only relevant for Ruby >= 3.2)
+
+[source,ruby]
+----
+# good
+def foo(*args, **kwargs)
+  args_only(*args)
+  kwargs_only(**kwargs)
+end
+----
+
+==== AllowOnlyRestArgument: true (default, only relevant for Ruby < 3.2)
 
 [source,ruby]
 ----
@@ -376,7 +410,7 @@ def foo(**kwargs)
 end
 ----
 
-==== AllowOnlyRestArgument: false
+==== AllowOnlyRestArgument: false (only relevant for Ruby < 3.2)
 
 [source,ruby]
 ----
@@ -398,6 +432,10 @@ end
 | Name | Default value | Configurable values
 
 | AllowOnlyRestArgument
+| `true`
+| Boolean
+
+| UseAnonymousForwarding
 | `true`
 | Boolean
 |===
@@ -5298,9 +5336,9 @@ EnforcedStyle.
 
 | Pending
 | Yes
-| Yes
+| Yes (Unsafe)
 | 1.10
-| 1.11
+| 1.55
 |===
 
 Checks the usage of pre-2.1 `Hash[args]` method of converting enumerables and
@@ -5309,6 +5347,17 @@ sequences of values to hashes.
 Correction code from splat argument (`Hash[*ary]`) is not simply determined. For example,
 `Hash[*ary]` can be replaced with `ary.each_slice(2).to_h` but it will be complicated.
 So, `AllowSplatArgument` option is true by default to allow splat argument for simple code.
+
+=== Safety
+
+This cop's autocorrection is unsafe because `ArgumentError` occurs
+if the number of elements is odd:
+
+[source,ruby]
+----
+Hash[[[1, 2], [3]]] #=> {1=>2, 3=>nil}
+[[1, 2], [5]].to_h  #=> wrong array length at 1 (expected 2, was 1) (ArgumentError)
+----
 
 === Examples
 
@@ -10678,7 +10727,7 @@ rand(1...7)
 | No
 | Yes (Unsafe)
 | 1.4
-| 1.40
+| 1.55
 |===
 
 Checks for a redundant argument passed to certain methods.
@@ -10717,6 +10766,8 @@ This cop is unsafe because of the following limitations:
 array.join('')
 [1, 2, 3].join("")
 array.sum(0)
+exit(true)
+exit!(false)
 string.split(" ")
 "first\nsecond".split(" ")
 string.chomp("\n")
@@ -10727,6 +10778,8 @@ A.foo(2)
 array.join
 [1, 2, 3].join
 array.sum
+exit
+exit!
 string.split
 "first second".split
 string.chomp
@@ -10740,7 +10793,7 @@ A.foo
 | Name | Default value | Configurable values
 
 | Methods
-| `{"join"=>"", "sum"=>0, "split"=>" ", "chomp"=>"\n", "chomp!"=>"\n"}`
+| `{"join"=>"", "sum"=>0, "exit"=>true, "exit!"=>false, "split"=>" ", "chomp"=>"\n", "chomp!"=>"\n"}`
 | 
 |===
 
@@ -11070,6 +11123,31 @@ end
 module A
   ::Const
 end
+----
+
+== Style/RedundantCurrentDirectoryInPath
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| Yes
+| 1.53
+| -
+|===
+
+Checks for uses a redundant current directory in path.
+
+=== Examples
+
+[source,ruby]
+----
+# bad
+require_relative './path/to/feature'
+
+# good
+require_relative 'path/to/feature'
 ----
 
 == Style/RedundantDoubleSplatHashBraces
@@ -11719,6 +11797,52 @@ question = '"What did you say?"'
 === References
 
 * https://rubystyle.guide#percent-q
+
+== Style/RedundantRegexpArgument
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| Yes
+| 1.53
+| -
+|===
+
+Identifies places where argument can be replaced from
+a deterministic regexp to a string.
+
+=== Examples
+
+[source,ruby]
+----
+# bad
+'foo'.byteindex(/f/)
+'foo'.byterindex(/f/)
+'foo'.gsub(/f/, 'x')
+'foo'.gsub!(/f/, 'x')
+'foo'.partition(/f/)
+'foo'.rpartition(/f/)
+'foo'.scan(/f/)
+'foo'.split(/f/)
+'foo'.start_with?(/f/)
+'foo'.sub(/f/, 'x')
+'foo'.sub!(/f/, 'x')
+
+# good
+'foo'.byteindex('f')
+'foo'.byterindex('f')
+'foo'.gsub('f', 'x')
+'foo'.gsub!('f', 'x')
+'foo'.partition('f')
+'foo'.rpartition('f')
+'foo'.scan('f')
+'foo'.split('f')
+'foo'.start_with?('f')
+'foo'.sub('f', 'x')
+'foo'.sub!('f', 'x')
+----
 
 == Style/RedundantRegexpCharacterClass
 
@@ -12647,6 +12771,93 @@ end
 | `return`
 | `return`, `return_nil`
 |===
+
+== Style/ReturnNilInPredicateMethodDefinition
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| Yes (Unsafe)
+| 1.53
+| -
+|===
+
+Checks if `return` or `return nil` is used in predicate method definitions.
+
+=== Safety
+
+Autocorrection is marked as unsafe because the change of the return value
+from `nil` to `false` could potentially lead to incompatibility issues.
+
+=== Examples
+
+[source,ruby]
+----
+# bad
+def foo?
+  return if condition
+
+  do_something?
+end
+
+# bad
+def foo?
+  return nil if condition
+
+  do_something?
+end
+
+# good
+def foo?
+  return false if condition
+
+  do_something?
+end
+----
+
+==== AllowedMethods: ['foo?']
+
+[source,ruby]
+----
+# good
+def foo?
+  return if condition
+
+  do_something?
+end
+----
+
+==== AllowedPatterns: [/foo/]
+
+[source,ruby]
+----
+# good
+def foo?
+  return if condition
+
+  do_something?
+end
+----
+
+=== Configurable attributes
+
+|===
+| Name | Default value | Configurable values
+
+| AllowedMethods
+| `[]`
+| Array
+
+| AllowedPatterns
+| `[]`
+| Array
+|===
+
+=== References
+
+* https://rubystyle.guide#bool-methods-qmark
 
 == Style/SafeNavigation
 
@@ -14132,6 +14343,15 @@ array of 2 or fewer elements.
 
 # bad
 [:foo, :bar, :baz]
+
+# bad (contains spaces)
+%i[foo\ bar baz\ quux]
+
+# bad (contains [] with spaces)
+%i[foo \[ \]]
+
+# bad (contains () with spaces)
+%i(foo \( \))
 ----
 
 ==== EnforcedStyle: brackets
@@ -15726,6 +15946,42 @@ array of 2 or fewer elements.
 === References
 
 * https://rubystyle.guide#percent-w
+
+== Style/YAMLFileRead
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| Yes
+| 1.53
+| -
+|===
+
+Checks for the use of `YAML.load`, `YAML.safe_load`, and `YAML.parse` with
+`File.read` argument.
+
+NOTE: `YAML.safe_load_file` was introduced in Ruby 3.0.
+
+=== Examples
+
+[source,ruby]
+----
+# bad
+YAML.load(File.read(path))
+YAML.parse(File.read(path))
+
+# good
+YAML.load_file(path)
+YAML.parse_file(path)
+
+# bad
+YAML.safe_load(File.read(path)) # Ruby 3.0 and newer
+
+# good
+YAML.safe_load_file(path)       # Ruby 3.0 and newer
+----
 
 == Style/YodaCondition
 

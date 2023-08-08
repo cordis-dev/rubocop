@@ -116,7 +116,7 @@ module RuboCop
           return false if argument_newline?(node)
 
           source = node.parent ? node.parent.source : node.source
-          parse(source.gsub(/\\\n/, "\n")).valid_syntax?
+          parse(source.gsub("\\\n", "\n")).valid_syntax?
         end
 
         def inside_string_literal?(range, token)
@@ -150,7 +150,7 @@ module RuboCop
         end
 
         def same_line?(node, line)
-          return unless (source_range = node.source_range)
+          return false unless (source_range = node.source_range)
 
           if node.is_a?(AST::StrNode)
             if node.heredoc?

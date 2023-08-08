@@ -270,6 +270,23 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
+  context 'when a variable is assigned and unreferenced in `for` with multiple variables' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        for i, j in items
+               ^ Useless assignment to variable - `j`.
+          do_something(i)
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        for i, _ in items
+          do_something(i)
+        end
+      RUBY
+    end
+  end
+
   context 'when a variable is assigned and referenced in `for`' do
     it 'does not register an offense' do
       expect_no_offenses(<<~RUBY)
@@ -1189,6 +1206,42 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
           foo = 1
           foo, bar = do_something(foo)
           puts foo, bar
+        end
+      RUBY
+    end
+  end
+
+  context 'when part of a multiple assignment is enclosed in parentheses' do
+    it 'registers an offense when the variable in parentheses is not used' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo, (bar, baz) = do_something
+                     ^^^ Useless assignment to variable - `baz`. Use `_` or `_baz` as a variable name to indicate that it won't be used.
+          puts foo, bar
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def some_method
+          foo, (bar, _) = do_something
+          puts foo, bar
+        end
+      RUBY
+    end
+
+    it 'registers an offense when the variable in nested parentheses is not used' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo, (bar, (baz, qux)) = do_something
+                           ^^^ Useless assignment to variable - `qux`. Use `_` or `_qux` as a variable name to indicate that it won't be used.
+          puts foo, bar, baz
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def some_method
+          foo, (bar, (baz, _)) = do_something
+          puts foo, bar, baz
         end
       RUBY
     end

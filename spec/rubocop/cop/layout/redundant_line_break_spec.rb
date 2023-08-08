@@ -341,6 +341,24 @@ RSpec.describe RuboCop::Cop::Layout::RedundantLineBreak, :config do
               .baz
           RUBY
         end
+
+        it 'does not register an offense with a line broken string argument' do
+          expect_no_offenses(<<~RUBY)
+            foo('
+              xyz
+            ')
+              .bar
+              .baz
+          RUBY
+        end
+
+        it 'does not register an offense when the `%` form string `"%\n\n"` at the end of file' do
+          expect_no_offenses("%\n\n")
+        end
+
+        it 'does not register an offense when assigning the `%` form string `"%\n\n"` to a variable at the end of file' do
+          expect_no_offenses("x = %\n\n")
+        end
       end
     end
 

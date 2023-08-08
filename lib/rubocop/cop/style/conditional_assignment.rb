@@ -361,7 +361,7 @@ module RuboCop
         end
 
         def assignment_types_match?(*nodes)
-          return unless assignment_type?(nodes.first)
+          return false unless assignment_type?(nodes.first)
 
           nodes.map(&:type).uniq.one?
         end
@@ -440,6 +440,8 @@ module RuboCop
       module ConditionalCorrectorHelper
         def remove_whitespace_in_branches(corrector, branch, condition, column)
           branch.each_node do |child|
+            next if child.source_range.nil?
+
             white_space = white_space_range(child, column)
             corrector.remove(white_space) if white_space.source.strip.empty?
           end

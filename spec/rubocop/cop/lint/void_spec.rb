@@ -349,6 +349,15 @@ RSpec.describe RuboCop::Cop::Lint::Void, :config do
         baz
       RUBY
     end
+
+    it 'does not register an offense when using a method definition' do
+      expect_no_offenses(<<~RUBY)
+        def merge
+        end
+
+        42
+      RUBY
+    end
   end
 
   context 'when not checking for methods with no side effects' do
@@ -548,6 +557,22 @@ RSpec.describe RuboCop::Cop::Lint::Void, :config do
       def foo
         1...100.times.each { puts 1 }
         do_something
+      end
+    RUBY
+  end
+
+  it 'registers offense when using special __ENCODING__' do
+    expect_offense(<<~RUBY)
+      def foo
+        __ENCODING__
+        ^^^^^^^^^^^^ Variable `__ENCODING__` used in void context.
+        42
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def foo
+        42
       end
     RUBY
   end

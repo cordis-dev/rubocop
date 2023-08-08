@@ -30,6 +30,7 @@ AllCops:
     - '**/*.rbx'
     - '**/*.ru'
     - '**/*.ruby'
+    - '**/*.schema'
     - '**/*.spec'
     - '**/*.thor'
     - '**/*.watchr'
@@ -55,6 +56,7 @@ AllCops:
     - '**/Puppetfile'
     - '**/Rakefile'
     - '**/rakefile'
+    - '**/Schemafile'
     - '**/Snapfile'
     - '**/Steepfile'
     - '**/Thorfile'
@@ -467,7 +469,9 @@ Layout/ClassStructure:
   Description: 'Enforces a configured order of definitions within a class body.'
   StyleGuide: '#consistent-classes'
   Enabled: false
+  SafeAutoCorrect: false
   VersionAdded: '0.52'
+  VersionChanged: '1.53'
   Categories:
     module_inclusion:
       - include
@@ -575,6 +579,8 @@ Layout/EmptyLineBetweenDefs:
   EmptyLineBetweenMethodDefs: true
   EmptyLineBetweenClassDefs: true
   EmptyLineBetweenModuleDefs: true
+  # `DefLikeMacros` takes the name of any macro that you want to treat like a def.
+  DefLikeMacros: []
   # `AllowAdjacentOneLineDefs` means that single line method definitions don't
   # need an empty line between them. `true` by default.
   AllowAdjacentOneLineDefs: true
@@ -1530,7 +1536,6 @@ Lint/AmbiguousBlockAssociation:
   Description: >-
                  Checks for ambiguous block association with method when param passed without
                  parentheses.
-  StyleGuide: '#syntax'
   Enabled: true
   VersionAdded: '0.48'
   VersionChanged: '1.13'
@@ -1988,8 +1993,15 @@ Lint/MissingSuper:
                   Checks for the presence of constructors and lifecycle callbacks
                   without calls to `super`.
   Enabled: true
+  AllowedParentClasses: []
   VersionAdded: '0.89'
   VersionChanged: '1.4'
+
+Lint/MixedCaseRange:
+  Description: 'Checks for mixed-case character ranges since they include likely unintended characters.'
+  Enabled: pending
+  SafeAutoCorrect: false
+  VersionAdded: '1.53'
 
 Lint/MixedRegexpCaptureTypes:
   Description: 'Do not mix named captures and numbered captures in a Regexp literal.'
@@ -2139,6 +2151,11 @@ Lint/RedundantDirGlobSort:
   VersionAdded: '1.8'
   VersionChanged: '1.26'
   SafeAutoCorrect: false
+
+Lint/RedundantRegexpQuantifiers:
+  Description: 'Checks for redundant quantifiers in Regexps.'
+  Enabled: pending
+  VersionAdded: '1.53'
 
 Lint/RedundantRequireStatement:
   Description: 'Checks for unnecessary `require` statement.'
@@ -3055,6 +3072,7 @@ Style/ArgumentsForwarding:
   StyleGuide: '#arguments-forwarding'
   Enabled: pending
   AllowOnlyRestArgument: true
+  UseAnonymousForwarding: true
   VersionAdded: '1.1'
 
 Style/ArrayCoercion:
@@ -3899,8 +3917,9 @@ Style/HashConversion:
   Description: 'Avoid Hash[] in favor of ary.to_h or literal hashes.'
   StyleGuide: '#avoid-hash-constructor'
   Enabled: pending
+  SafeAutoCorrect: false
   VersionAdded: '1.10'
-  VersionChanged: '1.11'
+  VersionChanged: '1.55'
   AllowSplatArgument: true
 
 Style/HashEachMethods:
@@ -4793,12 +4812,16 @@ Style/RedundantArgument:
   Enabled: pending
   Safe: false
   VersionAdded: '1.4'
-  VersionChanged: '1.40'
+  VersionChanged: '1.55'
   Methods:
     # Array#join
     join: ''
     # Array#sum
     sum: 0
+    # Kernel.#exit
+    exit: true
+    # Kernel.#exit!
+    exit!: false
     # String#split
     split: ' '
     # String#chomp
@@ -4842,6 +4865,11 @@ Style/RedundantConstantBase:
   Description: Avoid redundant `::` prefix on constant.
   Enabled: pending
   VersionAdded: '1.40'
+
+Style/RedundantCurrentDirectoryInPath:
+  Description: 'Checks for uses a redundant current directory in path.'
+  Enabled: pending
+  VersionAdded: '1.53'
 
 Style/RedundantDoubleSplatHashBraces:
   Description: 'Checks for redundant uses of double splat hash braces.'
@@ -4930,6 +4958,11 @@ Style/RedundantPercentQ:
   StyleGuide: '#percent-q'
   Enabled: true
   VersionAdded: '0.76'
+
+Style/RedundantRegexpArgument:
+  Description: 'Identifies places where argument can be replaced from a deterministic regexp to a string.'
+  Enabled: pending
+  VersionAdded: '1.53'
 
 Style/RedundantRegexpCharacterClass:
   Description: 'Checks for unnecessary single-element Regexp character classes.'
@@ -5042,6 +5075,15 @@ Style/ReturnNil:
     - return
     - return_nil
   VersionAdded: '0.50'
+
+Style/ReturnNilInPredicateMethodDefinition:
+  Description: 'Checks if uses of `return` or `return nil` in predicate method definition.'
+  StyleGuide: '#bool-methods-qmark'
+  Enabled: pending
+  SafeAutoCorrect: false
+  AllowedMethods: []
+  AllowedPatterns: []
+  VersionAdded: '1.53'
 
 Style/SafeNavigation:
   Description: >-
@@ -5526,6 +5568,11 @@ Style/WordArray:
   MinSize: 2
   # The regular expression `WordRegex` decides what is considered a word.
   WordRegex: !ruby/regexp '/\A(?:\p{Word}|\p{Word}-\p{Word}|\n|\t)+\z/'
+
+Style/YAMLFileRead:
+  Description: 'Checks for the use of `YAML.load`, `YAML.safe_load`, and `YAML.parse` with `File.read` argument.'
+  Enabled: pending
+  VersionAdded: '1.53'
 
 Style/YodaCondition:
   Description: 'Forbid or enforce yoda conditions.'

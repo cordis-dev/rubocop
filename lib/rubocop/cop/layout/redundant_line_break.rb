@@ -48,6 +48,10 @@ module RuboCop
 
         MSG = 'Redundant line break detected.'
 
+        def on_lvasgn(node)
+          super unless end_with_percent_blank_string?(processed_source)
+        end
+
         def on_send(node)
           # Include "the whole expression".
           node = node.parent while node.parent&.send_type? ||
@@ -60,6 +64,10 @@ module RuboCop
         end
 
         private
+
+        def end_with_percent_blank_string?(processed_source)
+          processed_source.buffer.source.end_with?("%\n\n")
+        end
 
         def check_assignment(node, _rhs)
           return unless offense?(node)
@@ -99,7 +107,7 @@ module RuboCop
         def suitable_as_single_line?(node)
           !comment_within?(node) &&
             node.each_descendant(:if, :case, :kwbegin, :def).none? &&
-            node.each_descendant(:dstr, :str).none?(&:heredoc?) &&
+            node.each_descendant(:dstr, :str).none? { |n| n.heredoc? || n.value.include?("\n") } &&
             node.each_descendant(:begin).none? { |b| !b.single_line? }
         end
 
