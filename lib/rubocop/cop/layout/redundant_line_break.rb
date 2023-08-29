@@ -106,7 +106,7 @@ module RuboCop
 
         def suitable_as_single_line?(node)
           !comment_within?(node) &&
-            node.each_descendant(:if, :case, :kwbegin, :def).none? &&
+            node.each_descendant(:if, :case, :kwbegin, :def, :defs).none? &&
             node.each_descendant(:dstr, :str).none? { |n| n.heredoc? || n.value.include?("\n") } &&
             node.each_descendant(:begin).none? { |b| !b.single_line? }
         end
@@ -118,7 +118,9 @@ module RuboCop
         end
 
         def comment_within?(node)
-          processed_source.comments.map(&:loc).map(&:line).any? do |comment_line_number|
+          comment_line_numbers = processed_source.comments.map { |comment| comment.loc.line }
+
+          comment_line_numbers.any? do |comment_line_number|
             comment_line_number >= node.first_line && comment_line_number <= node.last_line
           end
         end
