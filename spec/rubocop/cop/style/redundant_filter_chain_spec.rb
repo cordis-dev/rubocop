@@ -56,6 +56,12 @@ RSpec.describe RuboCop::Cop::Style::RedundantFilterChain, :config do
       RUBY
     end
 
+    it "does not register an offense when using `##{method}` followed by `#present?`" do
+      expect_no_offenses(<<~RUBY)
+        arr.#{method} { |x| x > 1 }.present?
+      RUBY
+    end
+
     it "does not register an offense when using `##{method}` without a block followed by `#any?`" do
       expect_no_offenses(<<~RUBY)
         relation.#{method}(:name).any?
@@ -68,6 +74,52 @@ RSpec.describe RuboCop::Cop::Style::RedundantFilterChain, :config do
         arr.#{method}(&:odd?).any?(Integer)
         arr.#{method}(&:odd?).any? { |x| x > 10 }
       RUBY
+    end
+
+    context 'when using safe navigation operator' do
+      it "registers an offense when using `##{method}` followed by `#any?`" do
+        expect_offense(<<~RUBY, method: method)
+          arr&.%{method} { |x| x > 1 }&.any?
+               ^{method}^^^^^^^^^^^^^^^^^^^^ Use `any?` instead of `#{method}.any?`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          arr&.any? { |x| x > 1 }
+        RUBY
+      end
+
+      it "registers an offense when using `##{method}` followed by `#empty?`" do
+        expect_offense(<<~RUBY, method: method)
+          arr&.%{method} { |x| x > 1 }&.empty?
+               ^{method}^^^^^^^^^^^^^^^^^^^^^^ Use `none?` instead of `#{method}.empty?`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          arr&.none? { |x| x > 1 }
+        RUBY
+      end
+
+      it "registers an offense when using `##{method}` followed by `#none?`" do
+        expect_offense(<<~RUBY, method: method)
+          arr&.%{method} { |x| x > 1 }&.none?
+               ^{method}^^^^^^^^^^^^^^^^^^^^^ Use `none?` instead of `#{method}.none?`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          arr&.none? { |x| x > 1 }
+        RUBY
+      end
+
+      it "registers an offense when using `##{method}` with block-pass followed by `#none?`" do
+        expect_offense(<<~RUBY, method: method)
+          arr&.%{method}(&:odd?)&.none?
+               ^{method}^^^^^^^^^^^^^^^ Use `none?` instead of `#{method}.none?`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          arr&.none?(&:odd?)
+        RUBY
+      end
     end
   end
 
@@ -90,6 +142,17 @@ RSpec.describe RuboCop::Cop::Style::RedundantFilterChain, :config do
 
       expect_correction(<<~RUBY)
         arr.many? { |x| x > 1 }
+      RUBY
+    end
+
+    it 'registers an offense when using `#select` followed by `#present?`' do
+      expect_offense(<<~RUBY)
+        arr.select { |x| x > 1 }.present?
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `any?` instead of `select.present?`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        arr.any? { |x| x > 1 }
       RUBY
     end
   end

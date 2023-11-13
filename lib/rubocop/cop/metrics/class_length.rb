@@ -11,6 +11,8 @@ module RuboCop
       # Available are: 'array', 'hash', 'heredoc', and 'method_call'. Each construct
       # will be counted as one line regardless of its actual size.
       #
+      # NOTE: This cop also applies for `Struct` definitions.
+      #
       # @example CountAsOne: ['array', 'heredoc', 'method_call']
       #
       #   class Foo
@@ -34,15 +36,18 @@ module RuboCop
       #     )
       #   end                 # 6 points
       #
-      #
-      # NOTE: This cop also applies for `Struct` definitions.
       class ClassLength < Base
         include CodeLength
 
         def on_class(node)
           check_code_length(node)
         end
-        alias on_sclass on_class
+
+        def on_sclass(node)
+          return if node.each_ancestor(:class).any?
+
+          on_class(node)
+        end
 
         def on_casgn(node)
           parent = node.parent

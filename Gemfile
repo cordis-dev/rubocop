@@ -12,7 +12,7 @@ gem 'rake', '~> 13.0'
 gem 'rspec', '~> 3.7'
 gem 'rubocop-performance', '~> 1.19.0'
 gem 'rubocop-rake', '~> 0.6.0'
-gem 'rubocop-rspec', '~> 2.23.0'
+gem 'rubocop-rspec', '~> 2.25.0'
 # Workaround for cc-test-reporter with SimpleCov 0.18.
 # Stop upgrading SimpleCov until the following issue will be resolved.
 # https://github.com/codeclimate/test-reporter/issues/418
@@ -22,6 +22,9 @@ gem 'test-queue'
 gem 'yard', '~> 0.9'
 
 group :test do
+  # FIXME: This `base64` dependency can be removed when https://github.com/bblimke/webmock/pull/1041
+  # is merged and released. It's a workaround until then.
+  gem 'base64'
   # FIXME: This `bigdecimal` dependency can be removed when https://github.com/jnunemaker/crack/pull/75
   # is merged and released. It's a workaround until then.
   gem 'bigdecimal', platform: :mri

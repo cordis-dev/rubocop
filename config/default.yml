@@ -1351,6 +1351,10 @@ Layout/SpaceAroundOperators:
   SupportedStylesForExponentOperator:
     - space
     - no_space
+  EnforcedStyleForRationalLiterals: no_space
+  SupportedStylesForRationalLiterals:
+    - space
+    - no_space
 
 Layout/SpaceBeforeBlockBraces:
   Description: >-
@@ -2170,7 +2174,9 @@ Lint/RedundantRegexpQuantifiers:
 Lint/RedundantRequireStatement:
   Description: 'Checks for unnecessary `require` statement.'
   Enabled: true
+  SafeAutoCorrect: false
   VersionAdded: '0.76'
+  VersionChanged: '1.57'
 
 Lint/RedundantSafeNavigation:
   Description: 'Checks for redundant safe navigation calls.'
@@ -3354,7 +3360,9 @@ Style/ClassEqualityComparison:
   Description: 'Enforces the use of `Object#instance_of?` instead of class comparison for equality.'
   StyleGuide: '#instance-of-vs-class-comparison'
   Enabled: true
+  SafeAutoCorrect: false
   VersionAdded: '0.93'
+  VersionChanged: '1.57'
   AllowedMethods:
     - ==
     - equal?
@@ -3409,6 +3417,7 @@ Style/CollectionMethods:
   PreferredMethods:
     collect: 'map'
     collect!: 'map!'
+    collect_concat: 'flat_map'
     inject: 'reduce'
     detect: 'find'
     find_all: 'select'
@@ -4130,12 +4139,6 @@ Style/InvertibleUnlessCondition:
     :none?: :any?
     :even?: :odd?
     :odd?: :even?
-    # `ActiveSupport` defines some common inverse methods. They are listed below,
-    # and not enabled by default.
-    # :present?: :blank?
-    # :blank?: :present?
-    # :include?: :exclude?
-    # :exclude?: :include?
 
 Style/IpAddresses:
   Description: "Don't include literal IP addresses in code."
@@ -4903,7 +4906,7 @@ Style/RedundantFetchBlock:
   Description: >-
                   Use `fetch(key, value)` instead of `fetch(key) { value }`
                   when value has Numeric, Rational, Complex, Symbol or String type, `false`, `true`, `nil` or is a constant.
-  Reference: 'https://github.com/JuanitoFatas/fast-ruby#hashfetch-with-argument-vs-hashfetch--block-code'
+  Reference: 'https://github.com/fastruby/fast-ruby#hashfetch-with-argument-vs-hashfetch--block-code'
   Enabled: true
   Safe: false
   # If enabled, this cop will autocorrect usages of
@@ -4925,7 +4928,9 @@ Style/RedundantFilterChain:
                   Identifies usages of `any?`, `empty?`, `none?` or `one?` predicate methods chained to
                   `select`/`filter`/`find_all` and change them to use predicate method instead.
   Enabled: pending
+  SafeAutoCorrect: false
   VersionAdded: '1.52'
+  VersionChanged: '1.57'
 
 Style/RedundantFreeze:
   Description: "Checks usages of Object#freeze on immutable objects."
@@ -5122,7 +5127,7 @@ Style/Sample:
   Description: >-
                   Use `sample` instead of `shuffle.first`,
                   `shuffle.last`, and `shuffle[Integer]`.
-  Reference: 'https://github.com/JuanitoFatas/fast-ruby#arrayshufflefirst-vs-arraysample-code'
+  Reference: 'https://github.com/fastruby/fast-ruby#arrayshufflefirst-vs-arraysample-code'
   Enabled: true
   VersionAdded: '0.30'
 
@@ -5186,6 +5191,12 @@ Style/SingleLineBlockParams:
     - inject:
         - acc
         - elem
+
+Style/SingleLineDoEndBlock:
+  Description: 'Checks for single-line `do`...`end` blocks.'
+  StyleGuide: '#single-line-do-end-block'
+  Enabled: pending
+  VersionAdded: '1.57'
 
 Style/SingleLineMethods:
   Description: 'Avoid single-line methods.'

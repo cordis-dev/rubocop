@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-require 'base64'
 require 'cgi'
 require 'erb'
-require 'ostruct'
 
 module RuboCop
   module Formatter
@@ -88,7 +86,7 @@ module RuboCop
         # rubocop:enable Lint/UselessMethodDefinition
 
         def decorated_message(offense)
-          offense.message.gsub(/`(.+?)`/) { "<code>#{Regexp.last_match(1)}</code>" }
+          offense.message.gsub(/`(.+?)`/) { "<code>#{escape(Regexp.last_match(1))}</code>" }
         end
 
         def highlighted_source_line(offense)
@@ -124,7 +122,10 @@ module RuboCop
 
         def base64_encoded_logo_image
           image = File.read(LOGO_IMAGE_PATH, binmode: true)
-          Base64.encode64(image)
+
+          # `Base64.encode64` compatible:
+          # https://github.com/ruby/base64/blob/v0.1.1/lib/base64.rb#L27-L40
+          [image].pack('m')
         end
       end
     end

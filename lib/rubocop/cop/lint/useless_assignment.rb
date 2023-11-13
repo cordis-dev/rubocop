@@ -7,11 +7,17 @@ module RuboCop
       # scope.
       # The basic idea for this cop was from the warning of `ruby -cw`:
       #
-      #   assigned but unused variable - foo
+      # [source,console]
+      # ----
+      # assigned but unused variable - foo
+      # ----
       #
       # Currently this cop has advanced logic that detects unreferenced
       # reassignments and properly handles varied cases such as branch, loop,
       # rescue, ensure, etc.
+      #
+      # NOTE: Given the assignment `foo = 1, bar = 2`, removing unused variables
+      # can lead to a syntax error, so this case is not autocorrected.
       #
       # @safety
       #   This cop's autocorrection is unsafe because removing assignment from
@@ -51,30 +57,51 @@ module RuboCop
           scope.variables.each_value { |variable| check_for_unused_assignments(variable) }
         end
 
+        # rubocop:disable Metrics/AbcSize
         def check_for_unused_assignments(variable)
           return if variable.should_be_unused?
 
           variable.assignments.each do |assignment|
-            next if assignment.used?
+            next if assignment.used? || part_of_ignored_node?(assignment.node)
 
             message = message_for_useless_assignment(assignment)
+            range = offense_range(assignment)
 
-            location = if assignment.regexp_named_capture?
-                         assignment.node.children.first.source_range
-                       else
-                         assignment.node.loc.name
-                       end
-
-            add_offense(location, message: message) do |corrector|
-              autocorrect(corrector, assignment)
+            add_offense(range, message: message) do |corrector|
+              autocorrect(corrector, assignment) unless sequential_assignment?(assignment.node)
             end
+
+            ignore_node(assignment.node) if chained_assignment?(assignment.node)
           end
         end
+        # rubocop:enable Metrics/AbcSize
 
         def message_for_useless_assignment(assignment)
           variable = assignment.variable
 
           format(MSG, variable: variable.name) + message_specification(assignment, variable).to_s
+        end
+
+        def offense_range(assignment)
+          if assignment.regexp_named_capture?
+            assignment.node.children.first.source_range
+          else
+            assignment.node.loc.name
+          end
+        end
+
+        def sequential_assignment?(node)
+          if node.lvasgn_type? && node.expression&.array_type? &&
+             node.each_descendant.any?(&:assignment?)
+            return true
+          end
+          return false unless node.parent
+
+          sequential_assignment?(node.parent)
+        end
+
+        def chained_assignment?(node)
+          node.respond_to?(:expression) && node.expression&.lvasgn_type?
         end
 
         def message_specification(assignment, variable)

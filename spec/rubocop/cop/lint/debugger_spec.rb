@@ -23,6 +23,23 @@ RSpec.describe RuboCop::Cop::Lint::Debugger, :config do
       RUBY
     end
 
+    it 'registers an offense for a `custom_debugger` call when used in block' do
+      expect_offense(<<~RUBY)
+        x.y = do_something { custom_debugger }
+                             ^^^^^^^^^^^^^^^ Remove debugger entry point `custom_debugger`.
+      RUBY
+    end
+
+    it 'registers an offense for a `custom_debugger` call when used in numbered block' do
+      expect_offense(<<~RUBY)
+        x.y = do_something do
+          z(_1)
+          custom_debugger
+          ^^^^^^^^^^^^^^^ Remove debugger entry point `custom_debugger`.
+        end
+      RUBY
+    end
+
     it 'registers an offense for a `custom_debugger` call when used in lambda literal' do
       expect_offense(<<~RUBY)
         x.y = -> { custom_debugger }
@@ -48,6 +65,17 @@ RSpec.describe RuboCop::Cop::Lint::Debugger, :config do
       expect_offense(<<~RUBY)
         x.y = Proc.new { custom_debugger }
                          ^^^^^^^^^^^^^^^ Remove debugger entry point `custom_debugger`.
+      RUBY
+    end
+
+    it 'registers an offense for a `custom_debugger` call when used within method arguments a `begin`...`end` block' do
+      expect_offense(<<~RUBY)
+        do_something(
+          begin
+            custom_debugger
+            ^^^^^^^^^^^^^^^ Remove debugger entry point `custom_debugger`.
+          end
+        )
       RUBY
     end
 
@@ -170,6 +198,14 @@ RSpec.describe RuboCop::Cop::Lint::Debugger, :config do
         let(:p) { foo }
 
         it { expect(do_something(k: p)).to eq bar }
+      RUBY
+    end
+
+    it 'does not register an offense when `p` is a array argument of method call' do
+      expect_no_offenses(<<~RUBY)
+        let(:p) { foo }
+
+        it { expect(do_something([k, p])).to eq bar }
       RUBY
     end
   end

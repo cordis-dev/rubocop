@@ -1198,6 +1198,38 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
+  context 'when variables are assigned using chained assignment and remain unreferenced' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo = bar = do_something
+          ^^^ Useless assignment to variable - `foo`.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def some_method
+          bar = do_something
+        end
+      RUBY
+    end
+  end
+
+  context 'when variables are assigned with sequential assignment using the comma operator and unreferenced' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo = 1, bar = 2
+          ^^^ Useless assignment to variable - `foo`.
+                   ^^^ Useless assignment to variable - `bar`.
+        end
+      RUBY
+
+      # NOTE: Removing the unused variables causes a syntax error, so it can't be autocorrected.
+      expect_no_corrections
+    end
+  end
+
   context 'when a variable is reassigned with multiple assignment ' \
           'while referencing itself in rhs and referenced' do
     it 'accepts' do

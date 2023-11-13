@@ -6,6 +6,12 @@ module RuboCop
       # Identifies usages of `any?`, `empty?` or `none?` predicate methods
       # chained to `select`/`filter`/`find_all` and change them to use predicate method instead.
       #
+      # @safety
+      #   This cop's autocorrection is unsafe because `array.select.any?` evaluates all elements
+      #   through the `select` method, while `array.any?` uses short-circuit evaluation.
+      #   In other words, `array.select.any?` guarantees the evaluation of every element,
+      #   but `array.any?` does not necessarily evaluate all of them.
+      #
       # @example
       #   # bad
       #   arr.select { |x| x > 1 }.any?
@@ -28,6 +34,9 @@ module RuboCop
       #   # good
       #   arr.select { |x| x > 1 }.many?
       #
+      #   # good
+      #   arr.select { |x| x > 1 }.present?
+      #
       # @example AllCops:ActiveSupportExtensionsEnabled: true
       #   # bad
       #   arr.select { |x| x > 1 }.many?
@@ -35,20 +44,26 @@ module RuboCop
       #   # good
       #   arr.many? { |x| x > 1 }
       #
+      #   # bad
+      #   arr.select { |x| x > 1 }.present?
+      #
+      #   # good
+      #   arr.any? { |x| x > 1 }
+      #
       class RedundantFilterChain < Base
         extend AutoCorrector
 
         MSG = 'Use `%<prefer>s` instead of `%<first_method>s.%<second_method>s`.'
 
-        RAILS_METHODS = %i[many?].freeze
+        RAILS_METHODS = %i[many? present?].freeze
         RESTRICT_ON_SEND = (%i[any? empty? none? one?] + RAILS_METHODS).freeze
 
         # @!method select_predicate?(node)
         def_node_matcher :select_predicate?, <<~PATTERN
-          (send
+          (call
             {
-              (block $(send _ {:select :filter :find_all}) ...)
-              $(send _ {:select :filter :find_all} block_pass_type?)
+              (block $(call _ {:select :filter :find_all}) ...)
+              $(call _ {:select :filter :find_all} block_pass_type?)
             }
             ${:#{RESTRICT_ON_SEND.join(' :')}})
         PATTERN
@@ -58,7 +73,8 @@ module RuboCop
           empty?: :none?,
           none?: :none?,
           one?: :one?,
-          many?: :many?
+          many?: :many?,
+          present?: :any?
         }.freeze
         private_constant :REPLACEMENT_METHODS
 
@@ -71,6 +87,7 @@ module RuboCop
             register_offense(select_node, node)
           end
         end
+        alias on_csend on_send
 
         private
 
