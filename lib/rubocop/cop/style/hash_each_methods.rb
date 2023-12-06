@@ -17,10 +17,16 @@ module RuboCop
       # @example
       #   # bad
       #   hash.keys.each { |k| p k }
-      #   hash.values.each { |v| p v }
+      #   hash.each { |k, unused_value| p k }
       #
       #   # good
       #   hash.each_key { |k| p k }
+      #
+      #   # bad
+      #   hash.values.each { |v| p v }
+      #   hash.each { |unused_key, v| p v }
+      #
+      #   # good
       #   hash.each_value { |v| p v }
       #
       # @example AllowedReceivers: ['execute']
@@ -33,22 +39,44 @@ module RuboCop
         extend AutoCorrector
 
         MSG = 'Use `%<prefer>s` instead of `%<current>s`.'
+        UNUSED_BLOCK_ARG_MSG = "#{MSG.chop} and remove the unused `%<unused_code>s` block argument."
 
         # @!method kv_each(node)
         def_node_matcher :kv_each, <<~PATTERN
-          ({block numblock} $(send (send _ ${:keys :values}) :each) ...)
+          ({block numblock} $(call (call _ ${:keys :values}) :each) ...)
+        PATTERN
+
+        # @!method each_arguments(node)
+        def_node_matcher :each_arguments, <<~PATTERN
+          (block (call _ :each)(args $_key $_value) ...)
         PATTERN
 
         # @!method kv_each_with_block_pass(node)
         def_node_matcher :kv_each_with_block_pass, <<~PATTERN
-          (send $(send _ ${:keys :values}) :each (block_pass (sym _)))
+          (call $(call _ ${:keys :values}) :each (block_pass (sym _)))
         PATTERN
 
+        # rubocop:disable Metrics/AbcSize
         def on_block(node)
           kv_each(node) do |target, method|
-            register_kv_offense(target, method)
+            register_kv_offense(target, method) and return
+          end
+
+          return unless (key, value = each_arguments(node))
+
+          if unused_block_arg_exist?(node, value)
+            message = message('each_key', node.method_name, value.source)
+            unused_range = key.source_range.end.join(value.source_range.end)
+
+            register_each_args_offense(node, message, 'each_key', unused_range)
+          elsif unused_block_arg_exist?(node, key)
+            message = message('each_value', node.method_name, key.source)
+            unused_range = key.source_range.begin.join(value.source_range.begin)
+
+            register_each_args_offense(node, message, 'each_value', unused_range)
           end
         end
+        # rubocop:enable Metrics/AbcSize
 
         alias on_numblock on_block
 
@@ -64,8 +92,35 @@ module RuboCop
           return unless (parent_receiver = target.receiver.receiver)
           return if allowed_receiver?(parent_receiver)
 
-          add_offense(kv_range(target), message: format_message(method)) do |corrector|
+          current = target.receiver.loc.selector.join(target.source_range.end).source
+
+          add_offense(kv_range(target), message: format_message(method, current)) do |corrector|
             correct_key_value_each(target, corrector)
+          end
+        end
+
+        def unused_block_arg_exist?(node, block_arg)
+          lvar_sources = node.body.each_descendant(:lvar).map(&:source)
+
+          if block_arg.mlhs_type?
+            block_arg.each_descendant(:arg).all? do |block_arg|
+              lvar_sources.none?(block_arg.source)
+            end
+          else
+            lvar_sources.none?(block_arg.source)
+          end
+        end
+
+        def message(prefer, method_name, unused_code)
+          format(
+            UNUSED_BLOCK_ARG_MSG, prefer: prefer, current: method_name, unused_code: unused_code
+          )
+        end
+
+        def register_each_args_offense(node, message, prefer, unused_range)
+          add_offense(node, message: message) do |corrector|
+            corrector.replace(node.send_node.loc.selector, prefer)
+            corrector.remove(unused_range)
           end
         end
 
@@ -73,14 +128,15 @@ module RuboCop
           return unless (parent_receiver = node.parent.receiver.receiver)
           return if allowed_receiver?(parent_receiver)
 
-          range = target.loc.selector.with(end_pos: node.parent.loc.selector.end_pos)
-          add_offense(range, message: format_message(method)) do |corrector|
+          range = target.loc.selector.join(node.parent.loc.selector.end)
+
+          add_offense(range, message: format_message(method, range.source)) do |corrector|
             corrector.replace(range, "each_#{method[0..-2]}")
           end
         end
 
-        def format_message(method_name)
-          format(MSG, prefer: "each_#{method_name[0..-2]}", current: "#{method_name}.each")
+        def format_message(method_name, current)
+          format(MSG, prefer: "each_#{method_name[0..-2]}", current: current)
         end
 
         def check_argument(variable)
@@ -103,7 +159,7 @@ module RuboCop
           name = "each_#{node.receiver.method_name.to_s.chop}"
           return correct_implicit(node, corrector, name) unless receiver
 
-          new_source = receiver.source + ".#{name}"
+          new_source = receiver.source + "#{node.loc.dot.source}#{name}"
           corrector.replace(node, new_source)
         end
 

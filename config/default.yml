@@ -1973,6 +1973,11 @@ Lint/LiteralAsCondition:
   Enabled: true
   VersionAdded: '0.51'
 
+Lint/LiteralAssignmentInCondition:
+  Description: 'Checks for literal assignments in the conditions.'
+  Enabled: pending
+  VersionAdded: '1.58'
+
 Lint/LiteralInInterpolation:
   Description: 'Checks for literals used in interpolation.'
   Enabled: true
@@ -3089,7 +3094,19 @@ Style/ArgumentsForwarding:
   Enabled: pending
   AllowOnlyRestArgument: true
   UseAnonymousForwarding: true
+  RedundantRestArgumentNames:
+    - args
+    - arguments
+  RedundantKeywordRestArgumentNames:
+    - kwargs
+    - options
+    - opts
+  RedundantBlockArgumentNames:
+    - blk
+    - block
+    - proc
   VersionAdded: '1.1'
+  VersionChanged: '1.58'
 
 Style/ArrayCoercion:
   Description: >-
@@ -3099,6 +3116,13 @@ Style/ArrayCoercion:
   Safe: false
   Enabled: false
   VersionAdded: '0.88'
+
+Style/ArrayFirstLast:
+  Description: 'Use `arr.first` and `arr.last` instead of `arr[0]` and `arr[-1]`.'
+  Reference: '#first-and-last'
+  Enabled: false
+  VersionAdded: '1.58'
+  Safe: false
 
 Style/ArrayIntersect:
   Description: 'Use `array1.intersect?(array2)` instead of `(array1 & array2).any?`.'
@@ -5333,6 +5357,12 @@ Style/StructInheritance:
   SafeAutoCorrect: false
   VersionAdded: '0.29'
   VersionChanged: '1.20'
+
+Style/SuperWithArgsParentheses:
+  Description: 'Use parentheses for `super` with arguments.'
+  StyleGuide: '#super-with-args'
+  Enabled: pending
+  VersionAdded: '1.58'
 
 Style/SwapValues:
   Description: 'Enforces the use of shorthand-style swapping of 2 variables.'

@@ -118,6 +118,49 @@ RSpec.describe RuboCop::Cop::Style::RedundantReturn, :config do
     RUBY
   end
 
+  it 'reports an offense for lambda ending with return' do
+    expect_offense(<<~RUBY)
+      lambda do
+        some_preceding_statements
+        return something
+        ^^^^^^ Redundant `return` detected.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      lambda do
+        some_preceding_statements
+        something
+      end
+    RUBY
+  end
+
+  it 'reports an offense for -> ending with return' do
+    expect_offense(<<~RUBY)
+      -> do
+        some_preceding_statements
+        return something
+        ^^^^^^ Redundant `return` detected.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      -> do
+        some_preceding_statements
+        something
+      end
+    RUBY
+  end
+
+  it 'does not register an offense for proc ending with return' do
+    expect_no_offenses(<<~RUBY)
+      proc do
+        some_preceding_statements
+        return something
+      end
+    RUBY
+  end
+
   it 'reports an offense for def ending with return with splat argument' do
     expect_offense(<<~RUBY)
       def func

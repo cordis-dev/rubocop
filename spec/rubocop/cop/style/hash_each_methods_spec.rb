@@ -14,6 +14,17 @@ RSpec.describe RuboCop::Cop::Style::HashEachMethods, :config do
         RUBY
       end
 
+      it 'registers offense, autocorrects `foo&.keys&.each` to `foo&.each_key`' do
+        expect_offense(<<~RUBY)
+          foo&.keys&.each { |k| p k }
+               ^^^^^^^^^^ Use `each_key` instead of `keys&.each`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo&.each_key { |k| p k }
+        RUBY
+      end
+
       it 'registers offense, autocorrects foo#values.each to foo#each_value' do
         expect_offense(<<~RUBY)
           foo.values.each { |v| p v }
@@ -22,6 +33,17 @@ RSpec.describe RuboCop::Cop::Style::HashEachMethods, :config do
 
         expect_correction(<<~RUBY)
           foo.each_value { |v| p v }
+        RUBY
+      end
+
+      it 'registers offense, autocorrects `foo&.values&.each` to `foo&.each_value`' do
+        expect_offense(<<~RUBY)
+          foo&.values&.each { |v| p v }
+               ^^^^^^^^^^^^ Use `each_value` instead of `values&.each`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo&.each_value { |v| p v }
         RUBY
       end
 
@@ -44,6 +66,81 @@ RSpec.describe RuboCop::Cop::Style::HashEachMethods, :config do
 
         expect_correction(<<~RUBY)
           foo.each_value(&:bar)
+        RUBY
+      end
+
+      it 'does not register an offense when the key and value block arguments of `Enumerable#each` method are used' do
+        expect_no_offenses('foo.each { |k, v| do_something(k, v) }')
+      end
+
+      it 'does not register an offense when the destructed value block arguments of `Enumerable#each` method are used' do
+        expect_no_offenses('foo.each { |k, (_, v)| do_something(k, v) }')
+      end
+
+      it 'does not register an offense when the destructed key block arguments of `Enumerable#each` method are used' do
+        expect_no_offenses('foo.each { |(_, k), v| do_something(k, v) }')
+      end
+
+      it 'does not register an offense when the single block argument of `Enumerable#each` method is used' do
+        expect_no_offenses('foo.each { |e| do_something(e) }')
+      end
+
+      it 'does not register an offense when the parenthesized key and value block arguments of `Enumerable#each` method are unused' do
+        expect_no_offenses('foo.each { |(k, v)| do_something(e) }')
+      end
+
+      it 'registers an offense when the value block argument of `Enumerable#each` method is unused' do
+        expect_offense(<<~RUBY)
+          foo.each { |k, unused_value| do_something(k) }
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `each_key` instead of `each` and remove the unused `unused_value` block argument.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo.each_key { |k| do_something(k) }
+        RUBY
+      end
+
+      it 'registers an offense when the value block argument of `Enumerable#each` method with safe navigation call is unused' do
+        expect_offense(<<~RUBY)
+          foo&.each { |k, unused_value| do_something(k) }
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `each_key` instead of `each` and remove the unused `unused_value` block argument.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo&.each_key { |k| do_something(k) }
+        RUBY
+      end
+
+      it 'registers an offense when the destructed value block argument of `Enumerable#each` method is unused' do
+        expect_offense(<<~RUBY)
+          foo.each { |k, (_, unused_value)| do_something(k) }
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `each_key` instead of `each` and remove the unused `(_, unused_value)` block argument.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo.each_key { |k| do_something(k) }
+        RUBY
+      end
+
+      it 'registers an offense when the key block argument of `Enumerable#each` method is unused' do
+        expect_offense(<<~RUBY)
+          foo.each { |unused_key, v| do_something(v) }
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `each_value` instead of `each` and remove the unused `unused_key` block argument.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo.each_value { |v| do_something(v) }
+        RUBY
+      end
+
+      it 'registers an offense when the destructed key block argument of `Enumerable#each` method is unused' do
+        expect_offense(<<~RUBY)
+          foo.each { |(_, unused_key), v| do_something(v) }
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `each_value` instead of `each` and remove the unused `(_, unused_key)` block argument.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo.each_value { |v| do_something(v) }
         RUBY
       end
 
@@ -103,6 +200,17 @@ RSpec.describe RuboCop::Cop::Style::HashEachMethods, :config do
         RUBY
       end
 
+      it 'registers offense, autocorrects `{}&.keys&.each` to `{}&.each_key` with a symbol proc argument' do
+        expect_offense(<<~RUBY)
+          {}&.keys&.each(&:bar)
+              ^^^^^^^^^^ Use `each_key` instead of `keys&.each`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          {}&.each_key(&:bar)
+        RUBY
+      end
+
       it 'registers offense, autocorrects {}#values.each to {}#each_value with a symbol proc argument' do
         expect_offense(<<~RUBY)
           {}.values.each(&:bar)
@@ -111,6 +219,17 @@ RSpec.describe RuboCop::Cop::Style::HashEachMethods, :config do
 
         expect_correction(<<~RUBY)
           {}.each_value(&:bar)
+        RUBY
+      end
+
+      it 'registers offense, autocorrects `{}&.values.each` to `{}&.each_value` with a symbol proc argument' do
+        expect_offense(<<~RUBY)
+          {}&.values&.each(&:bar)
+              ^^^^^^^^^^^^ Use `each_value` instead of `values&.each`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          {}&.each_value(&:bar)
         RUBY
       end
 
