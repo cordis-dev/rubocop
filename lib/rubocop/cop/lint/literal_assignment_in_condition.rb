@@ -41,7 +41,7 @@ module RuboCop
             next unless asgn_node.loc.operator
 
             rhs = asgn_node.to_a.last
-            next if !literal?(rhs) || parallel_assignment_with_splat_operator?(rhs)
+            next if !all_literals?(rhs) || parallel_assignment_with_splat_operator?(rhs)
 
             range = offense_range(asgn_node, rhs)
 
@@ -59,8 +59,17 @@ module RuboCop
           node.each_child_node { |child| traverse_node(child, &block) }
         end
 
-        def literal?(node)
-          node.respond_to?(:literal?) && node.literal?
+        def all_literals?(node)
+          case node.type
+          when :dstr, :xstr
+            false
+          when :array
+            node.values.all? { |value| all_literals?(value) }
+          when :hash
+            (node.values + node.keys).all? { |item| all_literals?(item) }
+          else
+            node.respond_to?(:literal?) && node.literal?
+          end
         end
 
         def parallel_assignment_with_splat_operator?(node)

@@ -30,7 +30,8 @@ module RuboCop
         @files_with_offenses ||= {}
       end
 
-      def file_started(_file, _file_info)
+      def file_started(_file, options)
+        @config_for_pwd = options[:config_store].for_pwd
         @exclude_limit_option = @options[:exclude_limit]
         @exclude_limit = Integer(@exclude_limit_option ||
           RuboCop::Options::DEFAULT_MAXIMUM_EXCLUSION_ITEMS)
@@ -115,9 +116,13 @@ module RuboCop
       def set_max(cfg, cop_name)
         return unless cfg[:exclude_limit]
 
-        # In case auto_gen_only_exclude is set, only modify the maximum if the
-        # files are not excluded one by one.
-        if !@options[:auto_gen_only_exclude] || @files_with_offenses[cop_name].size > @exclude_limit
+        max_set_in_user_config =
+          @config_for_pwd.for_cop(cop_name)['Max'] != default_config(cop_name)['Max']
+        if !max_set_in_user_config &&
+           # In case auto_gen_only_exclude is set, only modify the maximum if the files are not
+           # excluded one by one.
+           (!@options[:auto_gen_only_exclude] ||
+            @files_with_offenses[cop_name].size > @exclude_limit)
           cfg.merge!(cfg[:exclude_limit])
         end
 
@@ -192,8 +197,8 @@ module RuboCop
         # 'Enabled' option will be put into file only if exclude
         # limit is exceeded.
         rejected_keys = ['Enabled']
-        rejected_keys << 'EnforcedStyle' unless auto_gen_enforced_style?
-        cfg.reject { |key| rejected_keys.include?(key) }
+        rejected_keys << /\AEnforcedStyle\w*/ unless auto_gen_enforced_style?
+        cfg.reject { |key| include_or_match?(rejected_keys, key) }
       end
 
       def output_offending_files(output_buffer, cfg, cop_name)
@@ -261,6 +266,12 @@ module RuboCop
 
       def no_exclude_limit?
         @options[:no_exclude_limit] == false
+      end
+
+      # Returns true if the given arr include the given elm or if any of the
+      # given arr is a regexp that matches the given elm.
+      def include_or_match?(arr, elm)
+        arr.include?(elm) || arr.any? { |x| x.is_a?(Regexp) && x.match?(elm) }
       end
     end
   end

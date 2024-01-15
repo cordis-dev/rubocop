@@ -356,10 +356,10 @@ RSpec.describe RuboCop::Options, :isolated_environment do
     end
 
     describe '--display-only-fail-level-offenses' do
-      it 'fails if given with an autocorrect argument' do
-        %w[--fix-layout -x --autocorrect -a --autocorrect-all -A].each do |o|
-          expect { options.parse ['--display-only-correctable', o] }
-            .to raise_error(RuboCop::OptionArgumentError)
+      %w[--fix-layout -x --autocorrect -a --autocorrect-all -A].each do |o|
+        it 'fails if given with an autocorrect argument' do
+          expect { options.parse ['--display-only-fail-level-offenses', o] }
+            .not_to raise_error(RuboCop::OptionArgumentError)
         end
       end
     end
@@ -502,7 +502,7 @@ RSpec.describe RuboCop::Options, :isolated_environment do
 
       context 'Specify --autocorrect and --autocorrect-all' do
         it 'emits a warning and sets some autocorrect options' do
-          expect { options.parse options.parse %w[--autocorrect --autocorrect-all] }.to raise_error(
+          expect { options.parse %w[--autocorrect --autocorrect-all] }.to raise_error(
             RuboCop::OptionArgumentError,
             /Error: Both safe and unsafe autocorrect options are specified, use only one./
           )

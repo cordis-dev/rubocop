@@ -142,17 +142,10 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'registers an offense for superclass call without parens' do
-      expect_offense(<<~RUBY)
+    it 'does not register an offense for superclass call without parens' do
+      expect_no_offenses(<<~RUBY)
         def foo
           super a
-          ^^^^^^^ Use parentheses for method calls with arguments.
-        end
-      RUBY
-
-      expect_correction(<<~RUBY)
-        def foo
-          super(a)
         end
       RUBY
     end
@@ -526,17 +519,10 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       RUBY
     end
 
-    it 'registers an offense for superclass call with parens' do
-      expect_offense(<<~RUBY)
+    it 'does not register an offense for superclass call with parens' do
+      expect_no_offenses(<<~RUBY)
         def foo
           super(a)
-               ^^^ Omit parentheses for method calls with arguments.
-        end
-      RUBY
-
-      expect_correction(<<~RUBY)
-        def foo
-          super a
         end
       RUBY
     end
@@ -785,7 +771,7 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       expect_no_offenses('foo(1) { 2 }')
     end
 
-    it 'accepts parens in array literal calls' do
+    it 'accepts parens in array literal calls with blocks' do
       expect_no_offenses(<<~RUBY)
         [
           foo.bar.quux(:args) do
@@ -900,6 +886,14 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
           elsif @@image &&= server.take(:image)
             pass
           end
+        end
+      RUBY
+    end
+
+    it 'accepts parens in `when` clause is used to pass an argument' do
+      expect_no_offenses(<<-RUBY)
+        case condition
+          when do_something(arg)
         end
       RUBY
     end
@@ -1047,6 +1041,46 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
         expect_no_offenses(<<~RUBY)
           test(
             foo: bar
+          )
+        RUBY
+      end
+
+      it 'accepts parens in argument calls with blocks' do
+        expect_no_offenses(<<~RUBY)
+          foo(
+            bar.new(quux) do
+              pass
+            end
+          )
+        RUBY
+      end
+
+      it 'accepts parens in argument csend with blocks' do
+        expect_no_offenses(<<~RUBY)
+          foo(
+            bar&.new(quux) do
+              pass
+            end
+          )
+        RUBY
+      end
+
+      it 'accepts parens in super argument call with blocks' do
+        expect_no_offenses(<<~RUBY)
+          super(
+            bar.new(quux) do
+              pass
+            end
+          )
+        RUBY
+      end
+
+      it 'accepts parens in yield argument call with blocks' do
+        expect_no_offenses(<<~RUBY)
+          yield(
+            bar.new(quux) do
+              pass
+            end
           )
         RUBY
       end

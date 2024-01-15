@@ -22,9 +22,6 @@ module RuboCop
         # @!method square_brackets?(node)
         def_node_matcher :square_brackets?, '(send {(send _recv _msg) str array hash} :[] ...)'
 
-        # @!method range_end?(node)
-        def_node_matcher :range_end?, '^^{irange erange}'
-
         # @!method method_node_and_args(node)
         def_node_matcher :method_node_and_args, '$(call _recv _msg $...)'
 
@@ -56,7 +53,7 @@ module RuboCop
         def ignore_syntax?(node)
           return false unless (parent = node.parent)
 
-          parent.while_post_type? || parent.until_post_type? ||
+          parent.while_post_type? || parent.until_post_type? || parent.match_with_lvasgn_type? ||
             like_method_argument_parentheses?(parent)
         end
 
@@ -64,7 +61,8 @@ module RuboCop
           allowed_ancestor?(node) ||
             allowed_method_call?(node) ||
             allowed_multiple_expression?(node) ||
-            allowed_ternary?(node)
+            allowed_ternary?(node) ||
+            node.parent&.range_type?
         end
 
         def allowed_ancestor?(node)
@@ -152,6 +150,8 @@ module RuboCop
           return if begin_node.chained?
 
           if node.and_type? || node.or_type?
+            return if node.semantic_operator? && begin_node.parent
+            return if node.multiline? && allow_in_multiline_conditions?
             return if ALLOWED_NODE_TYPES.include?(begin_node.parent&.type)
             return if begin_node.parent&.if_type? && begin_node.parent&.ternary?
 
@@ -166,6 +166,13 @@ module RuboCop
 
         # @!method interpolation?(node)
         def_node_matcher :interpolation?, '[^begin ^^dstr]'
+
+        def allow_in_multiline_conditions?
+          parentheses_around_condition_config = config.for_cop('Style/ParenthesesAroundCondition')
+          return false unless parentheses_around_condition_config['Enabled']
+
+          !!parentheses_around_condition_config['AllowInMultilineConditions']
+        end
 
         def check_send(begin_node, node)
           return check_unary(begin_node, node) if node.unary_operation?
@@ -231,7 +238,6 @@ module RuboCop
         def method_call_with_redundant_parentheses?(node)
           return false unless node.call_type?
           return false if node.prefix_not?
-          return false if range_end?(node)
 
           send_node, args = method_node_and_args(node)
 

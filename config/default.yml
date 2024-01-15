@@ -1963,6 +1963,12 @@ Lint/InterpolationCheck:
   VersionAdded: '0.50'
   VersionChanged: '1.40'
 
+Lint/ItWithoutArgumentsInBlock:
+  Description: 'Checks uses of `it` calls without arguments in block.'
+  Reference: 'https://bugs.ruby-lang.org/issues/18980'
+  Enabled: pending
+  VersionAdded: '1.59'
+
 Lint/LambdaWithoutLiteralBlock:
   Description: 'Checks uses of lambda without a literal block.'
   Enabled: pending
@@ -4706,6 +4712,7 @@ Style/OperatorMethodCall:
 
 Style/OptionHash:
   Description: "Don't use option hashes when you can use keyword arguments."
+  StyleGuide: '#keyword-arguments-vs-option-hashes'
   Enabled: false
   VersionAdded: '0.33'
   VersionChanged: '0.34'
@@ -5231,7 +5238,8 @@ Style/SingleLineMethods:
   AllowIfMethodIsEmpty: true
 
 Style/SlicingWithRange:
-  Description: 'Checks array slicing is done with endless ranges when suitable.'
+  Description: 'Checks array slicing is done with redundant, endless, and beginless ranges when suitable.'
+  StyleGuide: '#slicing-with-ranges'
   Enabled: true
   VersionAdded: '0.83'
   Safe: false

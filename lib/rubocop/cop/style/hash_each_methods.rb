@@ -58,6 +58,8 @@ module RuboCop
 
         # rubocop:disable Metrics/AbcSize
         def on_block(node)
+          return unless handleable?(node)
+
           kv_each(node) do |target, method|
             register_kv_offense(target, method) and return
           end
@@ -88,6 +90,12 @@ module RuboCop
 
         private
 
+        def handleable?(node)
+          return false unless (root_receiver = root_receiver(node))
+
+          !root_receiver.literal? || root_receiver.hash_type?
+        end
+
         def register_kv_offense(target, method)
           return unless (parent_receiver = target.receiver.receiver)
           return if allowed_receiver?(parent_receiver)
@@ -103,11 +111,11 @@ module RuboCop
           lvar_sources = node.body.each_descendant(:lvar).map(&:source)
 
           if block_arg.mlhs_type?
-            block_arg.each_descendant(:arg).all? do |block_arg|
-              lvar_sources.none?(block_arg.source)
+            block_arg.each_descendant(:arg, :restarg).all? do |block_arg|
+              lvar_sources.none?(block_arg.source.delete_prefix('*'))
             end
           else
-            lvar_sources.none?(block_arg.source)
+            lvar_sources.none?(block_arg.source.delete_prefix('*'))
           end
         end
 
@@ -132,6 +140,15 @@ module RuboCop
 
           add_offense(range, message: format_message(method, range.source)) do |corrector|
             corrector.replace(range, "each_#{method[0..-2]}")
+          end
+        end
+
+        def root_receiver(node)
+          receiver = node.receiver
+          if receiver&.receiver
+            root_receiver(receiver)
+          else
+            receiver
           end
         end
 
