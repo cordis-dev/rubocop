@@ -240,12 +240,12 @@ module RuboCop
         self
       end
 
-      def select(...)
-        cops.select(...)
+      def select(&block)
+        cops.select(&block)
       end
 
-      def each(...)
-        cops.each(...)
+      def each(&block)
+        cops.each(&block)
       end
 
       # @param [String] cop_name
@@ -300,7 +300,7 @@ module RuboCop
         unless given_badge.match?(real_badge)
           path = PathUtil.smart_path(source_path)
           warn "#{path}: #{given_badge} has the wrong namespace - " \
-               "should be #{real_badge.department}"
+               "replace it with #{given_badge.with_department(real_badge.department)}"
         end
 
         real_badge.to_s

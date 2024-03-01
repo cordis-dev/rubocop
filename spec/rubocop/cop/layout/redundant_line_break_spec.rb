@@ -152,6 +152,26 @@ RSpec.describe RuboCop::Cop::Layout::RedundantLineBreak, :config do
         RUBY
       end
 
+      it 'does not register an offense for index access call chained on multiple lines with backslash' do
+        expect_no_offenses(<<~RUBY)
+          hash[:foo] \\
+            [:bar]
+        RUBY
+      end
+
+      it 'registers an offense for index access call chained on multiline hash literal' do
+        expect_offense(<<~RUBY)
+          {
+          ^ Redundant line break detected.
+            key: value
+          }[key]
+        RUBY
+
+        expect_correction(<<~RUBY)
+          { key: value }[key]
+        RUBY
+      end
+
       context 'with LineLength Max 100' do
         let(:max_line_length) { 100 }
 

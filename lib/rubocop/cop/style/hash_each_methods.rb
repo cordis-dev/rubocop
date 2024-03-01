@@ -40,6 +40,7 @@ module RuboCop
 
         MSG = 'Use `%<prefer>s` instead of `%<current>s`.'
         UNUSED_BLOCK_ARG_MSG = "#{MSG.chop} and remove the unused `%<unused_code>s` block argument."
+        ARRAY_CONVERTER_METHODS = %i[assoc flatten rassoc sort sort_by to_a].freeze
 
         # @!method kv_each(node)
         def_node_matcher :kv_each, <<~PATTERN
@@ -56,7 +57,6 @@ module RuboCop
           (call $(call _ ${:keys :values}) :each (block_pass (sym _)))
         PATTERN
 
-        # rubocop:disable Metrics/AbcSize
         def on_block(node)
           return unless handleable?(node)
 
@@ -66,12 +66,24 @@ module RuboCop
 
           return unless (key, value = each_arguments(node))
 
-          if unused_block_arg_exist?(node, value)
+          check_unused_block_args(node, key, value)
+        end
+        alias on_numblock on_block
+
+        # rubocop:disable Metrics/AbcSize
+        def check_unused_block_args(node, key, value)
+          return if node.body.nil?
+
+          value_unused = unused_block_arg_exist?(node, value)
+          key_unused = unused_block_arg_exist?(node, key)
+          return if value_unused && key_unused
+
+          if value_unused
             message = message('each_key', node.method_name, value.source)
             unused_range = key.source_range.end.join(value.source_range.end)
 
             register_each_args_offense(node, message, 'each_key', unused_range)
-          elsif unused_block_arg_exist?(node, key)
+          elsif key_unused
             message = message('each_value', node.method_name, key.source)
             unused_range = key.source_range.begin.join(value.source_range.begin)
 
@@ -79,8 +91,6 @@ module RuboCop
           end
         end
         # rubocop:enable Metrics/AbcSize
-
-        alias on_numblock on_block
 
         def on_block_pass(node)
           kv_each_with_block_pass(node.parent) do |target, method|
@@ -91,6 +101,7 @@ module RuboCop
         private
 
         def handleable?(node)
+          return false if use_array_converter_method_as_preceding?(node)
           return false unless (root_receiver = root_receiver(node))
 
           !root_receiver.literal? || root_receiver.hash_type?
@@ -141,6 +152,16 @@ module RuboCop
           add_offense(range, message: format_message(method, range.source)) do |corrector|
             corrector.replace(range, "each_#{method[0..-2]}")
           end
+        end
+
+        def use_array_converter_method_as_preceding?(node)
+          return false unless (preceding_method = node.children.first.children.first)
+          unless preceding_method.call_type? ||
+                 preceding_method.block_type? || preceding_method.numblock_type?
+            return false
+          end
+
+          ARRAY_CONVERTER_METHODS.include?(preceding_method.method_name)
         end
 
         def root_receiver(node)

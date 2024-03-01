@@ -8,6 +8,12 @@ module RuboCop
       # This cop identifies places where `do_something(*args, &block)`
       # can be replaced by `do_something(...)`.
       #
+      # In Ruby 3.1, anonymous block forwarding has been added.
+      #
+      # This cop identifies places where `do_something(&block)` can be replaced
+      # by `do_something(&)`; if desired, this functionality can be disabled
+      # by setting `UseAnonymousForwarding: false`.
+      #
       # In Ruby 3.2, anonymous args/kwargs forwarding has been added.
       #
       # This cop also identifies places where `use_args(*args)`/`use_kwargs(**kwargs)` can be
@@ -41,22 +47,25 @@ module RuboCop
       #
       # @example UseAnonymousForwarding: true (default, only relevant for Ruby >= 3.2)
       #   # bad
-      #   def foo(*args, **kwargs)
+      #   def foo(*args, **kwargs, &block)
       #     args_only(*args)
       #     kwargs_only(**kwargs)
+      #     block_only(&block)
       #   end
       #
       #   # good
-      #   def foo(*, **)
+      #   def foo(*, **, &)
       #     args_only(*)
       #     kwargs_only(**)
+      #     block_only(&)
       #   end
       #
       # @example UseAnonymousForwarding: false (only relevant for Ruby >= 3.2)
       #   # good
-      #   def foo(*args, **kwargs)
+      #   def foo(*args, **kwargs, &block)
       #     args_only(*args)
       #     kwargs_only(**kwargs)
+      #     block_only(&block)
       #   end
       #
       # @example AllowOnlyRestArgument: true (default, only relevant for Ruby < 3.2)
@@ -104,7 +113,7 @@ module RuboCop
       #   end
       #
       # @example RedundantBlockArgumentNames: ['blk', 'block', 'proc'] (default)
-      #   # bad
+      #   # bad - But it is good with `EnforcedStyle: explicit` set for `Naming/BlockForwarding`.
       #   def foo(&block)
       #     bar(&block)
       #   end
@@ -126,6 +135,7 @@ module RuboCop
         FORWARDING_MSG = 'Use shorthand syntax `...` for arguments forwarding.'
         ARGS_MSG = 'Use anonymous positional arguments forwarding (`*`).'
         KWARGS_MSG = 'Use anonymous keyword arguments forwarding (`**`).'
+        BLOCK_MSG = 'Use anonymous block arguments forwarding (`&`).'
 
         def self.autocorrect_incompatible_with
           [Naming::BlockForwarding]
@@ -171,21 +181,40 @@ module RuboCop
           send_classifications.all? { |_, c, _, _| c == :all }
         end
 
+        # rubocop:disable Metrics/MethodLength
         def add_forward_all_offenses(node, send_classifications, forwardable_args)
-          send_classifications.each do |send_node, _c, forward_rest, _forward_kwrest|
-            register_forward_all_offense(send_node, send_node, forward_rest)
+          _rest_arg, _kwrest_arg, block_arg = *forwardable_args
+          registered_block_arg_offense = false
+
+          send_classifications.each do |send_node, _c, forward_rest, forward_kwrest, forward_block_arg| # rubocop:disable Layout/LineLength
+            if !forward_rest && !forward_kwrest
+              # Prevents `anonymous block parameter is also used within block (SyntaxError)` occurs
+              # in Ruby 3.3.0.
+              if outside_block?(forward_block_arg)
+                register_forward_block_arg_offense(!forward_rest, node.arguments, block_arg)
+                register_forward_block_arg_offense(!forward_rest, send_node, forward_block_arg)
+              end
+              registered_block_arg_offense = true
+              break
+            else
+              register_forward_all_offense(send_node, send_node, forward_rest)
+            end
           end
+
+          return if registered_block_arg_offense
 
           rest_arg, _kwrest_arg, _block_arg = *forwardable_args
           register_forward_all_offense(node, node.arguments, rest_arg)
         end
+        # rubocop:enable Metrics/MethodLength
 
+        # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
         def add_post_ruby_32_offenses(def_node, send_classifications, forwardable_args)
           return unless use_anonymous_forwarding?
 
-          rest_arg, kwrest_arg, _block_arg = *forwardable_args
+          rest_arg, kwrest_arg, block_arg = *forwardable_args
 
-          send_classifications.each do |send_node, _c, forward_rest, forward_kwrest|
+          send_classifications.each do |send_node, _c, forward_rest, forward_kwrest, forward_block_arg| # rubocop:disable Layout/LineLength
             if outside_block?(forward_rest)
               register_forward_args_offense(def_node.arguments, rest_arg)
               register_forward_args_offense(send_node, forward_rest)
@@ -195,8 +224,16 @@ module RuboCop
               register_forward_kwargs_offense(!forward_rest, def_node.arguments, kwrest_arg)
               register_forward_kwargs_offense(!forward_rest, send_node, forward_kwrest)
             end
+
+            # Prevents `anonymous block parameter is also used within block (SyntaxError)` occurs
+            # in Ruby 3.3.0.
+            if outside_block?(forward_block_arg)
+              register_forward_block_arg_offense(!forward_rest, def_node.arguments, block_arg)
+              register_forward_block_arg_offense(!forward_rest, send_node, forward_block_arg)
+            end
           end
         end
+        # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
         def non_splat_or_block_pass_lvar_references(body)
           body.each_descendant(:lvar, :lvasgn).filter_map do |lvar|
@@ -225,10 +262,7 @@ module RuboCop
 
         def classification_and_forwards(def_node, send_node, referenced_lvars, forwardable_args)
           classifier = SendNodeClassifier.new(
-            def_node,
-            send_node,
-            referenced_lvars,
-            forwardable_args,
+            def_node, send_node, referenced_lvars, forwardable_args,
             target_ruby_version: target_ruby_version,
             allow_only_rest_arguments: allow_only_rest_arguments?
           )
@@ -237,7 +271,12 @@ module RuboCop
 
           return unless classification
 
-          [classification, classifier.forwarded_rest_arg, classifier.forwarded_kwrest_arg]
+          [
+            classification,
+            classifier.forwarded_rest_arg,
+            classifier.forwarded_kwrest_arg,
+            classifier.forwarded_block_arg
+          ]
         end
 
         def redundant_named_arg(arg, config_name, keyword)
@@ -269,6 +308,16 @@ module RuboCop
             add_parens_if_missing(def_arguments_or_send, corrector) if add_parens
 
             corrector.replace(kwrest_arg_or_splat, '**')
+          end
+        end
+
+        def register_forward_block_arg_offense(add_parens, def_arguments_or_send, block_arg)
+          return if target_ruby_version <= 3.0 || block_arg.source == '&' || explicit_block_name?
+
+          add_offense(block_arg, message: BLOCK_MSG) do |corrector|
+            add_parens_if_missing(def_arguments_or_send, corrector) if add_parens
+
+            corrector.replace(block_arg, '&')
           end
         end
 
@@ -440,6 +489,13 @@ module RuboCop
             (@rest_arg_name && !forwarded_rest_arg) ||
               (@kwrest_arg_name && !forwarded_kwrest_arg)
           end
+        end
+
+        def explicit_block_name?
+          block_forwarding_config = config.for_cop('Naming/BlockForwarding')
+          return false unless block_forwarding_config['Enabled']
+
+          block_forwarding_config['EnforcedStyle'] == 'explicit'
         end
       end
     end

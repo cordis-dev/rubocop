@@ -100,10 +100,10 @@ RSpec.shared_context 'config' do # rubocop:disable Metrics/BlockLength
   let(:cur_cop_config) do
     RuboCop::ConfigLoader
       .default_configuration.for_cop(cop_class)
-      .merge({
-               'Enabled' => true, # in case it is 'pending'
-               'AutoCorrect' => true # in case defaults set it to false
-             })
+      .merge(
+        'Enabled' => true, # in case it is 'pending'
+        'AutoCorrect' => 'always' # in case defaults set it to 'disabled' or false
+      )
       .merge(cop_config)
   end
 
@@ -128,9 +128,13 @@ RSpec.shared_context 'mock console output' do
   end
 end
 
-RSpec.shared_context 'lsp mode' do
+RSpec.shared_context 'lsp' do
   before do
-    allow(cop).to receive(:lsp_mode?).and_return(true)
+    RuboCop::LSP.enable
+  end
+
+  after do
+    RuboCop::LSP.disable
   end
 end
 
@@ -180,4 +184,8 @@ end
 
 RSpec.shared_context 'ruby 3.3' do
   let(:ruby_version) { 3.3 }
+end
+
+RSpec.shared_context 'ruby 3.4' do
+  let(:ruby_version) { 3.4 }
 end

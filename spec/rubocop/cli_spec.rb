@@ -436,7 +436,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
         expect(cli.run(['--format', 'offenses', '-A', 'example.rb'])).to eq(0)
         expect($stdout.string).to eq(<<~RESULT)
 
-          1  Style/FrozenStringLiteralComment
+          1  Style/FrozenStringLiteralComment [Unsafe Correctable]
           --
           1  Total in 1 files
 
@@ -469,7 +469,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
       expect(cli.run(['--format', 'emacs', 'example.rb'])).to eq(1)
       expect($stderr.string)
         .to eq(['example.rb: Style/LineLength has the wrong ' \
-                'namespace - should be Layout',
+                'namespace - replace it with Layout/LineLength',
                 ''].join("\n"))
       # 2 real cops were disabled, and 1 that was incorrect
       # 2 real cops was enabled, but only 1 had been disabled correctly
@@ -730,7 +730,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
 
             expect($stdout.string).to eq(<<~RESULT)
 
-              1  Style/AndOr
+              1  Style/AndOr [Unsafe Correctable]
               --
               1  Total in 1 files
 
@@ -746,8 +746,8 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
 
             expect($stdout.string).to eq(<<~RESULT)
 
-              3  Layout/LineLength
-              1  Style/AndOr
+              3  Layout/LineLength [Safe Correctable]
+              1  Style/AndOr [Unsafe Correctable]
               --
               4  Total in 1 files
 
@@ -767,7 +767,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
 
             expect($stdout.string).to eq(<<~RESULT)
 
-              3  Layout/LineLength
+              3  Layout/LineLength [Safe Correctable]
               --
               3  Total in 1 files
 
@@ -783,8 +783,8 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
 
             expect($stdout.string).to eq(<<~RESULT)
 
-              3  Layout/LineLength
-              1  Style/AndOr
+              3  Layout/LineLength [Safe Correctable]
+              1  Style/AndOr [Unsafe Correctable]
               --
               4  Total in 1 files
 
@@ -1078,7 +1078,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
       expect($stdout.string)
         .to eq(<<~RESULT)
 
-          1  Layout/TrailingWhitespace
+          1  Layout/TrailingWhitespace [Safe Correctable]
           --
           1  Total in 1 files
 
@@ -1111,6 +1111,31 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
                                                     abs('example'),
                                                     abs('file.rb'),
                                                     abs('regexp')])
+    end
+
+    context 'when a .rubocop.yml is included from an ancestor directory' do
+      before do
+        create_file('child/grandkid/.rubocop.yml', <<~YAML)
+          inherit_from:
+            - ../../.rubocop.yml
+        YAML
+      end
+
+      context 'and it specifies an Include pattern' do
+        before do
+          create_file('.rubocop.yml', <<~YAML)
+            AllCops:
+              Include:
+                - "**/*.rbi"
+          YAML
+        end
+
+        it 'finds files included through inheritance' do
+          create_file('child/grandkid/file.rbi', 'x=0')
+          Dir.chdir('child/grandkid') { expect(cli.run(['-L'])).to eq(0) }
+          expect($stdout.string).to eq("file.rbi\n")
+        end
+      end
     end
 
     it 'ignores excluded files' do
@@ -1820,6 +1845,29 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
   end
 
   describe 'configuration of `AutoCorrect`' do
+    context 'when setting `AutoCorrect: disabled` for `Style/StringLiterals`' do
+      before do
+        create_file('.rubocop.yml', <<~YAML)
+          Style/StringLiterals:
+            AutoCorrect: disabled
+        YAML
+      end
+
+      it 'does not suggest `1 offense autocorrectable` for `Style/StringLiterals`' do
+        create_file('example.rb', <<~RUBY)
+          # frozen_string_literal: true
+
+          a = "Hello"
+        RUBY
+
+        expect(cli.run(['--format', 'simple', 'example.rb'])).to eq(1)
+        expect($stdout.string.lines.to_a.last).to eq(
+          "1 file inspected, 2 offenses detected, 1 offense autocorrectable\n"
+        )
+      end
+    end
+
+    # For backward compatibility, `false` is treated the same as `'disabled'`.
     context 'when setting `AutoCorrect: false` for `Style/StringLiterals`' do
       before do
         create_file('.rubocop.yml', <<~YAML)
@@ -1855,7 +1903,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
           'Error: RuboCop found unknown Ruby version 4.0 in `TargetRubyVersion`'
         )
         expect($stderr.string.strip).to match(
-          /Supported versions: 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 3.0, 3.1, 3.2, 3.3/
+          /Supported versions: 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 3.0, 3.1, 3.2, 3.3, 3.4/
         )
       end
     end

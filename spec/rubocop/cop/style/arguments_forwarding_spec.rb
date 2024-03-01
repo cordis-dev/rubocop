@@ -173,6 +173,38 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       RUBY
     end
 
+    it 'does not register an offense when using block arg', :ruby30 do
+      expect_no_offenses(<<~RUBY)
+        def foo(&block)
+          bar(&block)
+        end
+      RUBY
+    end
+
+    it 'registers an offense when using block arg', :ruby31 do
+      expect_offense(<<~RUBY)
+        def foo(&block)
+                ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          bar(&block)
+              ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(&)
+          bar(&)
+        end
+      RUBY
+    end
+
+    it 'does not register an offense when naming block arg `&`', :ruby31 do
+      expect_no_offenses(<<~RUBY)
+        def foo(&)
+          bar(&)
+        end
+      RUBY
+    end
+
     context 'when `RedundantBlockArgumentNames: [meaningless_block_name]`' do
       let(:redundant_block_argument_names) { ['meaningless_block_name'] }
 
@@ -196,6 +228,40 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
         expect_no_offenses(<<~RUBY)
           def foo(*args, &block)
             bar(*args, &block)
+          end
+        RUBY
+      end
+
+      it 'registers an offense when using restarg and block arg', :ruby32 do
+        expect_offense(<<~RUBY)
+          def foo(*args, &meaningless_block_name)
+                  ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                         ^^^^^^^^^^^^^^^^^^^^^^^ Use anonymous block arguments forwarding (`&`).
+            bar(*args, &meaningless_block_name)
+                ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                       ^^^^^^^^^^^^^^^^^^^^^^^ Use anonymous block arguments forwarding (`&`).
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(*, &)
+            bar(*, &)
+          end
+        RUBY
+      end
+
+      it 'registers an offense when using restarg and unconfigured block arg', :ruby32 do
+        expect_offense(<<~RUBY)
+          def foo(*args, &block)
+                  ^^^^^ Use anonymous positional arguments forwarding (`*`).
+            bar(*args, &block)
+                ^^^^^ Use anonymous positional arguments forwarding (`*`).
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(*, &block)
+            bar(*, &block)
           end
         RUBY
       end
@@ -373,6 +439,38 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
           end
         RUBY
       end
+
+      it 'registers an offense when using only rest arg', :ruby32 do
+        expect_offense(<<~RUBY)
+          def foo(*args)
+                  ^^^^^ Use anonymous positional arguments forwarding (`*`).
+            bar(*args)
+                ^^^^^ Use anonymous positional arguments forwarding (`*`).
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(*)
+            bar(*)
+          end
+        RUBY
+      end
+
+      it 'registers an offense when using only kwrest arg', :ruby32 do
+        expect_offense(<<~RUBY)
+          def foo(**kwargs)
+                  ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+            bar(**kwargs)
+                ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(**)
+            bar(**)
+          end
+        RUBY
+      end
     end
 
     context 'AllowOnlyRestArgument: false' do
@@ -425,6 +523,70 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
           end
         RUBY
       end
+
+      it 'registers an offense when using only rest arg', :ruby32 do
+        expect_offense(<<~RUBY)
+          def foo(*args)
+                  ^^^^^ Use anonymous positional arguments forwarding (`*`).
+            bar(*args)
+                ^^^^^ Use anonymous positional arguments forwarding (`*`).
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(*)
+            bar(*)
+          end
+        RUBY
+      end
+
+      it 'registers an offense when using only kwrest arg', :ruby32 do
+        expect_offense(<<~RUBY)
+          def foo(**kwargs)
+                  ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+            bar(**kwargs)
+                ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(**)
+            bar(**)
+          end
+        RUBY
+      end
+
+      it 'registers an offense with default positional arguments', :ruby32 do
+        expect_offense(<<~RUBY)
+          def foo(arg=1, *args)
+                         ^^^^^ Use anonymous positional arguments forwarding (`*`).
+            bar(*args)
+                ^^^^^ Use anonymous positional arguments forwarding (`*`).
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(arg=1, *)
+            bar(*)
+          end
+        RUBY
+      end
+
+      it 'registers an offense with default keyword arguments', :ruby32 do
+        expect_offense(<<~RUBY)
+          def foo(*args, arg: 1)
+                  ^^^^^ Use anonymous positional arguments forwarding (`*`).
+            bar(*args)
+                ^^^^^ Use anonymous positional arguments forwarding (`*`).
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(*, arg: 1)
+            bar(*)
+          end
+        RUBY
+      end
     end
 
     it 'does not register an offense for restarg when passing block to separate call' do
@@ -466,6 +628,30 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       RUBY
     end
 
+    it 'registers an offense if an additional positional parameter is present', :ruby30 do
+      expect_offense(<<~RUBY)
+        def method_missing(m, *args, **kwargs, &block)
+                              ^^^^^^^^^^^^^^^^^^^^^^^ Use shorthand syntax `...` for arguments forwarding.
+          if @template.respond_to?(m)
+            @template.send(m, *args, **kwargs, &block)
+                              ^^^^^^^^^^^^^^^^^^^^^^^ Use shorthand syntax `...` for arguments forwarding.
+          else
+            super
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def method_missing(m, ...)
+          if @template.respond_to?(m)
+            @template.send(m, ...)
+          else
+            super
+          end
+        end
+      RUBY
+    end
+
     it 'does not register an offense if kwargs are forwarded with a positional parameter' do
       expect_no_offenses(<<~RUBY)
         def foo(m, **kwargs, &block)
@@ -490,10 +676,42 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       RUBY
     end
 
+    it 'registers an offense if args/kwargs are forwarded with a positional parameter', :ruby30 do
+      expect_offense(<<~RUBY)
+        def foo(m, *args, **kwargs, &block)
+                   ^^^^^^^^^^^^^^^^^^^^^^^ Use shorthand syntax `...` for arguments forwarding.
+          bar(m, *args, **kwargs, &block)
+                 ^^^^^^^^^^^^^^^^^^^^^^^ Use shorthand syntax `...` for arguments forwarding.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(m, ...)
+          bar(m, ...)
+        end
+      RUBY
+    end
+
     it 'does not register an offense when forwarding args/kwargs with an additional arg' do
       expect_no_offenses(<<~RUBY)
         def self.get(*args, **kwargs, &block)
           CanvasHttp.request(Net::HTTP::Get, *args, **kwargs, &block)
+        end
+      RUBY
+    end
+
+    it 'registers an offense when forwarding args/kwargs with an additional arg', :ruby30 do
+      expect_offense(<<~RUBY)
+        def self.get(*args, **kwargs, &block)
+                     ^^^^^^^^^^^^^^^^^^^^^^^ Use shorthand syntax `...` for arguments forwarding.
+          CanvasHttp.request(Net::HTTP::Get, *args, **kwargs, &block)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^ Use shorthand syntax `...` for arguments forwarding.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def self.get(...)
+          CanvasHttp.request(Net::HTTP::Get, ...)
         end
       RUBY
     end
@@ -752,10 +970,26 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
           end
         RUBY
       end
+
+      it 'registers an offense when using only rest arg', :ruby32 do
+        expect_offense(<<~RUBY)
+          def foo(*args)
+                  ^^^^^ Use anonymous positional arguments forwarding (`*`).
+            bar(*args)
+                ^^^^^ Use anonymous positional arguments forwarding (`*`).
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(*)
+            bar(*)
+          end
+        RUBY
+      end
     end
   end
 
-  context 'TargetRubyVersion >= 3.1', :ruby31 do
+  context 'TargetRubyVersion 3.1', :ruby31 do
     it 'registers an offense when using restarg and anonymous block arg' do
       expect_offense(<<~RUBY)
         def foo(*args, &)
@@ -787,9 +1021,296 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
         end
       RUBY
     end
+
+    it 'registers an offense when using block arg forwarding with positional arguments forwarding' do
+      expect_offense(<<~RUBY)
+        def baz(qux, quuz, &block)
+                           ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          bar(qux, quuz, &block)
+                         ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def baz(qux, quuz, &)
+          bar(qux, quuz, &)
+        end
+      RUBY
+    end
+
+    # `anonymous block parameter is also used within block (SyntaxError)` occurs in Ruby 3.3.0:
+    it 'does not register an offense when using block arg forwarding with positional arguments forwarding to within block' do
+      expect_no_offenses(<<~RUBY)
+        def baz(qux, quuz, &block)
+          with_block do
+            bar(qux, quuz, &block)
+          end
+        end
+      RUBY
+    end
+
+    it 'registers an offense when using block arg forwarding with no forwarding arguments' do
+      expect_offense(<<~RUBY)
+        def before_transition(options = {}, &block)
+                                            ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          add_callback(type: :before, callback_class: Callback, from: options[:from], to: options[:to], &block)
+                                                                                                        ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def before_transition(options = {}, &)
+          add_callback(type: :before, callback_class: Callback, from: options[:from], to: options[:to], &)
+        end
+      RUBY
+    end
   end
 
   context 'TargetRubyVersion >= 3.2', :ruby32 do
+    it 'registers an offense when the parentheses of arguments are omitted' do
+      expect_offense(<<~RUBY)
+        def foo *args, &block
+                ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                       ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          bar *args, &block
+              ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                     ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(*, &)
+          bar(*, &)
+        end
+      RUBY
+    end
+
+    it 'registers an offense when using block arg' do
+      expect_offense(<<~RUBY)
+        def foo(&block)
+                ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          bar(&block)
+              ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(&)
+          bar(&)
+        end
+      RUBY
+    end
+
+    it 'registers an offense when the restarg is overwritten' do
+      expect_offense(<<~RUBY)
+        def foo(*args, **kwargs, &block)
+                       ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                 ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          args = new_args
+          bar(*args, **kwargs, &block)
+                     ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                               ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(*args, **, &)
+          args = new_args
+          bar(*args, **, &)
+        end
+      RUBY
+    end
+
+    it 'registers an offense when the kwarg is overwritten' do
+      expect_offense(<<~RUBY)
+        def foo(*args, **kwargs, &block)
+                ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                                 ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          kwargs = new_kwargs
+          bar(*args, **kwargs, &block)
+              ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                               ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(*, **kwargs, &)
+          kwargs = new_kwargs
+          bar(*, **kwargs, &)
+        end
+      RUBY
+    end
+
+    it 'registers an offense when using the restarg outside forwarding method arguments' do
+      expect_offense(<<~RUBY)
+        def foo(*args, **kwargs, &block)
+                       ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                 ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          args.do_something
+          bar(*args, **kwargs, &block)
+                     ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                               ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(*args, **, &)
+          args.do_something
+          bar(*args, **, &)
+        end
+      RUBY
+    end
+
+    it 'registers an offense if kwargs are forwarded with a positional parameter' do
+      expect_offense(<<~RUBY)
+        def foo(m, **kwargs, &block)
+                   ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                             ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          bar(m, **kwargs, &block)
+                 ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                           ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(m, **, &)
+          bar(m, **, &)
+        end
+      RUBY
+    end
+
+    it 'registers an offense if args/kwargs are forwarded with a positional parameter last' do
+      expect_offense(<<~RUBY)
+        def foo(m, *args, **kwargs, &block)
+                   ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                          ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                    ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          bar(*args, m, **kwargs, &block)
+              ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                        ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                  ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(m, *, **, &)
+          bar(*, m, **, &)
+        end
+      RUBY
+    end
+
+    it 'registers an offense if args/kwargs are forwarded with additional pre-kwarg' do
+      expect_offense(<<~RUBY)
+        def foo(m, *args, **kwargs, &block)
+                   ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                          ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                    ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          bar(m, *args, extra: :kwarg, **kwargs, &block)
+                 ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                                       ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                                 ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(m, *, **, &)
+          bar(m, *, extra: :kwarg, **, &)
+        end
+      RUBY
+    end
+
+    it 'registers an offense if args/kwargs are forwarded with additional post-kwarg' do
+      expect_offense(<<~RUBY)
+        def foo(m, *args, **kwargs, &block)
+                   ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                          ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                    ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          bar(m, *args, **kwargs, extra: :kwarg, &block)
+                 ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                        ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                                 ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(m, *, **, &)
+          bar(m, *, **, extra: :kwarg, &)
+        end
+      RUBY
+    end
+
+    it 'registers an offense when forwarding args after dropping an additional arg' do
+      expect_offense(<<~RUBY)
+        def foo(x, *args, &block)
+                   ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                          ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          bar(*args, &block)
+              ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                     ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(x, *, &)
+          bar(*, &)
+        end
+      RUBY
+    end
+
+    it 'registers an offense when forwarding args with a leading default arg' do
+      expect_offense(<<~RUBY)
+        def foo(x, y = 42, *args, &block)
+                           ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                                  ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          bar(x, y, *args, &block)
+                    ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                           ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(x, y = 42, *, &)
+          bar(x, y, *, &)
+        end
+      RUBY
+    end
+
+    it 'registers an offense when forwarding kwargs/block arg' do
+      expect_offense(<<~RUBY)
+        def foo(**kwargs, &block)
+                ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                          ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          baz(**kwargs, &block)
+              ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                        ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(**, &)
+          baz(**, &)
+        end
+      RUBY
+    end
+
+    it 'registers an offense when forwarding kwargs/block arg and an additional arg' do
+      expect_offense(<<~RUBY)
+        def foo(x, **kwargs, &block)
+                   ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                             ^^^^^^ Use anonymous block arguments forwarding (`&`).
+          baz(x, **kwargs, &block)
+                 ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                           ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(x, **, &)
+          baz(x, **, &)
+        end
+      RUBY
+    end
+
     it 'registers an offense when using restarg/kwrestarg forwarding without block arg' do
       expect_offense(<<~RUBY)
         def foo(*args, **kwargs)
@@ -824,6 +1345,22 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
         def foo(*, **)
           args_only(*)
           kwargs_only(**)
+        end
+      RUBY
+    end
+
+    it 'registers an offense when using restarg and anonymous block arg' do
+      expect_offense(<<~RUBY)
+        def foo(*args, &)
+                ^^^^^ Use anonymous positional arguments forwarding (`*`).
+          bar(*args, &)
+              ^^^^^ Use anonymous positional arguments forwarding (`*`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(*, &)
+          bar(*, &)
         end
       RUBY
     end
@@ -902,14 +1439,16 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       expect_offense(<<~RUBY)
         def foo(m, *args, &block)
                    ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                          ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(*args, m, &block)
               ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                        ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(m, *, &block)
-          bar(*, m, &block)
+        def foo(m, *, &)
+          bar(*, m, &)
         end
       RUBY
     end
@@ -918,14 +1457,16 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       expect_offense(<<~RUBY)
         def post(*args, &block)
                  ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                        ^^^^^^ Use anonymous block arguments forwarding (`&`).
           future_on(executor, *args, &block)
                               ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                                     ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def post(*, &block)
-          future_on(executor, *, &block)
+        def post(*, &)
+          future_on(executor, *, &)
         end
       RUBY
     end
@@ -951,15 +1492,17 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
         def foo(m, *args, foo:, **kwargs, &block)
                    ^^^^^ Use anonymous positional arguments forwarding (`*`).
                                 ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                          ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(m, *args, foo:, extra: :kwarg, **kwargs, &block)
                  ^^^^^ Use anonymous positional arguments forwarding (`*`).
                                              ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                                       ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(m, *, foo:, **, &block)
-          bar(m, *, foo:, extra: :kwarg, **, &block)
+        def foo(m, *, foo:, **, &)
+          bar(m, *, foo:, extra: :kwarg, **, &)
         end
       RUBY
     end
@@ -1162,16 +1705,18 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       expect_offense(<<~RUBY)
         def foo(*args, &block)
                 ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                       ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(*args, &block)
               ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                     ^^^^^^ Use anonymous block arguments forwarding (`&`).
           baz(*args)
               ^^^^^ Use anonymous positional arguments forwarding (`*`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(*, &block)
-          bar(*, &block)
+        def foo(*, &)
+          bar(*, &)
           baz(*)
         end
       RUBY
@@ -1180,8 +1725,10 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
     it 'registers an offense when not always passing the block as well as kwrestarg' do
       expect_offense(<<~RUBY)
         def foo(**kwargs, &block)
+                          ^^^^^^ Use anonymous block arguments forwarding (`&`).
                 ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
           bar(**kwargs, &block)
+                        ^^^^^^ Use anonymous block arguments forwarding (`&`).
               ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
           baz(**kwargs)
               ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
@@ -1189,8 +1736,8 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(**, &block)
-          bar(**, &block)
+        def foo(**, &)
+          bar(**, &)
           baz(**)
         end
       RUBY
@@ -1201,30 +1748,44 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
         def foo(*args, **kwargs, &block)
                 ^^^^^ Use anonymous positional arguments forwarding (`*`).
                        ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                 ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(*args, **kwargs, &block)
               ^^^^^ Use anonymous positional arguments forwarding (`*`).
                      ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                               ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(*args, &block)
               ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                     ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(**kwargs, &block)
               ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                        ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(*, **, &block)
-          bar(*, **, &block)
-          bar(*, &block)
-          bar(**, &block)
+        def foo(*, **, &)
+          bar(*, **, &)
+          bar(*, &)
+          bar(**, &)
         end
       RUBY
     end
 
-    it 'does not register an offense when always forwarding the block but not other args' do
-      expect_no_offenses(<<~RUBY)
+    it 'registers an offense when always forwarding the block but not other args' do
+      expect_offense(<<~RUBY)
         def foo(*, &block)
+                   ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(*, &block)
+                 ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(&block)
+              ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(*, &)
+          bar(*, &)
+          bar(&)
         end
       RUBY
     end
@@ -1283,14 +1844,16 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       expect_offense(<<~RUBY)
         def foo(*args, &block)
                 ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                       ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(*args).baz(&block)
               ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                         ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(*, &block)
-          bar(*).baz(&block)
+        def foo(*, &)
+          bar(*).baz(&)
         end
       RUBY
     end
@@ -1300,15 +1863,17 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
         def foo(*args, **kwargs, &block)
                 ^^^^^ Use anonymous positional arguments forwarding (`*`).
                        ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                 ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(*args, **kwargs).baz(&block)
               ^^^^^ Use anonymous positional arguments forwarding (`*`).
                      ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                   ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(*, **, &block)
-          bar(*, **).baz(&block)
+        def foo(*, **, &)
+          bar(*, **).baz(&)
         end
       RUBY
     end
@@ -1318,15 +1883,17 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
         def foo(*args, **kwargs, &block)
                 ^^^^^ Use anonymous positional arguments forwarding (`*`).
                        ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                 ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(first(*args), second(**kwargs), third(&block))
                     ^^^^^ Use anonymous positional arguments forwarding (`*`).
                                    ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                                    ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(*, **, &block)
-          bar(first(*), second(**), third(&block))
+        def foo(*, **, &)
+          bar(first(*), second(**), third(&))
         end
       RUBY
     end
@@ -1335,14 +1902,16 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       expect_offense(<<~RUBY)
         def foo(first:, **kwargs, &block)
                         ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                  ^^^^^^ Use anonymous block arguments forwarding (`&`).
           forwarded(**kwargs, &block)
                     ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                              ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(first:, **, &block)
-          forwarded(**, &block)
+        def foo(first:, **, &)
+          forwarded(**, &)
         end
       RUBY
     end
@@ -1351,14 +1920,16 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       expect_offense(<<~RUBY)
         def foo(first:, **kwargs, &block)
                         ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                  ^^^^^^ Use anonymous block arguments forwarding (`&`).
           forwarded(first: first, **kwargs, &block)
                                   ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                            ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(first:, **, &block)
-          forwarded(first: first, **, &block)
+        def foo(first:, **, &)
+          forwarded(first: first, **, &)
         end
       RUBY
     end
@@ -1367,14 +1938,16 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       expect_offense(<<~RUBY)
         def foo(first: nil, **kwargs, &block)
                             ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                      ^^^^^^ Use anonymous block arguments forwarding (`&`).
           forwarded(first:, **kwargs, &block)
                             ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                      ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(first: nil, **, &block)
-          forwarded(first:, **, &block)
+        def foo(first: nil, **, &)
+          forwarded(first:, **, &)
         end
       RUBY
     end
@@ -1383,14 +1956,16 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       expect_offense(<<~RUBY)
         def foo(first: nil, **kwargs, &block)
                             ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                      ^^^^^^ Use anonymous block arguments forwarding (`&`).
           forwarded(first: first, **kwargs, &block)
                                   ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                            ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(first: nil, **, &block)
-          forwarded(first: first, **, &block)
+        def foo(first: nil, **, &)
+          forwarded(first: first, **, &)
         end
       RUBY
     end
@@ -1400,15 +1975,17 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
         def foo(*args, first: nil, **kwargs, &block)
                 ^^^^^ Use anonymous positional arguments forwarding (`*`).
                                    ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                             ^^^^^^ Use anonymous block arguments forwarding (`&`).
           forwarded(*args, first: first, **kwargs, &block)
                     ^^^^^ Use anonymous positional arguments forwarding (`*`).
                                          ^^^^^^^^ Use anonymous keyword arguments forwarding (`**`).
+                                                   ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(*, first: nil, **, &block)
-          forwarded(*, first: first, **, &block)
+        def foo(*, first: nil, **, &)
+          forwarded(*, first: first, **, &)
         end
       RUBY
     end
@@ -1417,14 +1994,16 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       expect_offense(<<~RUBY)
         def foo(*args, &block)
                 ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                       ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(*args, &block)
               ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                     ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(*, &block)
-          bar(*, &block)
+        def foo(*, &)
+          bar(*, &)
         end
       RUBY
     end
@@ -1486,14 +2065,16 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       expect_offense(<<~RUBY)
         def self.foo(*args, &block)
                      ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                            ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(*args, &block)
               ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                     ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def self.foo(*, &block)
-          bar(*, &block)
+        def self.foo(*, &)
+          bar(*, &)
         end
       RUBY
     end
@@ -1604,14 +2185,16 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       expect_offense(<<~RUBY)
         def foo(*args, &block)
                 ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                       ^^^^^^ Use anonymous block arguments forwarding (`&`).
           obj.bar(*args, &block)
                   ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                         ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(*, &block)
-          obj.bar(*, &block)
+        def foo(*, &)
+          obj.bar(*, &)
         end
       RUBY
     end
@@ -1620,14 +2203,16 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       expect_offense(<<~RUBY)
         def foo(*args, &block)
                 ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                       ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar.(*args, &block)
                ^^^^^ Use anonymous positional arguments forwarding (`*`).
+                      ^^^^^^ Use anonymous block arguments forwarding (`&`).
         end
       RUBY
 
       expect_correction(<<~RUBY)
-        def foo(*, &block)
-          bar.(*, &block)
+        def foo(*, &)
+          bar.(*, &)
         end
       RUBY
     end
@@ -1664,36 +2249,70 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
       RUBY
     end
 
-    it 'does not register an offense when different splat argument names are used' do
-      expect_no_offenses(<<~RUBY)
+    it 'registers an offense when different splat argument names are used' do
+      expect_offense(<<~RUBY)
         def foo(*args, &block)
+                       ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(*arguments, &block)
+                          ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(*args, &)
+          bar(*arguments, &)
         end
       RUBY
     end
 
-    it 'does not register an offense when different kwrest argument names are used' do
-      expect_no_offenses(<<~RUBY)
+    it 'registers an offense when different kwrest argument names are used' do
+      expect_offense(<<~RUBY)
         def foo(**kwargs, &block)
+                          ^^^^^^ Use anonymous block arguments forwarding (`&`).
           bar(**kwarguments, &block)
+                             ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(**kwargs, &)
+          bar(**kwarguments, &)
         end
       RUBY
     end
 
-    it 'does not register an offense when assigning the restarg outside forwarding method arguments' do
-      expect_no_offenses(<<~RUBY)
+    it 'registers an offense when assigning the restarg outside forwarding method arguments' do
+      expect_offense(<<~RUBY)
         def foo(*args, &block)
+                       ^^^^^^ Use anonymous block arguments forwarding (`&`).
           var = args
           foo(*args, &block)
+                     ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(*args, &)
+          var = args
+          foo(*args, &)
         end
       RUBY
     end
 
-    it 'does not register an offense when referencing the restarg outside forwarding method arguments' do
-      expect_no_offenses(<<~RUBY)
+    it 'registers an offense when referencing the restarg outside forwarding method arguments' do
+      expect_offense(<<~RUBY)
         def foo(*args, &block)
+                       ^^^^^^ Use anonymous block arguments forwarding (`&`).
           args
           foo(*args, &block)
+                     ^^^^^^ Use anonymous block arguments forwarding (`&`).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(*args, &)
+          args
+          foo(*args, &)
         end
       RUBY
     end
@@ -1732,10 +2351,28 @@ RSpec.describe RuboCop::Cop::Style::ArgumentsForwarding, :config do
         RUBY
       end
 
+      it 'does not register an offense when using only block arg' do
+        expect_no_offenses(<<~RUBY)
+          def foo(&block)
+            bar(&block)
+          end
+        RUBY
+      end
+
       it 'does not register an offense when using kwrest and block arg' do
         expect_no_offenses(<<~RUBY)
           def foo(**kwargs, &block)
             bar(**kwargs, &block)
+          end
+        RUBY
+      end
+
+      it 'does not register an offense when using restarg, kwrestarg and block arg' do
+        expect_no_offenses(<<~RUBY)
+          def foo(*args, **kwargs, &block)
+            args_nly(*args)
+            kwargs_nly(**kwargs)
+            block_nly(&block)
           end
         RUBY
       end

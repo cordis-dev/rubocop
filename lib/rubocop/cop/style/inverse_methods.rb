@@ -76,9 +76,9 @@ module RuboCop
         PATTERN
 
         def on_send(node)
-          inverse_candidate?(node) do |_method_call, lhs, method, rhs|
+          inverse_candidate?(node) do |method_call, lhs, method, rhs|
             return unless inverse_methods.key?(method)
-            return if negated?(node)
+            return if negated?(node) || relational_comparison_with_safe_navigation?(method_call)
             return if part_of_ignored_node?(node)
             return if possible_class_hierarchy_check?(lhs, rhs, method)
 
@@ -155,16 +155,16 @@ module RuboCop
           node.parent.respond_to?(:method?) && node.parent.method?(:!)
         end
 
+        def relational_comparison_with_safe_navigation?(node)
+          node.csend_type? && CLASS_COMPARISON_METHODS.include?(node.method_name)
+        end
+
         def not_to_receiver(node, method_call)
-          Parser::Source::Range.new(node.source_range.source_buffer,
-                                    node.loc.selector.begin_pos,
-                                    method_call.source_range.begin_pos)
+          node.loc.selector.begin.join(method_call.source_range.begin)
         end
 
         def end_parentheses(node, method_call)
-          Parser::Source::Range.new(node.source_range.source_buffer,
-                                    method_call.source_range.end_pos,
-                                    node.source_range.end_pos)
+          method_call.source_range.end.join(node.source_range.end)
         end
 
         # When comparing classes, `!(Integer < Numeric)` is not the same as

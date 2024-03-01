@@ -29,10 +29,12 @@ RuboCop will start looking for the configuration file in the directory
 where the inspected file is and continue its way up to the root directory.
 
 If it cannot be found until reaching the project's root directory, then it will
-be searched for in the user's global config locations, which consists of a
+be searched for in the https://dot-config.github.io[.config directory of the project root]
+and the user's global config locations. The user's global config locations consist of a
 dotfile or a config file inside the https://specifications.freedesktop.org/basedir-spec/latest/index.html[XDG Base Directory
 specification].
 
+* `.config/.rubocop.yml` or `.config/rubocop/config.yml` at the project root
 * `~/.rubocop.yml`
 * `$XDG_CONFIG_HOME/rubocop/config.yml` (expands to `~/.config/rubocop/config.yml`
 if `$XDG_CONFIG_HOME` is not set)
@@ -46,6 +48,8 @@ files:
 * `/path/to/project/lib/utils/.rubocop.yml`
 * `/path/to/project/lib/.rubocop.yml`
 * `/path/to/project/.rubocop.yml`
+* `/path/to/project/.config/.rubocop.yml`
+* `/path/to/project/.config/rubocop/config.yml`
 * `/.rubocop.yml`
 * `~/.rubocop.yml`
 * `~/.config/rubocop/config.yml`
@@ -567,13 +571,46 @@ These details will only be seen when RuboCop is run with the `--extra-details` f
 
 === AutoCorrect
 
-Cops that support the `--autocorrect` option can have that support
-disabled. For example:
+Cops that support the `--autocorrect` option offer flexible settings for autocorrection.
+These settings can be specified in the configuration file as follows:
+
+- `always`
+- `contextual`
+- `disabled`
+
+==== `always (Default)`
+
+This setting enables autocorrection always by default. For backward compatibility, `true` is treated the same as `always`.
 
 [source,yaml]
 ----
 Style/PerlBackrefs:
-  AutoCorrect: false
+  AutoCorrect: always # or true
+----
+
+==== `contextual`
+
+This setting enables autocorrection when launched from the `rubocop` command, but it is not available through LSP.
+e.g., `rubocop --lsp`, `rubocop --editor-mode`, or a program where `RuboCop::LSP.enable` has been applied.
+
+Inspections via the command line are treated as code that has been finalized.
+
+[source,yaml]
+----
+Style/PerlBackrefs:
+  AutoCorrect: contextual
+----
+
+This setting prevents autocorrection during editing in the editor.
+
+==== `disabled`
+
+This setting disables autocorrection. For backward compatibility, `false` is treated the same as `disabled`.
+
+[source,yaml]
+----
+Style/PerlBackrefs:
+  AutoCorrect: disabled # or false
 ----
 
 == Common configuration parameters
@@ -610,7 +647,7 @@ AllCops:
 
 Otherwise, RuboCop will then check your project for a series of files where
 the version may be specified already. The files that will be looked for are
-`.ruby-version`, `.tool-versions`, `Gemfile.lock`, and `*.gemspec`.
+`*.gemspec`, `.ruby-version`, `.tool-versions`, and `Gemfile.lock`.
 If Gemspec file has an array for `required_ruby_version`, the lowest version will be used.
 If none of the files are found a default version value will be used.
 

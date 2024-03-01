@@ -5,7 +5,8 @@ module RuboCop
     module Lint
       # Checks for redundant safe navigation calls.
       # Use cases where a constant, named in camel case for classes and modules is `nil` are rare,
-      # and an offense is not detected when the receiver is a snake case constant.
+      # and an offense is not detected when the receiver is a constant. The detection also applies
+      # to literal receivers, except for `nil`.
       #
       # For all receivers, the `instance_of?`, `kind_of?`, `is_a?`, `eql?`, `respond_to?`,
       # and `equal?` methods are checked by default.
@@ -76,10 +77,9 @@ module RuboCop
       #
       class RedundantSafeNavigation < Base
         include AllowedMethods
-        include RangeHelp
         extend AutoCorrector
 
-        MSG = 'Redundant safe navigation detected.'
+        MSG = 'Redundant safe navigation detected, use `.` instead.'
         MSG_LITERAL = 'Redundant safe navigation with default literal detected.'
 
         NIL_SPECIFIC_METHODS = (nil.methods - Object.new.methods).to_set.freeze
@@ -105,24 +105,23 @@ module RuboCop
 
         # rubocop:disable Metrics/AbcSize
         def on_csend(node)
-          unless node.receiver.const_type? && !node.receiver.source.match?(SNAKE_CASE)
+          unless assume_receiver_instance_exists?(node.receiver)
             return unless check?(node) && allowed_method?(node.method_name)
             return if respond_to_nil_specific_method?(node)
           end
 
-          range = range_between(node.loc.dot.begin_pos, node.source_range.end_pos)
-          add_offense(range) { |corrector| corrector.replace(node.loc.dot, '.') }
+          range = node.loc.dot
+          add_offense(range) { |corrector| corrector.replace(range, '.') }
         end
 
         def on_or(node)
           conversion_with_default?(node) do |send_node|
-            range = range_between(send_node.loc.dot.begin_pos, node.source_range.end_pos)
+            range = send_node.loc.dot.begin.join(node.source_range.end)
 
             add_offense(range, message: MSG_LITERAL) do |corrector|
               corrector.replace(send_node.loc.dot, '.')
 
-              range_with_default = range_between(node.lhs.source_range.end.begin_pos,
-                                                 node.source_range.end.end_pos)
+              range_with_default = node.lhs.source_range.end.begin.join(node.source_range.end)
               corrector.remove(range_with_default)
             end
           end
@@ -130,6 +129,12 @@ module RuboCop
         # rubocop:enable Metrics/AbcSize
 
         private
+
+        def assume_receiver_instance_exists?(receiver)
+          return true if receiver.const_type? && !receiver.source.match?(SNAKE_CASE)
+
+          receiver.literal? && !receiver.nil_type?
+        end
 
         def check?(node)
           parent = node.parent

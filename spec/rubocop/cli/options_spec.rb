@@ -780,12 +780,12 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
         expect(cli.run(%w[-f offenses --only Layout example.rb])).to eq(1)
         expect($stdout.string).to eq(<<~RESULT)
 
-          1  Layout/CommentIndentation
-          1  Layout/IndentationStyle
-          1  Layout/IndentationWidth
-          1  Layout/LineLength
-          1  Layout/SpaceAroundOperators
-          1  Layout/TrailingWhitespace
+          1  Layout/CommentIndentation [Safe Correctable]
+          1  Layout/IndentationStyle [Safe Correctable]
+          1  Layout/IndentationWidth [Safe Correctable]
+          1  Layout/LineLength [Safe Correctable]
+          1  Layout/SpaceAroundOperators [Safe Correctable]
+          1  Layout/TrailingWhitespace [Safe Correctable]
           --
           6  Total in 1 files
 
@@ -804,13 +804,13 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
         expect($stdout.string)
           .to eq(<<~RESULT)
 
-            1  Layout/CommentIndentation
-            1  Layout/IndentationStyle
-            1  Layout/IndentationWidth
-            1  Layout/LineLength
-            1  Layout/TrailingWhitespace
-            1  Style/FrozenStringLiteralComment
-            1  Style/NumericLiterals
+            1  Layout/CommentIndentation [Safe Correctable]
+            1  Layout/IndentationStyle [Safe Correctable]
+            1  Layout/IndentationWidth [Safe Correctable]
+            1  Layout/LineLength [Safe Correctable]
+            1  Layout/TrailingWhitespace [Safe Correctable]
+            1  Style/FrozenStringLiteralComment [Unsafe Correctable]
+            1  Style/NumericLiterals [Safe Correctable]
             --
             7  Total in 1 files
 
@@ -943,10 +943,10 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
           .to eq(<<~RESULT)
 
             1  Lint/MissingCopEnableDirective
-            1  Lint/RedundantCopDisableDirective
-            1  Migration/DepartmentName
-            1  Style/FrozenStringLiteralComment
-            1  Style/NumericPredicate
+            1  Lint/RedundantCopDisableDirective [Safe Correctable]
+            1  Migration/DepartmentName [Safe Correctable]
+            1  Style/FrozenStringLiteralComment [Unsafe Correctable]
+            1  Style/NumericPredicate [Unsafe Correctable]
             --
             5  Total in 1 files
 
@@ -963,15 +963,15 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
         expect($stdout.string)
           .to eq(<<~RESULT)
 
-            1  Layout/IndentationStyle
-            1  Layout/IndentationWidth
-            1  Layout/SpaceAroundOperators
-            1  Layout/TrailingWhitespace
+            1  Layout/IndentationStyle [Safe Correctable]
+            1  Layout/IndentationWidth [Safe Correctable]
+            1  Layout/SpaceAroundOperators [Safe Correctable]
+            1  Layout/TrailingWhitespace [Safe Correctable]
             1  Lint/MissingCopEnableDirective
-            1  Lint/UselessAssignment
-            1  Migration/DepartmentName
-            1  Style/FrozenStringLiteralComment
-            1  Style/NumericPredicate
+            1  Lint/UselessAssignment [Unsafe Correctable]
+            1  Migration/DepartmentName [Safe Correctable]
+            1  Style/FrozenStringLiteralComment [Unsafe Correctable]
+            1  Style/NumericPredicate [Unsafe Correctable]
             --
             9  Total in 1 files
 
@@ -991,7 +991,7 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
 
         expect($stderr.string).to eq('')
         expect(without_option.split($RS) - with_option.split($RS))
-          .to eq(['1  Style/IfUnlessModifier', '7  Total in 1 files'])
+          .to eq(['1  Style/IfUnlessModifier [Safe Correctable]', '7  Total in 1 files'])
       end
     end
 
@@ -1013,10 +1013,10 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
           expect($stdout.string)
             .to eq(<<~RESULT)
 
-              1  Layout/IndentationWidth
-              1  Layout/TrailingWhitespace
-              1  Style/FrozenStringLiteralComment
-              1  Style/NumericLiterals
+              1  Layout/IndentationWidth [Safe Correctable]
+              1  Layout/TrailingWhitespace [Safe Correctable]
+              1  Style/FrozenStringLiteralComment [Unsafe Correctable]
+              1  Style/NumericLiterals [Safe Correctable]
               --
               4  Total in 1 files
 
@@ -2006,11 +2006,11 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
       end
     end
 
-    context 'when setting `AutoCorrect: false` for `Style/StringLiterals`' do
+    context 'when setting `AutoCorrect: disabled` for `Style/StringLiterals`' do
       before do
         create_file('.rubocop.yml', <<~YAML)
           Style/StringLiterals:
-            AutoCorrect: false
+            AutoCorrect: disabled
         YAML
       end
 
@@ -2227,6 +2227,76 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
       end
     ensure
       $stdin = STDIN
+    end
+  end
+
+  describe '--editor-mode' do
+    let(:target_file) { 'example.rb' }
+
+    before do
+      create_file(target_file, <<~RUBY)
+        def empty_method
+        end
+      RUBY
+
+      create_file('.rubocop.yml', <<~YAML)
+        AllCops:
+          SuggestExtensions: false
+
+        Layout/EmptyLineAfterMagicComment:
+          AutoCorrect: contextual
+      YAML
+    end
+
+    after { RuboCop::LSP.disable }
+
+    context 'when using `--editor-mode`' do
+      it 'registers an offense, but does not correct for `Layout/EmptyLineAfterMagicComment` with `AutoCorrect: contextual`' do
+        status_code = cli.run(['--editor-mode', '-a', '--only', 'Style/EmptyMethod', target_file])
+
+        expect(status_code).to eq(1)
+        expect($stderr.string).to eq('')
+        expect(File.read('example.rb')).to eq(<<~RUBY)
+          def empty_method
+          end
+        RUBY
+        expect($stdout.string).to eq(<<~RESULT)
+          Inspecting 1 file
+          C
+
+          Offenses:
+
+          example.rb:1:1: C: Style/EmptyMethod: Put empty method definitions on a single line.
+          def empty_method ...
+          ^^^^^^^^^^^^^^^^
+
+          1 file inspected, 1 offense detected
+        RESULT
+      end
+    end
+
+    context 'when not using `--editor-mode`' do
+      it 'registers an offense and corrects for `Layout/EmptyLineAfterMagicComment` with `AutoCorrect: contextual`' do
+        status_code = cli.run(['-a', '--only', 'Style/EmptyMethod', target_file])
+
+        expect(status_code).to eq(0)
+        expect($stderr.string).to eq('')
+        expect(File.read('example.rb')).to eq(<<~RUBY)
+          def empty_method; end
+        RUBY
+        expect($stdout.string).to eq(<<~RESULT)
+          Inspecting 1 file
+          C
+
+          Offenses:
+
+          example.rb:1:1: C: [Corrected] Style/EmptyMethod: Put empty method definitions on a single line.
+          def empty_method ...
+          ^^^^^^^^^^^^^^^^
+
+          1 file inspected, 1 offense detected, 1 offense corrected
+        RESULT
+      end
     end
   end
 

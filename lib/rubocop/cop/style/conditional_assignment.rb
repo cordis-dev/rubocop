@@ -115,8 +115,8 @@ module RuboCop
       end
 
       # Check for `if` and `case` statements where each branch is used for
-      # assignment to the same variable when using the return of the
-      # condition can be used instead.
+      # both the assignment and comparison of the same variable
+      # when using the return of the condition can be used instead.
       #
       # @example EnforcedStyle: assign_to_condition (default)
       #   # bad
@@ -460,9 +460,8 @@ module RuboCop
 
         def assignment(node)
           *_, condition = *node
-          Parser::Source::Range.new(node.source_range.source_buffer,
-                                    node.source_range.begin_pos,
-                                    condition.source_range.begin_pos)
+
+          node.source_range.begin.join(condition.source_range.begin)
         end
 
         def correct_if_branches(corrector, cop, node)

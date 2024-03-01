@@ -116,20 +116,17 @@ module RuboCop
         def truthy_branch_for_guard?(node)
           if_node = node.left_sibling
 
-          if if_node.if? || if_node.ternary?
-            if_node.else_branch.nil?
-          elsif if_node.unless?
-            if_node.if_branch.nil?
+          if if_node.if?
+            if_node.if_branch.arguments.any?
+          else
+            if_node.if_branch.arguments.none?
           end
         end
 
         def range(node)
-          buffer = node.source_range.source_buffer
           map_node = node.receiver.send_node
-          begin_pos = map_node.loc.selector.begin_pos
-          end_pos = node.source_range.end_pos
 
-          Parser::Source::Range.new(buffer, begin_pos, end_pos)
+          map_node.loc.selector.join(node.source_range.end)
         end
       end
     end

@@ -6,11 +6,11 @@ RSpec.describe RuboCop::Cop::Lint::RedundantSafeNavigation, :config do
   it 'registers an offense and corrects when `&.` is used for camel case const receiver' do
     expect_offense(<<~RUBY)
       Const&.do_something
-           ^^^^^^^^^^^^^^ Redundant safe navigation detected.
+           ^^ Redundant safe navigation detected, use `.` instead.
       ConstName&.do_something
-               ^^^^^^^^^^^^^^ Redundant safe navigation detected.
+               ^^ Redundant safe navigation detected, use `.` instead.
       Const_name&.do_something # It is treated as camel case, similar to the `Naming/ConstantName` cop.
-                ^^^^^^^^^^^^^^ Redundant safe navigation detected.
+                ^^ Redundant safe navigation detected, use `.` instead.
     RUBY
 
     expect_correction(<<~RUBY)
@@ -30,10 +30,10 @@ RSpec.describe RuboCop::Cop::Lint::RedundantSafeNavigation, :config do
   it 'registers an offense and corrects when `&.` is used inside `if` condition' do
     expect_offense(<<~RUBY)
       if foo&.respond_to?(:bar)
-            ^^^^^^^^^^^^^^^^^^^ Redundant safe navigation detected.
+            ^^ Redundant safe navigation detected, use `.` instead.
         do_something
       elsif foo&.respond_to?(:baz)
-               ^^^^^^^^^^^^^^^^^^^ Redundant safe navigation detected.
+               ^^ Redundant safe navigation detected, use `.` instead.
         do_something_else
       end
     RUBY
@@ -50,7 +50,7 @@ RSpec.describe RuboCop::Cop::Lint::RedundantSafeNavigation, :config do
   it 'registers an offense and corrects when `&.` is used inside `unless` condition' do
     expect_offense(<<~RUBY)
       do_something unless foo&.respond_to?(:bar)
-                             ^^^^^^^^^^^^^^^^^^^ Redundant safe navigation detected.
+                             ^^ Redundant safe navigation detected, use `.` instead.
     RUBY
 
     expect_correction(<<~RUBY)
@@ -58,18 +58,68 @@ RSpec.describe RuboCop::Cop::Lint::RedundantSafeNavigation, :config do
     RUBY
   end
 
+  it 'registers an offense and corrects when `&.` is used for string literals' do
+    expect_offense(<<~RUBY)
+      '2012-03-02 16:05:37'&.to_time
+                           ^^ Redundant safe navigation detected, use `.` instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      '2012-03-02 16:05:37'.to_time
+    RUBY
+  end
+
+  it 'registers an offense and corrects when `&.` is used for integer literals' do
+    expect_offense(<<~RUBY)
+      42&.minutes
+        ^^ Redundant safe navigation detected, use `.` instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      42.minutes
+    RUBY
+  end
+
+  it 'registers an offense and corrects when `&.` is used for array literals' do
+    expect_offense(<<~RUBY)
+      [1, 2, 3]&.join(', ')
+               ^^ Redundant safe navigation detected, use `.` instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      [1, 2, 3].join(', ')
+    RUBY
+  end
+
+  it 'registers an offense and corrects when `&.` is used for hash literals' do
+    expect_offense(<<~RUBY)
+      {k: :v}&.count
+             ^^ Redundant safe navigation detected, use `.` instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      {k: :v}.count
+    RUBY
+  end
+
+  it 'does not register an offense and corrects when `&.` is used for `nil` literal' do
+    expect_no_offenses(<<~RUBY)
+      nil&.to_i
+    RUBY
+  end
+
   %i[while until].each do |loop_type|
     it 'registers an offense and corrects when `&.` is used inside `#{loop_type}` condition' do
       expect_offense(<<~RUBY, loop_type: loop_type)
         %{loop_type} foo&.respond_to?(:bar)
-        _{loop_type}    ^^^^^^^^^^^^^^^^^^^ Redundant safe navigation detected.
+        _{loop_type}    ^^ Redundant safe navigation detected, use `.` instead.
           do_something
         end
 
         begin
           do_something
         end %{loop_type} foo&.respond_to?(:bar)
-            _{loop_type}    ^^^^^^^^^^^^^^^^^^^ Redundant safe navigation detected.
+            _{loop_type}    ^^ Redundant safe navigation detected, use `.` instead.
       RUBY
 
       expect_correction(<<~RUBY)
@@ -87,8 +137,8 @@ RSpec.describe RuboCop::Cop::Lint::RedundantSafeNavigation, :config do
   it 'registers an offense and corrects when `&.` is used inside complex condition' do
     expect_offense(<<~RUBY)
       do_something if foo&.respond_to?(:bar) && !foo&.respond_to?(:baz)
-                         ^^^^^^^^^^^^^^^^^^^ Redundant safe navigation detected.
-                                                    ^^^^^^^^^^^^^^^^^^^ Redundant safe navigation detected.
+                         ^^ Redundant safe navigation detected, use `.` instead.
+                                                    ^^ Redundant safe navigation detected, use `.` instead.
     RUBY
 
     expect_correction(<<~RUBY)
