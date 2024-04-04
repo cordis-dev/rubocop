@@ -11,6 +11,47 @@
 
 ## master (unreleased)
 
+## 1.62.1 (2024-03-11)
+
+### Bug fixes
+
+* [#12761](https://github.com/rubocop/rubocop/issues/12761): Fix a false positive for `Style/HashEachMethods` when the key block argument of `Enumerable#each` method is unused after `chunk`. ([@koic][])
+* [#12768](https://github.com/rubocop/rubocop/pull/12768): Fix a false positive for `Style/NilComparison` without receiver and `EnforcedStyle: comparison`. ([@earlopain][])
+* [#12752](https://github.com/rubocop/rubocop/pull/12752): Fix an error for `Gemspec/RequiredRubyVersion` when the file is empty. ([@earlopain][])
+* [#12770](https://github.com/rubocop/rubocop/pull/12770): Fix an error for `Lint/RedundantWithIndex` when the method has no receiver. ([@earlopain][])
+* [#12775](https://github.com/rubocop/rubocop/pull/12775): Fix an error for `Lint/UselessTimes` when no block is present. ([@earlopain][])
+* [#12772](https://github.com/rubocop/rubocop/pull/12772): Fix an error for `Style/ClassVars` when calling `class_variable_set` without arguments. ([@earlopain][])
+* [#12773](https://github.com/rubocop/rubocop/pull/12773): Fix an error for `Style/For` with `EnforcedStyle: for` when no receiver. ([@earlopain][])
+* [#12765](https://github.com/rubocop/rubocop/pull/12765): Fix an error for `Layout/MultilineMethodCallIndentation` with safe navigation and assignment method. ([@earlopain][])
+* [#12703](https://github.com/rubocop/rubocop/issues/12703): Fix an error for `Lint/MixedCaseRange` with invalid byte sequence in UTF-8. ([@earlopain][])
+* [#12755](https://github.com/rubocop/rubocop/pull/12755): Fix an exception for `RedundantCurrentDirectoryInPath` in case of `require_relative` without arguments. ([@viralpraxis][])
+* [#12710](https://github.com/rubocop/rubocop/issues/12710): Fix a false negative for `Layout/EmptyLineAfterMagicComment` when the file is comments only. ([@earlopain][])
+* [#12758](https://github.com/rubocop/rubocop/issues/12758): Fix false positives for `Layout/RedundantLineBreak` when using `&&` or `||` after a backslash newline. ([@koic][])
+* [#12763](https://github.com/rubocop/rubocop/pull/12763): Fix an infinite loop for `Style/MultilineMethodSignature` when there is a newline directly after the def keyword. ([@earlopain][])
+* [#12774](https://github.com/rubocop/rubocop/pull/12774): Fix an infinite loop for `Style/RaiseArgs` with `EnforcedStyle: compact` when passing more than 2 arguments to `raise`. ([@earlopain][])
+* [#12663](https://github.com/rubocop/rubocop/issues/12663): Fix `Lint/Syntax` getting disabled by `rubocop:disable Lint/Syntax`. ([@earlopain][])
+* [#12756](https://github.com/rubocop/rubocop/pull/12756): Only parse target Ruby from gemspec if array elements are strings. ([@davidrunger][])
+
+### Changes
+
+* [#12730](https://github.com/rubocop/rubocop/pull/12730): Skip `LineLength` phase on `--auto-gen-only-exclude`. ([@sambostock][])
+
+## 1.62.0 (2024-03-06)
+
+### New features
+
+* [#12600](https://github.com/rubocop/rubocop/issues/12600): Support Prism as a Ruby parser (experimental). ([@koic][])
+* [#12725](https://github.com/rubocop/rubocop/pull/12725): Support `TargetRubyVersion 3.4` (experimental). ([@koic][])
+
+### Bug fixes
+
+* [#12746](https://github.com/rubocop/rubocop/pull/12746): Fix a false positive for `Lint/ToEnumArguments` when enumerator is created for another method in no arguments method definition. ([@koic][])
+* [#12726](https://github.com/rubocop/rubocop/issues/12726): Fix a false positive for `Style/RedundantLineContinuation` when using line concatenation and calling a method with keyword arguments without parentheses. ([@koic][])
+* [#12738](https://github.com/rubocop/rubocop/issues/12738): Fix an error for `Style/Encoding` when magic encoding with mixed case present. ([@koic][])
+* [#12732](https://github.com/rubocop/rubocop/pull/12732): Fix error determining target Ruby when gemspec `required_ruby_version` is read from another file. ([@davidrunger][])
+* [#12736](https://github.com/rubocop/rubocop/issues/12736): Fix invalid autocorrect in `Layout/SpaceInsideHashLiteralBraces`. ([@bquorning][])
+* [#12667](https://github.com/rubocop/rubocop/issues/12667): Don't load excluded configuration. ([@jonas054][])
+
 ## 1.61.0 (2024-02-29)
 
 ### New features
@@ -7619,3 +7660,5 @@
 [@Strzesia]: https://github.com/Strzesia
 [@maruth-stripe]: https://github.com/maruth-stripe
 [@jenshenny]: https://github.com/jenshenny
+[@davidrunger]: https://github.com/davidrunger
+[@viralpraxis]: https://github.com/viralpraxis

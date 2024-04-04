@@ -602,6 +602,8 @@ Style/PerlBackrefs:
 ----
 
 This setting prevents autocorrection during editing in the editor.
+Additionally, for cases like `Metrics` cops where the highlight range extends over the entire body of classes, modules, methods, or blocks
+offending range will be confined to only name. This approach helps to avoid redundant and noisy offenses in editor display.
 
 ==== `disabled`
 
@@ -645,11 +647,85 @@ AllCops:
   TargetRubyVersion: 2.5
 ----
 
-Otherwise, RuboCop will then check your project for a series of files where
-the version may be specified already. The files that will be looked for are
+NOTE: When `ParserEngine: parser_prism` is specified, `TargetRubyVersion` must
+be set to `3.3` or higher.
+
+If a `TargetRubyVersion` is not specified in your config, then RuboCop will
+check your project for a series of other files where the Ruby version may be
+specified already. The files that will be checked are (in this order):
 `*.gemspec`, `.ruby-version`, `.tool-versions`, and `Gemfile.lock`.
-If Gemspec file has an array for `required_ruby_version`, the lowest version will be used.
-If none of the files are found a default version value will be used.
+
+If a target Ruby version cannot be found via any of the above sources, then a
+default target Ruby version will be used.
+
+=== Finding target Ruby in a `*.gemspec` file
+
+In order for RuboCop to parse a `*.gemspec` file's `required_ruby_version`, the
+Ruby version must be specified using one of these syntaxes:
+
+1. a string range, e.g. `'~> 3.2.0'` or `'>= 3.2.2'`
+2. an array of strings, e.g. `['>= 3.0.0', '< 3.4.0']`
+3. a `Gem::Requirement`, e.g. `Gem::Requirement.new('>= 3.1.2')`
+
+If a `*.gemspec` file specifies a range of supported Ruby versions via any of
+these means, then the greater of the following Ruby versions will be used:
+
+- the lowest Ruby version that is compatible with your specified range
+- the lowest version of Ruby that is still supported by your version of RuboCop
+
+If a `*.gemspec` file defines its `required_ruby_version` dynamically (e.g. by
+reading from a `.ruby-version` file, via an environment variable, referencing a
+constant or local variable, etc), then RuboCop will _not_ detect that Ruby
+version, and will instead try to find a target Ruby version elsewhere.
+
+== Setting the parser engine
+
+NOTE: The parser engine configuration was introduced in RuboCop 1.62. This
+experimental feature has been under consideration for a while.
+
+RuboCop allows switching the backend parser by specifying either
+`parser_whitequark` or `parser_prism` as the value for the `ParserEngine`.
+
+Here are the parsers used as backends for each value:
+
+- `ParserEngine: parser_whitequark` ... https://github.com/whitequark/parser
+- `ParserEngine: parser_prism` ... https://github.com/ruby/prism (`Prism::Translation::Parser`)
+
+By default, `parser_whitequark` is implicitly used.
+
+`parser_whitequark` can analyze source code from Ruby 2.0 and above:
+
+[source,yaml]
+----
+AllCops:
+  ParserEngine: parser_whitequark
+----
+
+`parser_prism` can analyze source code from Ruby 3.3 and above:
+
+[source,yaml]
+----
+AllCops:
+  ParserEngine: parser_prism
+  TargetRubyVersion: 3.3
+----
+
+`parser_prism` tends to perform analysis faster than `parser_whitequark`.
+
+IMPORTANT: Since the support for Prism is experimental, it is not included in
+RuboCop's runtime dependencies.  If running RuboCop through Bundler, please add
+`gem 'prism'` to your `Gemfile`:
+
+[source,ruby]
+----
+gem 'prism'
+----
+
+There are some incompatibilities with `parser_whitequark` in `parser_prism`,
+which is the main reason why the support for it is considered experimental.
+We're working with Prism's team to address those.  You can track the outstanding
+known issues in Prism that affect RuboCop
+https://github.com/ruby/prism/issues?q=is%3Aissue+is%3Aopen+label%3Arubocop[here].
 
 == Automatically Generated Configuration
 

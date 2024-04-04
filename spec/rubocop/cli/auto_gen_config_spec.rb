@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'timeout'
-
 RSpec.describe 'RuboCop::CLI --auto-gen-config', :isolated_environment do # rubocop:disable RSpec/DescribeClass
   subject(:cli) { RuboCop::CLI.new }
 
@@ -1309,8 +1307,13 @@ RSpec.describe 'RuboCop::CLI --auto-gen-config', :isolated_environment do # rubo
       # absolute Exclude paths will point into this example's work directory.
       RuboCop::ConfigLoader.default_configuration = nil
 
+      $stdout = StringIO.new
       expect(cli.run(['--auto-gen-config', '--auto-gen-only-exclude',
                       '--exclude-limit', '1'])).to eq(0)
+      expect($stdout.string.include?(<<~STRING)).to be(true)
+        Phase 1 of 2: run Layout/LineLength cop (skipped because only excludes will be generated due to `--auto-gen-only-exclude` flag)
+        Phase 2 of 2: run all cops
+      STRING
       actual = File.read('.rubocop_todo.yml').split($RS)
 
       # With --exclude-limit 1 we get MinDigits generated for NumericLiterals
@@ -1319,6 +1322,9 @@ RSpec.describe 'RuboCop::CLI --auto-gen-config', :isolated_environment do # rubo
       # the same cop in a single file. Exclude properties are generated for
       # them.
       expect(actual.grep(/^[^#]/).join($RS)).to eq(<<~YAML.chomp)
+        Layout/LineLength:
+          Exclude:
+            - 'example1.rb'
         Lint/UnusedMethodArgument:
           Exclude:
             - 'example2.rb'
@@ -1329,9 +1335,6 @@ RSpec.describe 'RuboCop::CLI --auto-gen-config', :isolated_environment do # rubo
           Enabled: false
         Style/NumericLiterals:
           MinDigits: 7
-        Layout/LineLength:
-          Exclude:
-            - 'example1.rb'
       YAML
     end
 

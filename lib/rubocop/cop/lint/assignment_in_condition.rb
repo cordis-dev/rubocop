@@ -50,7 +50,7 @@ module RuboCop
         MSG_WITHOUT_SAFE_ASSIGNMENT_ALLOWED =
           'Use `==` if you meant to do a comparison or move the assignment ' \
           'up out of the condition.'
-        ASGN_TYPES = [:begin, *AST::Node::EQUALS_ASSIGNMENTS, :send].freeze
+        ASGN_TYPES = [:begin, *AST::Node::EQUALS_ASSIGNMENTS, :send, :csend].freeze
 
         def on_if(node)
           return if node.condition.block_type?
@@ -88,9 +88,7 @@ module RuboCop
         end
 
         def skip_children?(asgn_node)
-          (asgn_node.send_type? && !asgn_node.assignment_method?) ||
-            empty_condition?(asgn_node) ||
-            (safe_assignment_allowed? && safe_assignment?(asgn_node))
+          empty_condition?(asgn_node) || (safe_assignment_allowed? && safe_assignment?(asgn_node))
         end
 
         def traverse_node(node, &block)

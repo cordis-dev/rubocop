@@ -6,14 +6,14 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
       array.reject { |e| e.nil? }
             ^^^^^^^^^^^^^^^^^^^^^ Use `compact` instead of `reject { |e| e.nil? }`.
       array.delete_if { |e| e.nil? }
-            ^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact` instead of `delete_if { |e| e.nil? }`.
+            ^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact!` instead of `delete_if { |e| e.nil? }`.
       array.reject! { |e| e.nil? }
             ^^^^^^^^^^^^^^^^^^^^^^ Use `compact!` instead of `reject! { |e| e.nil? }`.
     RUBY
 
     expect_correction(<<~RUBY)
       array.compact
-      array.compact
+      array.compact!
       array.compact!
     RUBY
   end
@@ -23,14 +23,14 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
       array&.reject { |e| e&.nil? }
              ^^^^^^^^^^^^^^^^^^^^^^ Use `compact` instead of `reject { |e| e&.nil? }`.
       array&.delete_if { |e| e&.nil? }
-             ^^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact` instead of `delete_if { |e| e&.nil? }`.
+             ^^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact!` instead of `delete_if { |e| e&.nil? }`.
       array&.reject! { |e| e&.nil? }
              ^^^^^^^^^^^^^^^^^^^^^^^ Use `compact!` instead of `reject! { |e| e&.nil? }`.
     RUBY
 
     expect_correction(<<~RUBY)
       array&.compact
-      array&.compact
+      array&.compact!
       array&.compact!
     RUBY
   end
@@ -40,14 +40,14 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
       array.reject(&:nil?)
             ^^^^^^^^^^^^^^ Use `compact` instead of `reject(&:nil?)`.
       array.delete_if(&:nil?)
-            ^^^^^^^^^^^^^^^^^ Use `compact` instead of `delete_if(&:nil?)`.
+            ^^^^^^^^^^^^^^^^^ Use `compact!` instead of `delete_if(&:nil?)`.
       array.reject!(&:nil?)
             ^^^^^^^^^^^^^^^ Use `compact!` instead of `reject!(&:nil?)`.
     RUBY
 
     expect_correction(<<~RUBY)
       array.compact
-      array.compact
+      array.compact!
       array.compact!
     RUBY
   end
@@ -57,14 +57,14 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
       array&.reject(&:nil?)
              ^^^^^^^^^^^^^^ Use `compact` instead of `reject(&:nil?)`.
       array&.delete_if(&:nil?)
-             ^^^^^^^^^^^^^^^^^ Use `compact` instead of `delete_if(&:nil?)`.
+             ^^^^^^^^^^^^^^^^^ Use `compact!` instead of `delete_if(&:nil?)`.
       array&.reject!(&:nil?)
              ^^^^^^^^^^^^^^^ Use `compact!` instead of `reject!(&:nil?)`.
     RUBY
 
     expect_correction(<<~RUBY)
       array&.compact
-      array&.compact
+      array&.compact!
       array&.compact!
     RUBY
   end
@@ -74,12 +74,12 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
       array.reject &:nil?
             ^^^^^^^^^^^^^ Use `compact` instead of `reject &:nil?`.
       array.delete_if &:nil?
-            ^^^^^^^^^^^^^^^^ Use `compact` instead of `delete_if &:nil?`.
+            ^^^^^^^^^^^^^^^^ Use `compact!` instead of `delete_if &:nil?`.
     RUBY
 
     expect_correction(<<~RUBY)
       array.compact
-      array.compact
+      array.compact!
     RUBY
   end
 
@@ -88,14 +88,14 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
       hash.reject { |k, v| v.nil? }
            ^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact` instead of `reject { |k, v| v.nil? }`.
       hash.delete_if { |k, v| v.nil? }
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact` instead of `delete_if { |k, v| v.nil? }`.
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact!` instead of `delete_if { |k, v| v.nil? }`.
       hash.reject! { |k, v| v.nil? }
            ^^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact!` instead of `reject! { |k, v| v.nil? }`.
     RUBY
 
     expect_correction(<<~RUBY)
       hash.compact
-      hash.compact
+      hash.compact!
       hash.compact!
     RUBY
   end
@@ -134,14 +134,14 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
         params.reject { |_k, v| v.nil? }
                ^^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact` instead of `reject { |_k, v| v.nil? }`.
         params.delete_if { |_k, v| v.nil? }
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact` instead of `delete_if { |_k, v| v.nil? }`.
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `compact!` instead of `delete_if { |_k, v| v.nil? }`.
       end
     RUBY
 
     expect_correction(<<~RUBY)
       def foo(params)
         params.compact
-        params.compact
+        params.compact!
       end
     RUBY
   end
@@ -258,7 +258,7 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
     end
   end
 
-  context 'Ruby <= 3.0', :ruby30 do
+  context 'Ruby <= 3.0', :ruby30, unsupported_on: :prism do
     it 'does not register an offense and corrects when using `to_enum.reject` on array to reject nils' do
       expect_no_offenses(<<~RUBY)
         array.to_enum.reject { |e| e.nil? }
@@ -276,7 +276,7 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
     end
   end
 
-  context 'when Ruby <= 2.3', :ruby23 do
+  context 'when Ruby <= 2.3', :ruby23, unsupported_on: :prism do
     it 'does not register an offense when using `reject` on hash to reject nils' do
       expect_no_offenses(<<~RUBY)
         hash.reject { |k, v| v.nil? }

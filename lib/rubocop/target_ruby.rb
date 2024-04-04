@@ -96,18 +96,20 @@ module RuboCop
       end
 
       def version_from_gemspec_file(file)
-        processed_source = ProcessedSource.from_file(file, DEFAULT_VERSION)
+        processed_source = ProcessedSource.from_file(
+          file, DEFAULT_VERSION, parser_engine: @config.parser_engine
+        )
         required_ruby_version(processed_source.ast).first
       end
 
       def version_from_right_hand_side(right_hand_side)
         gem_requirement_versions = gem_requirement_versions(right_hand_side)
 
-        if right_hand_side.array_type?
+        if right_hand_side.array_type? && right_hand_side.children.all?(&:str_type?)
           version_from_array(right_hand_side)
         elsif gem_requirement_versions
           gem_requirement_versions.map(&:value)
-        else
+        elsif right_hand_side.str_type?
           right_hand_side.value
         end
       end
