@@ -2,12 +2,10 @@
 
 RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
   shared_examples 'all variable types' do |variable|
-    # FIXME: `undefined method `[]' for nil` occurs Prism 0.24.0. It has been resolved in
-    # the development line. This will be resolved in Prism > 0.24.0 and higher releases.
-    it 'registers an offense assigning any variable type to ternary', broken_on: :prism do
+    it 'registers an offense assigning any variable type to ternary' do
       expect_offense(<<~RUBY, variable: variable)
         %{variable} = foo? ? 1 : 2
-        ^{variable}^^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^{variable}^^^^^^^^^^^^^^^ Assign variables inside of conditionals.
       RUBY
 
       expect_correction(<<~RUBY)
@@ -18,7 +16,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'registers an offense assigning any variable type to if else' do
       expect_offense(<<~RUBY, variable: variable)
         %{variable} = if foo
-        ^{variable}^^^^^^^^^ Assign variables inside of conditionals
+        ^{variable}^^^^^^^^^ Assign variables inside of conditionals.
                         1
                       else
                         2
@@ -37,7 +35,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'registers an offense assigning any variable type to if elsif else' do
       expect_offense(<<~RUBY, variable: variable)
         %{variable} = if foo
-        ^{variable}^^^^^^^^^ Assign variables inside of conditionals
+        ^{variable}^^^^^^^^^ Assign variables inside of conditionals.
                         1
                       elsif baz
                         2
@@ -60,7 +58,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'registers an offense assigning any variable type to if else with multiple assignment' do
       expect_offense(<<~RUBY, variable: variable)
         %{variable}, %{variable} = if foo
-        ^{variable}^^^{variable}^^^^^^^^^ Assign variables inside of conditionals
+        ^{variable}^^^{variable}^^^^^^^^^ Assign variables inside of conditionals.
                         something
                       else
                         something_else
@@ -87,7 +85,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'registers an offense assigning any variable type to unless else' do
       expect_offense(<<~RUBY, variable: variable)
         %{variable} = unless foo
-        ^{variable}^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^{variable}^^^^^^^^^^^^^ Assign variables inside of conditionals.
                         1
                       else
                         2
@@ -106,7 +104,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'registers an offense for assigning any variable type to case when' do
       expect_offense(<<~RUBY, variable: variable)
         %{variable} = case foo
-        ^{variable}^^^^^^^^^^^ Assign variables inside of conditionals
+        ^{variable}^^^^^^^^^^^ Assign variables inside of conditionals.
                       when "a"
                         1
                       when "b"
@@ -132,7 +130,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
       it 'registers an offense for assigning any variable type to case in' do
         expect_offense(<<~RUBY, variable: variable)
           %{variable} = case foo
-          ^{variable}^^^^^^^^^^^ Assign variables inside of conditionals
+          ^{variable}^^^^^^^^^^^ Assign variables inside of conditionals.
                         in "a"
                           1
                         in "b"
@@ -167,12 +165,10 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
   end
 
   shared_examples 'all assignment types' do |assignment|
-    # FIXME: `undefined method `[]' for nil` occurs Prism 0.24.0. It has been resolved in
-    # the development line. This will be resolved in Prism > 0.24.0 and higher releases.
-    it 'registers an offense for any assignment to ternary', broken_on: :prism do
+    it 'registers an offense for any assignment to ternary' do
       expect_offense(<<~RUBY, assignment: assignment)
         bar %{assignment} (foo? ? 1 : 2)
-        ^^^^^{assignment}^^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^{assignment}^^^^^^^^^^^^^^^ Assign variables inside of conditionals.
       RUBY
 
       expect_correction(<<~RUBY)
@@ -183,7 +179,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'registers an offense any assignment to if else' do
       expect_offense(<<~RUBY, assignment: assignment)
         bar %{assignment} if foo
-        ^^^^^{assignment}^^^^^^^ Assign variables inside of conditionals
+        ^^^^^{assignment}^^^^^^^ Assign variables inside of conditionals.
                         1
                       else
                         2
@@ -210,7 +206,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'registers an offense for any assignment to unless else' do
       expect_offense(<<~RUBY, assignment: assignment)
         bar %{assignment} unless foo
-        ^^^^^{assignment}^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^{assignment}^^^^^^^^^^^ Assign variables inside of conditionals.
                         1
                       else
                         2
@@ -229,7 +225,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'registers an offense any assignment to case when' do
       expect_offense(<<~RUBY, assignment: assignment)
         bar %{assignment} case foo
-        ^^^^^{assignment}^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^{assignment}^^^^^^^^^ Assign variables inside of conditionals.
                       when "a"
                         1
                       else
@@ -262,7 +258,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'assigning any variable type to a multiline if else' do
       expect_offense(<<~RUBY, variable: variable)
         %{variable} = if foo
-        ^{variable}^^^^^^^^^ Assign variables inside of conditionals
+        ^{variable}^^^^^^^^^ Assign variables inside of conditionals.
                         something
                         1
                       else
@@ -285,7 +281,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'assigning any variable type to an if else with multiline in one branch' do
       expect_offense(<<~RUBY, variable: variable)
         %{variable} = if foo
-        ^{variable}^^^^^^^^^ Assign variables inside of conditionals
+        ^{variable}^^^^^^^^^ Assign variables inside of conditionals.
                         1
                       else
                         something_else
@@ -306,7 +302,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'assigning any variable type to a multiline if elsif else' do
       expect_offense(<<~RUBY, variable: variable)
         %{variable} = if foo
-        ^{variable}^^^^^^^^^ Assign variables inside of conditionals
+        ^{variable}^^^^^^^^^ Assign variables inside of conditionals.
                         something
                         1
                       elsif bar
@@ -341,7 +337,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'assigning any variable type to a multiline unless else' do
       expect_offense(<<~RUBY, variable: variable)
         %{variable} = unless foo
-        ^{variable}^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^{variable}^^^^^^^^^^^^^ Assign variables inside of conditionals.
                         something
                         1
                       else
@@ -364,7 +360,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'assigning any variable type to a multiline case when' do
       expect_offense(<<~RUBY, variable: variable)
         %{variable} = case foo
-        ^{variable}^^^^^^^^^^^ Assign variables inside of conditionals
+        ^{variable}^^^^^^^^^^^ Assign variables inside of conditionals.
                       when "a"
                         something
                         1
@@ -459,7 +455,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'any assignment to a multiline if else' do
       expect_offense(<<~RUBY, assignment: assignment)
         bar %{assignment} if foo
-        ^^^^^{assignment}^^^^^^^ Assign variables inside of conditionals
+        ^^^^^{assignment}^^^^^^^ Assign variables inside of conditionals.
                         something
                         1
                       else
@@ -482,7 +478,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'any assignment to a multiline unless else' do
       expect_offense(<<~RUBY, assignment: assignment)
         bar %{assignment} unless foo
-        ^^^^^{assignment}^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^{assignment}^^^^^^^^^^^ Assign variables inside of conditionals.
                         something
                         1
                       else
@@ -505,7 +501,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'any assignment to a multiline case when' do
       expect_offense(<<~RUBY, assignment: assignment)
         bar %{assignment} case foo
-        ^^^^^{assignment}^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^{assignment}^^^^^^^^^ Assign variables inside of conditionals.
                       when "a"
                         something
                         1
@@ -571,7 +567,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment to an if else condition' do
       expect_offense(<<~RUBY)
         bar = if foo
-        ^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^ Assign variables inside of conditionals.
                 1
               else
                 2
@@ -590,7 +586,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment to an if elsif else condition' do
       expect_offense(<<~RUBY)
         bar = if foo
-        ^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^ Assign variables inside of conditionals.
                 1
               elsif foobar
                 2
@@ -613,7 +609,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment to an if elsif else with multiple elsifs' do
       expect_offense(<<~RUBY)
         bar = if foo
-        ^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^ Assign variables inside of conditionals.
                 1
               elsif foobar
                 2
@@ -640,7 +636,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment to an unless else condition' do
       expect_offense(<<~RUBY)
         bar = unless foo
-        ^^^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^^^^^ Assign variables inside of conditionals.
                 1
               else
                 2
@@ -659,7 +655,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment to a case when else condition' do
       expect_offense(<<~RUBY)
         bar = case foo
-        ^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^^^ Assign variables inside of conditionals.
               when foobar
                 1
               else
@@ -680,7 +676,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment to a case when else with multiple whens' do
       expect_offense(<<~RUBY)
         bar = case foo
-        ^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^^^ Assign variables inside of conditionals.
               when foobar
                 1
               when baz
@@ -702,12 +698,10 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
       RUBY
     end
 
-    # FIXME: `undefined method `[]' for nil` occurs Prism 0.24.0. It has been resolved in
-    # the development line. This will be resolved in Prism > 0.24.0 and higher releases.
-    it 'corrects assignment to a ternary operator', broken_on: :prism do
+    it 'corrects assignment to a ternary operator' do
       expect_offense(<<~RUBY)
         bar = foo? ? 1 : 2
-        ^^^^^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^^^^^^^ Assign variables inside of conditionals.
       RUBY
 
       expect_correction(<<~RUBY)
@@ -796,12 +790,10 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
       expect_no_offenses('bar << foo? ? 1 : 2')
     end
 
-    # FIXME: `undefined method `[]' for nil` occurs Prism 0.24.0. It has been resolved in
-    # the development line. This will be resolved in Prism > 0.24.0 and higher releases.
-    it 'registers an offense for assignment using a method that ends with an equal sign', broken_on: :prism do
+    it 'registers an offense for assignment using a method that ends with an equal sign' do
       expect_offense(<<~RUBY)
         self.attributes = foo? ? 1 : 2
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Assign variables inside of conditionals.
       RUBY
 
       expect_correction(<<~RUBY)
@@ -812,7 +804,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'registers an offense for assignment using []=' do
       expect_offense(<<~RUBY)
         foo[:a] = if bar?
-        ^^^^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^^^^^^ Assign variables inside of conditionals.
                     1
                   else
                     2
@@ -831,7 +823,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'registers an offense for assignment to an if then else' do
       expect_offense(<<~RUBY)
         bar = if foo then 1
-        ^^^^^^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^^^^^^^^ Assign variables inside of conditionals.
               else 2
               end
       RUBY
@@ -846,7 +838,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'registers an offense for an assignment that uses if branch bodies including a block' do
       expect_offense(<<~RUBY)
         result = if condition
-        ^^^^^^^^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^^^^^^^^^^ Assign variables inside of conditionals.
           foo do
           end
         else
@@ -869,7 +861,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'registers an offense for assignment to case when then else' do
       expect_offense(<<~RUBY)
         baz = case foo
-        ^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^^^ Assign variables inside of conditionals.
               when bar then 1
               else 2
               end
@@ -886,7 +878,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'registers an offense when empty `case` condition' do
       expect_offense(<<~RUBY)
         var = case
-        ^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^ Assign variables inside of conditionals.
         when foo
           bar
         else
@@ -915,7 +907,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment to a namespaced constant' do
       expect_offense(<<~RUBY)
         FOO::BAR = if baz?
-        ^^^^^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^^^^^^^ Assign variables inside of conditionals.
                       1
                     else
                       2
@@ -934,7 +926,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment when without `else` branch' do
       expect_offense(<<~RUBY)
         var = if foo
-        ^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^ Assign variables inside of conditionals.
           bar
         elsif baz
           qux
@@ -1032,7 +1024,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment to a multiline if else condition' do
       expect_offense(<<~RUBY)
         bar = if foo
-        ^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^ Assign variables inside of conditionals.
                 something
                 1
               else
@@ -1055,7 +1047,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment to a multiline if elsif else condition' do
       expect_offense(<<~RUBY)
         bar = if foo
-        ^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^ Assign variables inside of conditionals.
                 something
                 1
               elsif foobar
@@ -1084,7 +1076,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment to an if elsif else with multiple elsifs' do
       expect_offense(<<~RUBY)
         bar = if foo
-        ^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^ Assign variables inside of conditionals.
                 something
                 1
               elsif foobar
@@ -1119,7 +1111,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment to an unless else condition' do
       expect_offense(<<~RUBY)
         bar = unless foo
-        ^^^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^^^^^ Assign variables inside of conditionals.
                 something
                 1
               else
@@ -1142,7 +1134,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment to a case when else condition' do
       expect_offense(<<~RUBY)
         bar = case foo
-        ^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^^^ Assign variables inside of conditionals.
               when foobar
                 something
                 1
@@ -1167,7 +1159,7 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it 'corrects assignment to a case when else with multiple whens' do
       expect_offense(<<~RUBY)
         bar = case foo
-        ^^^^^^^^^^^^^^ Assign variables inside of conditionals
+        ^^^^^^^^^^^^^^ Assign variables inside of conditionals.
               when foobar
                 something
                 1

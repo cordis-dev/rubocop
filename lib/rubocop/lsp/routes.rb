@@ -45,10 +45,6 @@ module RuboCop
           result: LanguageServer::Protocol::Interface::InitializeResult.new(
             capabilities: LanguageServer::Protocol::Interface::ServerCapabilities.new(
               document_formatting_provider: true,
-              diagnostic_provider: LanguageServer::Protocol::Interface::DiagnosticOptions.new(
-                inter_file_dependencies: false,
-                workspace_diagnostics: false
-              ),
               text_document_sync: LanguageServer::Protocol::Interface::TextDocumentSyncOptions.new(
                 change: LanguageServer::Protocol::Constant::TextDocumentSyncKind::FULL,
                 open_close: true
@@ -60,8 +56,9 @@ module RuboCop
 
       handle 'initialized' do |_request|
         version = RuboCop::Version::STRING
+        yjit = Object.const_defined?('RubyVM::YJIT') && RubyVM::YJIT.enabled? ? ' +YJIT' : ''
 
-        Logger.log("RuboCop #{version} language server initialized, PID #{Process.pid}")
+        Logger.log("RuboCop #{version} language server#{yjit} initialized, PID #{Process.pid}")
       end
 
       handle 'shutdown' do |request|
@@ -70,12 +67,6 @@ module RuboCop
           @server.write(id: request[:id], result: nil)
           Logger.log('Exiting...')
         end
-      end
-
-      handle 'textDocument/diagnostic' do |request|
-        doc = request[:params][:textDocument]
-        result = diagnostic(doc[:uri], doc[:text])
-        @server.write(result)
       end
 
       handle 'textDocument/didChange' do |request|
@@ -126,6 +117,12 @@ module RuboCop
         end
 
         uri = request[:params][:arguments][0][:uri]
+        formatted = nil
+
+        # The `workspace/executeCommand` is an LSP method triggered by intentional user actions,
+        # so the user's intention for autocorrection is respected.
+        LSP.disable { formatted = format_file(uri, command: command) }
+
         @server.write(
           id: request[:id],
           method: 'workspace/applyEdit',
@@ -133,7 +130,7 @@ module RuboCop
             label: label,
             edit: {
               changes: {
-                uri => format_file(uri, command: command)
+                uri => formatted
               }
             }
           }
@@ -238,7 +235,7 @@ module RuboCop
       def to_range(location)
         {
           start: { character: location[:start_column] - 1, line: location[:start_line] - 1 },
-          end: { character: location[:last_column] - 1, line: location[:last_line] - 1 }
+          end: { character: location[:last_column], line: location[:last_line] - 1 }
         }
       end
     end

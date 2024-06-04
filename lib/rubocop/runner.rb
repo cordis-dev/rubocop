@@ -20,7 +20,11 @@ module RuboCop
         message = 'Infinite loop detected'
         message += " in #{path}" if path
         message += " and caused by #{root_cause}" if root_cause
-        super(message)
+        message += "\n"
+        hint = 'Hint: Please update to the latest RuboCop version if not already in use, ' \
+               "and report a bug if the issue still occurs on this version.\n" \
+               'Please check the latest version at https://rubygems.org/gems/rubocop.'
+        super(Rainbow(message).red + Rainbow(hint).yellow)
       end
     end
 

@@ -25,22 +25,24 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLineAfterGuardClause, :config do
     RUBY
   end
 
-  it 'registers an offense and corrects `next` guard clause not followed by empty line' do
-    expect_offense(<<~RUBY)
-      def foo
-        next unless need_next? # comment
-        ^^^^^^^^^^^^^^^^^^^^^^ Add empty line after guard clause.
-        foobar
-      end
-    RUBY
+  context 'Ruby <= 3.2', :ruby32, unsupported_on: :prism do # rubocop:disable RSpec/RepeatedExampleGroupDescription
+    it 'registers an offense and corrects `next` guard clause not followed by empty line' do
+      expect_offense(<<~RUBY)
+        def foo
+          next unless need_next? # comment
+          ^^^^^^^^^^^^^^^^^^^^^^ Add empty line after guard clause.
+          foobar
+        end
+      RUBY
 
-    expect_correction(<<~RUBY)
-      def foo
-        next unless need_next? # comment
+      expect_correction(<<~RUBY)
+        def foo
+          next unless need_next? # comment
 
-        foobar
-      end
-    RUBY
+          foobar
+        end
+      RUBY
+    end
   end
 
   it 'registers an offense and corrects a guard clause is before `begin`' do
@@ -115,9 +117,10 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLineAfterGuardClause, :config do
     RUBY
   end
 
+  # FIXME: https://github.com/rubocop/rubocop/issues/12869
   it 'registers an offense and corrects a next guard clause not followed by ' \
      'empty line when guard clause is after heredoc ' \
-     'including string interpolation' do
+     'including string interpolation', broken_on: :prism do
     expect_offense(<<~'RUBY')
       raise(<<-FAIL) unless true
         #{1 + 1}
@@ -456,7 +459,8 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLineAfterGuardClause, :config do
     RUBY
   end
 
-  it 'accepts a guard clause that is after a multiline heredoc with chained calls' do
+  # FIXME: https://github.com/rubocop/rubocop/issues/12869
+  it 'accepts a guard clause that is after a multiline heredoc with chained calls', broken_on: :prism do
     expect_no_offenses(<<~RUBY)
       def foo
         raise ArgumentError, <<~END.squish.it.good unless guard
@@ -469,7 +473,8 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLineAfterGuardClause, :config do
     RUBY
   end
 
-  it 'accepts a guard clause that is after a multiline heredoc nested argument call' do
+  # FIXME: https://github.com/rubocop/rubocop/issues/12869
+  it 'accepts a guard clause that is after a multiline heredoc nested argument call', broken_on: :prism do
     expect_no_offenses(<<~RUBY)
       def foo
         raise ArgumentError, call(<<~END.squish) unless guard
@@ -482,7 +487,7 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLineAfterGuardClause, :config do
     RUBY
   end
 
-  it 'does not register an offense and corrects when using `return` before guard condition with heredoc' do
+  it 'does not register an offense when using `return` before guard condition with heredoc' do
     expect_no_offenses(<<~RUBY)
       def foo
         return true if <<~TEXT.length > bar
@@ -494,7 +499,7 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLineAfterGuardClause, :config do
     RUBY
   end
 
-  it 'does not register an offense and corrects when using `raise` before guard condition with heredoc' do
+  it 'does not register an offense when using `raise` before guard condition with heredoc' do
     expect_no_offenses(<<~RUBY)
       def foo
         raise if <<~TEXT.length > bar
@@ -528,45 +533,48 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLineAfterGuardClause, :config do
     RUBY
   end
 
-  it 'registers an offense and corrects a method starting with end_' do
-    expect_offense(<<~RUBY)
-      def foo
-        next unless need_next?
-        ^^^^^^^^^^^^^^^^^^^^^^ Add empty line after guard clause.
-        end_this!
-      end
-    RUBY
+  context 'Ruby <= 3.2', :ruby32, unsupported_on: :prism do # rubocop:disable RSpec/RepeatedExampleGroupDescription
+    it 'registers an offense and corrects a method starting with end_' do
+      expect_offense(<<~RUBY)
+        def foo
+          next unless need_next?
+          ^^^^^^^^^^^^^^^^^^^^^^ Add empty line after guard clause.
+          end_this!
+        end
+      RUBY
 
-    expect_correction(<<~RUBY)
-      def foo
-        next unless need_next?
+      expect_correction(<<~RUBY)
+        def foo
+          next unless need_next?
 
-        end_this!
-      end
-    RUBY
+          end_this!
+        end
+      RUBY
+    end
+
+    it 'registers an offense and corrects only the last guard clause' do
+      expect_offense(<<~RUBY)
+        def foo
+          next if foo?
+          next if bar?
+          ^^^^^^^^^^^^ Add empty line after guard clause.
+          foobar
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo
+          next if foo?
+          next if bar?
+
+          foobar
+        end
+      RUBY
+    end
   end
 
-  it 'registers an offense and corrects only the last guard clause' do
-    expect_offense(<<~RUBY)
-      def foo
-        next if foo?
-        next if bar?
-        ^^^^^^^^^^^^ Add empty line after guard clause.
-        foobar
-      end
-    RUBY
-
-    expect_correction(<<~RUBY)
-      def foo
-        next if foo?
-        next if bar?
-
-        foobar
-      end
-    RUBY
-  end
-
-  it 'registers no offenses using heredoc with `and return` before guard condition with empty line' do
+  # FIXME: https://github.com/rubocop/rubocop/issues/12869
+  it 'registers no offenses using heredoc with `and return` before guard condition with empty line', broken_on: :prism do
     expect_no_offenses(<<~RUBY)
       def foo
         puts(<<~MSG) and return if bar
@@ -579,7 +587,8 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLineAfterGuardClause, :config do
     RUBY
   end
 
-  it 'registers an offense and corrects using heredoc with `and return` before guard condition' do
+  # FIXME: https://github.com/rubocop/rubocop/issues/12869
+  it 'registers an offense and corrects using heredoc with `and return` before guard condition', broken_on: :prism do
     expect_offense(<<~RUBY)
       def foo
         puts(<<~MSG) and return if bar

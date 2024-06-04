@@ -41,8 +41,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
         result: {
           capabilities: {
             textDocumentSync: { openClose: true, change: 1 },
-            documentFormattingProvider: true,
-            diagnosticProvider: { interFileDependencies: false, workspaceDiagnostics: false }
+            documentFormattingProvider: true
           }
         }
       )
@@ -77,7 +76,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
               code: 'Style/FrozenStringLiteralComment',
               message: 'Missing frozen string literal comment.',
               range: {
-                start: { character: 0, line: 0 }, end: { character: 0, line: 0 }
+                start: { character: 0, line: 0 }, end: { character: 1, line: 0 }
               },
               severity: 3,
               source: 'rubocop'
@@ -85,54 +84,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
               code: 'Layout/SpaceInsideArrayLiteralBrackets',
               message: 'Do not use space inside array brackets.',
               range: {
-                start: { character: 4, line: 2 }, end: { character: 5, line: 2 }
-              },
-              severity: 3,
-              source: 'rubocop'
-            }
-          ], uri: 'file:///path/to/file.rb'
-        }
-      )
-    end
-  end
-
-  describe 'diagnotic route' do
-    let(:requests) do
-      [
-        jsonrpc: '2.0',
-        method: 'textDocument/diagnostic',
-        params: {
-          textDocument: {
-            languageId: 'ruby',
-            text: "def hi#{eol}  [1, 2,#{eol}   3  ]#{eol}end#{eol}",
-            uri: 'file:///path/to/file.rb',
-            version: 0
-          }
-        }
-      ]
-    end
-
-    it 'handles requests' do
-      expect(stderr).to eq('')
-      expect(messages.count).to eq(1)
-      expect(messages.first).to eq(
-        jsonrpc: '2.0',
-        method: 'textDocument/publishDiagnostics',
-        params: {
-          diagnostics: [
-            {
-              code: 'Style/FrozenStringLiteralComment',
-              message: 'Missing frozen string literal comment.',
-              range: {
-                start: { character: 0, line: 0 }, end: { character: 0, line: 0 }
-              },
-              severity: 3,
-              source: 'rubocop'
-            }, {
-              code: 'Layout/SpaceInsideArrayLiteralBrackets',
-              message: 'Do not use space inside array brackets.',
-              range: {
-                start: { character: 4, line: 2 }, end: { character: 5, line: 2 }
+                start: { character: 4, line: 2 }, end: { character: 6, line: 2 }
               },
               severity: 3,
               source: 'rubocop'
@@ -1067,6 +1019,55 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
             changes: {
               'file:///path/to/file.rb': [
                 newText: "puts 'hi'\n",
+                range: {
+                  start: { line: 0, character: 0 }, end: { line: 1, character: 0 }
+                }
+              ]
+            }
+          }
+        }
+      )
+    end
+  end
+
+  describe 'execute command safe formatting with `Lint/UnusedBlockArgument` cop (`AutoCorrect: contextual`)' do
+    let(:requests) do
+      [
+        {
+          jsonrpc: '2.0',
+          method: 'textDocument/didOpen',
+          params: {
+            textDocument: {
+              languageId: 'ruby',
+              text: 'foo { |unused_variable| 42 }',
+              uri: 'file:///path/to/file.rb',
+              version: 0
+            }
+          }
+        }, {
+          jsonrpc: '2.0',
+          id: 99,
+          method: 'workspace/executeCommand',
+          params: {
+            command: 'rubocop.formatAutocorrects',
+            arguments: [uri: 'file:///path/to/file.rb']
+          }
+        }
+      ]
+    end
+
+    it 'handles requests' do
+      expect(stderr).to eq('')
+      expect(messages.last).to eq(
+        jsonrpc: '2.0',
+        id: 99,
+        method: 'workspace/applyEdit',
+        params: {
+          label: 'Format with RuboCop autocorrects',
+          edit: {
+            changes: {
+              'file:///path/to/file.rb': [
+                newText: "foo { |_unused_variable| 42 }\n",
                 range: {
                   start: { line: 0, character: 0 }, end: { line: 1, character: 0 }
                 }

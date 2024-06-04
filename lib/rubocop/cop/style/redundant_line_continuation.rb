@@ -74,6 +74,7 @@ module RuboCop
           kFALSE kNIL kSELF kTRUE tCONSTANT tCVAR tFLOAT tGVAR tIDENTIFIER tINTEGER tIVAR
           tLBRACK tLCURLY tLPAREN_ARG tSTRING tSTRING_BEG tSYMBOL tXSTRING_BEG
         ].freeze
+        ARGUMENT_TAKING_FLOW_TOKEN_TYPES = %i[tIDENTIFIER kRETURN kBREAK kNEXT kYIELD].freeze
 
         def on_new_investigation
           return unless processed_source.ast
@@ -137,7 +138,9 @@ module RuboCop
         #   do_something \
         #     argument
         def method_with_argument?(current_token, next_token)
-          current_token.type == :tIDENTIFIER && ARGUMENT_TYPES.include?(next_token.type)
+          return false unless ARGUMENT_TAKING_FLOW_TOKEN_TYPES.include?(current_token.type)
+
+          ARGUMENT_TYPES.include?(next_token.type)
         end
 
         # rubocop:disable Metrics/AbcSize

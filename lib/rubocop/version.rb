@@ -3,7 +3,7 @@
 module RuboCop
   # This module holds the RuboCop version information.
   module Version
-    STRING = '1.62.1'
+    STRING = '1.64.1'
 
     MSG = '%<version>s (using %<parser_version>s, ' \
           'rubocop-ast %<rubocop_ast_version>s, ' \
@@ -11,7 +11,7 @@ module RuboCop
 
     CANONICAL_FEATURE_NAMES = {
       'Rspec' => 'RSpec', 'Graphql' => 'GraphQL', 'Md' => 'Markdown', 'Factory_bot' => 'FactoryBot',
-      'Thread_safety' => 'ThreadSafety'
+      'Thread_safety' => 'ThreadSafety', 'Rspec_rails' => 'RSpecRails'
     }.freeze
     EXTENSION_PATH_NAMES = {
       'rubocop-md' => 'markdown', 'rubocop-factory_bot' => 'factory_bot'
@@ -42,9 +42,9 @@ module RuboCop
     # @api private
     def self.parser_version
       config_path = ConfigFinder.find_config_path(Dir.pwd)
-      yaml = YAML.safe_load(
-        File.read(config_path), permitted_classes: [Regexp, Symbol], aliases: true
-      )
+      yaml = Util.silence_warnings do
+        ConfigLoader.load_yaml_configuration(config_path)
+      end
 
       if yaml.dig('AllCops', 'ParserEngine') == 'parser_prism'
         require 'prism'

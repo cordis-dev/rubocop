@@ -29,6 +29,8 @@ module RuboCop
       #
       # Names not on this list are likely to be meaningful and are allowed by default.
       #
+      # This cop handles not only method forwarding but also forwarding to `super`.
+      #
       # @example
       #   # bad
       #   def foo(*args, &block)
@@ -146,7 +148,7 @@ module RuboCop
 
           restarg, kwrestarg, blockarg = extract_forwardable_args(node.arguments)
           forwardable_args = redundant_forwardable_named_args(restarg, kwrestarg, blockarg)
-          send_nodes = node.each_descendant(:send).to_a
+          send_nodes = node.each_descendant(:send, :csend, :super, :yield).to_a
 
           send_classifications = classify_send_nodes(
             node, send_nodes, non_splat_or_block_pass_lvar_references(node.body), forwardable_args
@@ -312,7 +314,8 @@ module RuboCop
         end
 
         def register_forward_block_arg_offense(add_parens, def_arguments_or_send, block_arg)
-          return if target_ruby_version <= 3.0 || block_arg.source == '&' || explicit_block_name?
+          return if target_ruby_version <= 3.0 ||
+                    block_arg.nil? || block_arg.source == '&' || explicit_block_name?
 
           add_offense(block_arg, message: BLOCK_MSG) do |corrector|
             add_parens_if_missing(def_arguments_or_send, corrector) if add_parens

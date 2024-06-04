@@ -15,6 +15,9 @@ RSpec.describe RuboCop::Cop::Lint::UnreachableCode, :config do
   end
 
   %w[return next break retry redo throw raise fail exit exit! abort].each do |t|
+    # The syntax using `retry` is not supported in Ruby 3.3 and later.
+    next if t == 'retry' && ENV['PARSER_ENGINE'] == 'parser_prism'
+
     it "registers an offense for `#{t}` before other statements" do
       expect_offense(wrap(<<~RUBY))
         #{t}
@@ -83,6 +86,24 @@ RSpec.describe RuboCop::Cop::Lint::UnreachableCode, :config do
           something
           #{t}
         when 2
+          something2
+          #{t}
+        else
+          something3
+          #{t}
+        end
+        bar
+        ^^^ Unreachable code detected.
+      RUBY
+    end
+
+    it "registers an offense for `#{t}` in all `case` pattern branches" do
+      expect_offense(wrap(<<~RUBY))
+        case cond
+        in 1
+          something
+          #{t}
+        in 2
           something2
           #{t}
         else
@@ -173,6 +194,20 @@ RSpec.describe RuboCop::Cop::Lint::UnreachableCode, :config do
           something
           #{t}
         when 2
+          something2
+          #{t}
+        end
+        bar
+      RUBY
+    end
+
+    it "accepts `#{t}` is in `case` pattern branch without else" do
+      expect_no_offenses(wrap(<<~RUBY))
+        case cond
+        in 1
+          something
+          #{t}
+        in 2
           something2
           #{t}
         end
