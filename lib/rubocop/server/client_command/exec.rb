@@ -41,7 +41,7 @@ module RuboCop
         end
 
         def incompatible_version?
-          Cache.version_path.read != RuboCop::Version::STRING
+          Cache.version_path.read != Cache.restart_key
         end
 
         def stderr
@@ -54,7 +54,7 @@ module RuboCop
           end
 
           status = Cache.status_path.read
-          raise "RuboCop server: '#{status}' is not a valid status!" if (status =~ /^\d+$/).nil?
+          raise "RuboCop server: '#{status}' is not a valid status!" unless /\A\d+\z/.match?(status)
 
           status.to_i
         end

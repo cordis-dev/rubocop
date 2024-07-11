@@ -111,6 +111,8 @@ module RuboCop
         end
 
         def check_expression(expr)
+          expr = expr.body if expr.if_type? && expr.modifier_form?
+
           check_literal(expr)
           check_var(expr)
           check_self(expr)
@@ -121,6 +123,7 @@ module RuboCop
         end
 
         def check_void_op(node, &block)
+          node = node.children.first while node.begin_type?
           return unless node.send_type? && OPERATORS.include?(node.method_name)
           return if block && yield(node)
 
@@ -211,6 +214,8 @@ module RuboCop
         end
 
         def autocorrect_void_expression(corrector, node)
+          return if node.parent.if_type? && node.parent.modifier_form?
+
           corrector.remove(range_with_surrounding_space(range: node.source_range, side: :left))
         end
 

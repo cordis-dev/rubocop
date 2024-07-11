@@ -7,21 +7,21 @@ gemspec
 gem 'asciidoctor'
 gem 'bump', require: false
 gem 'bundler', '>= 1.15.0', '< 3.0'
-gem 'memory_profiler', platform: :mri
+# FIXME: This is a workaround to prevent the following warning in YARD:
+# https://github.com/lsegal/yard/pull/1546
+# Please remove this dependency when the issue is resolved.
+gem 'logger'
+gem 'memory_profiler', '!= 1.0.2', platform: :mri
 # FIXME: This is a workaround to prevent the following warning in YARD:
 # https://github.com/lsegal/yard/pull/1545
 # Please remove this dependency when the issue is resolved.
 gem 'ostruct'
-gem 'prism'
+gem 'prism', '>= 0.30.0'
 gem 'rake', '~> 13.0'
 gem 'rspec', '~> 3.7'
 gem 'rubocop-performance', '~> 1.21.0'
 gem 'rubocop-rake', '~> 0.6.0'
-gem 'rubocop-rspec', '>= 2.30.0'
-# This is a workaround to prevent the following error in rubocop-rspec_rails 2.28.3:
-# https://github.com/rubocop/rubocop/actions/runs/8656558784/job/23737409762
-# Please remove this dependency when the issue is resolved.
-gem 'rubocop-rspec_rails', '2.28.2'
+gem 'rubocop-rspec', '~> 3.0.0'
 # Workaround for cc-test-reporter with SimpleCov 0.18.
 # Stop upgrading SimpleCov until the following issue will be resolved.
 # https://github.com/codeclimate/test-reporter/issues/418

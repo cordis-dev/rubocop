@@ -20,6 +20,10 @@ module RuboCop
 
       # @deprecated Use `ProcessedSource#line_with_comment?`, `contains_comment?` or similar
       def comment_lines?(node)
+        warn Rainbow(<<~WARNING).yellow, uplevel: 1
+          `comment_lines?` is deprecated. Use `ProcessedSource#line_with_comment?`, `contains_comment?` or similar instead.
+        WARNING
+
         processed_source[line_range(node)].any? { |line| comment_line?(line) }
       end
 
@@ -173,7 +177,9 @@ module RuboCop
       def same_line?(node1, node2)
         line1 = line(node1)
         line2 = line(node2)
-        line1 && line2 && line1 == line2
+        return false unless line1 && line2
+
+        line1 == line2
       end
 
       def indent(node, offset: 0)

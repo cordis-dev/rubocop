@@ -25,16 +25,15 @@ RSpec.describe RuboCop::Config do
     let(:configuration_path) { '.rubocop.yml' }
 
     context 'when the configuration includes any unrecognized cop name' do
+      include_context 'mock console output'
+
       before do
         create_file(configuration_path, <<~YAML)
           LyneLenth:
             Enabled: true
             Max: 100
         YAML
-        $stderr = StringIO.new
       end
-
-      after { $stderr = STDERR }
 
       it 'raises an validation error' do
         expect { configuration }.to raise_error(
@@ -46,6 +45,8 @@ RSpec.describe RuboCop::Config do
 
     context 'when the configuration includes any unrecognized cop name and given `--ignore-unrecognized-cops` option' do
       context 'there is unrecognized cop' do
+        include_context 'mock console output'
+
         before do
           create_file(configuration_path, <<~YAML)
             LyneLenth:
@@ -53,12 +54,10 @@ RSpec.describe RuboCop::Config do
               Max: 100
           YAML
           RuboCop::ConfigLoader.ignore_unrecognized_cops = true
-          $stderr = StringIO.new
         end
 
         after do
           RuboCop::ConfigLoader.ignore_unrecognized_cops = nil
-          $stderr = STDERR
         end
 
         it 'prints a warning about the cop' do
@@ -70,18 +69,18 @@ RSpec.describe RuboCop::Config do
       end
 
       context 'there are no unrecognized cops' do
+        include_context 'mock console output'
+
         before do
           create_file(configuration_path, <<~YAML)
             Layout/LineLength:
               Enabled: true
           YAML
           RuboCop::ConfigLoader.ignore_unrecognized_cops = true
-          $stderr = StringIO.new
         end
 
         after do
           RuboCop::ConfigLoader.ignore_unrecognized_cops = nil
-          $stderr = STDERR
         end
 
         it 'does not print any warnings' do
@@ -128,16 +127,15 @@ RSpec.describe RuboCop::Config do
     end
 
     context 'when the configuration includes any unrecognized parameter' do
+      include_context 'mock console output'
+
       before do
         create_file(configuration_path, <<~YAML)
           Layout/LineLength:
             Enabled: true
             Min: 10
         YAML
-        $stderr = StringIO.new
       end
-
-      after { $stderr = STDERR }
 
       it 'prints a warning message' do
         configuration # ConfigLoader.load_file will validate config
@@ -511,22 +509,20 @@ RSpec.describe RuboCop::Config do
     context 'when the passed path matches any of patterns to include' do
       it 'returns true' do
         file_path = '/home/foo/project/Gemfile'
-        expect(configuration.file_to_include?(file_path)).to be_truthy
+        expect(configuration).to be_file_to_include(file_path)
       end
     end
 
     context 'when the passed path does not match any of patterns to include' do
       it 'returns false' do
         file_path = '/home/foo/project/Gemfile.lock'
-        expect(configuration.file_to_include?(file_path)).to be_falsey
+        expect(configuration).not_to be_file_to_include(file_path)
       end
     end
   end
 
   describe '#file_to_exclude?' do
-    before { $stderr = StringIO.new }
-
-    after { $stderr = STDERR }
+    include_context 'mock console output'
 
     let(:hash) { { 'AllCops' => { 'Exclude' => ["#{Dir.pwd}/log/**/*", '**/bar.rb'] } } }
 
@@ -535,22 +531,22 @@ RSpec.describe RuboCop::Config do
     context 'when the passed path matches any of patterns to exclude' do
       it 'returns true' do
         file_path = "#{Dir.pwd}/log/foo.rb"
-        expect(configuration.file_to_exclude?(file_path)).to be_truthy
+        expect(configuration).to be_file_to_exclude(file_path)
 
-        expect(configuration.file_to_exclude?('log/foo.rb')).to be_truthy
+        expect(configuration).to be_file_to_exclude('log/foo.rb')
 
-        expect(configuration.file_to_exclude?('bar.rb')).to be_truthy
+        expect(configuration).to be_file_to_exclude('bar.rb')
       end
     end
 
     context 'when the passed path does not match any of patterns to exclude' do
       it 'returns false' do
         file_path = "#{Dir.pwd}/log_file.rb"
-        expect(configuration.file_to_exclude?(file_path)).to be_falsey
+        expect(configuration).not_to be_file_to_exclude(file_path)
 
-        expect(configuration.file_to_exclude?('app/controller.rb')).to be_falsey
+        expect(configuration).not_to be_file_to_exclude('app/controller.rb')
 
-        expect(configuration.file_to_exclude?('baz.rb')).to be_falsey
+        expect(configuration).not_to be_file_to_exclude('baz.rb')
       end
     end
   end
@@ -610,25 +606,25 @@ RSpec.describe RuboCop::Config do
     it 'returns true when Include config only includes regular paths' do
       configuration['AllCops'] = { 'Include' => ['**/Gemfile', 'config/unicorn.rb.example'] }
 
-      expect(configuration.possibly_include_hidden?).to be(false)
+      expect(configuration).not_to be_possibly_include_hidden
     end
 
     it 'returns true when Include config includes a regex' do
       configuration['AllCops'] = { 'Include' => [/foo/] }
 
-      expect(configuration.possibly_include_hidden?).to be(true)
+      expect(configuration).to be_possibly_include_hidden
     end
 
     it 'returns true when Include config includes a toplevel dotfile' do
       configuration['AllCops'] = { 'Include' => ['.foo'] }
 
-      expect(configuration.possibly_include_hidden?).to be(true)
+      expect(configuration).to be_possibly_include_hidden
     end
 
     it 'returns true when Include config includes a dotfile in a path' do
       configuration['AllCops'] = { 'Include' => ['foo/.bar'] }
 
-      expect(configuration.possibly_include_hidden?).to be(true)
+      expect(configuration).to be_possibly_include_hidden
     end
   end
 
@@ -655,15 +651,13 @@ RSpec.describe RuboCop::Config do
     let(:loaded_path) { 'example/.rubocop.yml' }
 
     context 'when a deprecated configuration is detected' do
+      include_context 'mock console output'
+
       let(:hash) { { 'AllCops' => { 'Includes' => [] } } }
-
-      before { $stderr = StringIO.new }
-
-      after { $stderr = STDERR }
 
       it 'prints a warning message for the loaded path' do
         configuration.check
-        expect($stderr.string.include?("#{loaded_path} - AllCops/Includes was renamed")).to be(true)
+        expect($stderr.string).to include("#{loaded_path} - AllCops/Includes was renamed")
       end
     end
   end
@@ -870,7 +864,7 @@ RSpec.describe RuboCop::Config do
 
     context 'and neither Gemfile.lock nor gems.locked exist' do
       it 'returns nil' do
-        expect(configuration.gem_versions_in_target.nil?).to be(true)
+        expect(configuration.gem_versions_in_target).to be_nil
       end
     end
   end

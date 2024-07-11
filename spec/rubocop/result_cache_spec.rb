@@ -42,7 +42,7 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
       it 'is valid and can be loaded' do
         cache.save(offenses)
         cache2 = described_class.new(file, team, options2, config_store, cache_root)
-        expect(cache2.valid?).to be(true)
+        expect(cache2).to be_valid
         saved_offenses = cache2.load
         expect(saved_offenses).to eq(offenses)
       end
@@ -139,7 +139,7 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
           cache.save(offenses)
           create_file('example.rb', ['x = 2'])
           cache2 = described_class.new(file, team, options, config_store, cache_root)
-          expect(cache2.valid?).to be(false)
+          expect(cache2).not_to be_valid
         end
       end
 
@@ -149,7 +149,7 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
             cache.save(offenses)
             FileUtils.chmod('+x', file)
             cache2 = described_class.new(file, team, options, config_store, cache_root)
-            expect(cache2.valid?).to be(false)
+            expect(cache2).not_to be_valid
           end
         end
       end
@@ -166,7 +166,7 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
             end
           end
           cache2 = described_class.new(file, team, options, config_store, cache_root)
-          expect(cache2.valid?).to be(false)
+          expect(cache2).not_to be_valid
         end
       end
 
@@ -175,7 +175,7 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
           cache.save(offenses)
           allow(team).to(receive(:external_dependency_checksum).and_return('bar'))
           cache2 = described_class.new(file, team, options, config_store, cache_root)
-          expect(cache2.valid?).to be(false)
+          expect(cache2).not_to be_valid
         end
       end
 
@@ -184,11 +184,13 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
           cache.save(offenses)
           allow(team).to(receive(:external_dependency_checksum).and_return('foo'))
           cache2 = described_class.new(file, team, options, config_store, cache_root)
-          expect(cache2.valid?).to be(true)
+          expect(cache2).to be_valid
         end
       end
 
       context 'when a symlink is present in the cache location' do
+        include_context 'mock console output'
+
         let(:cache2) { described_class.new(file, team, options, config_store, cache_root) }
 
         let(:attack_target_dir) { Dir.mktmpdir }
@@ -203,12 +205,10 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
           path = result.first
           FileUtils.rm_rf(path)
           FileUtils.ln_s(attack_target_dir, path)
-          $stderr = StringIO.new
         end
 
         after do
           FileUtils.rm_rf(attack_target_dir)
-          $stderr = STDERR
         end
 
         context 'and symlink attack protection is enabled' do
@@ -216,7 +216,7 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
             cache2.save(offenses)
             # The cache file has not been created because there was a symlink in
             # its path.
-            expect(cache2.valid?).to be(false)
+            expect(cache2).not_to be_valid
             expect($stderr.string).to match(/Warning: .* is a symlink, which is not allowed.\n/)
           end
         end
@@ -235,7 +235,7 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
           it 'permits caching and prints no warning' do
             cache2.save(offenses)
 
-            expect(cache2.valid?).to be(true)
+            expect(cache2).to be_valid
             expect($stderr.string).not_to match(/Warning: .* is a symlink, which is not allowed.\n/)
           end
         end
@@ -262,7 +262,7 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
         cache2 = described_class.new(file, team,
                                      { only: ['Layout/LineLength'] },
                                      config_store, cache_root)
-        expect(cache2.valid?).to be(false)
+        expect(cache2).not_to be_valid
       end
     end
 
@@ -271,7 +271,7 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
         cache.save(offenses)
         cache2 = described_class.new(file, team, { display_cop_names: true },
                                      config_store, cache_root)
-        expect(cache2.valid?).to be(false)
+        expect(cache2).not_to be_valid
       end
     end
 
@@ -307,7 +307,7 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
     end
 
     shared_examples 'invalid cache location' do |error, message|
-      before { $stderr = StringIO.new }
+      include_context 'mock console output'
 
       it 'doesn\'t raise an exception' do
         allow(FileUtils).to receive(:mkdir_p).with(start_with(cache_root)).and_raise(error)
@@ -317,8 +317,6 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
             #{message}
         WARN
       end
-
-      after { $stderr = STDERR }
     end
 
     context 'when the @path is not writable' do
@@ -330,15 +328,14 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
   end
 
   describe '.cleanup' do
+    include_context 'mock console output'
+
     before do
       cfg = RuboCop::Config.new('AllCops' => { 'MaxFilesInCache' => 1 })
       allow(config_store).to receive(:for_pwd).and_return(cfg)
       allow(config_store).to receive(:for_file).with('other.rb').and_return(cfg)
       create_file('other.rb', ['x = 1'])
-      $stdout = StringIO.new
     end
-
-    after { $stdout = STDOUT }
 
     it 'removes the oldest files in the cache if needed' do
       cache.save(offenses)
@@ -351,7 +348,7 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
       underscore_dir = Dir["#{cache_root}/*/*"].first
       expect(Dir["#{underscore_dir}/*"].size).to eq(2)
       cache.class.cleanup(config_store, :verbose, cache_root)
-      expect(File.exist?(underscore_dir)).to be_falsey
+      expect(File).not_to exist(underscore_dir)
       expect($stdout.string).to eq("Removing the 2 oldest files from #{cache_root}\n")
     end
   end

@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# NOTE: Prevents the cause from being obscured by `uninitialized constant StrictWarnings::StringIO`
+# when there is a warning or syntax error in the product code.
+require 'stringio'
+
 # Ensure that RuboCop runs warning-free. This hooks into Ruby's `warn`
 # method and raises when an unexpected warning is encountered.
 module StrictWarnings
@@ -12,7 +16,11 @@ module StrictWarnings
     /Float.*out of range/, # also from the parser gem
     /`Process` does not respond to `fork` method/, # JRuby
     /File#readline accesses caller method's state and should not be aliased/, # JRuby, test stub
-    /instance variable @.* not initialized/ # Ruby 2.7
+    /instance variable @.* not initialized/, # Ruby 2.7
+    /`inspect_file` is deprecated\. Use `investigate` instead\./, # RuboCop's deprecated API in spec
+    /`forces` is deprecated./, # RuboCop's deprecated API in spec
+    /`support_autocorrect\?` is deprecated\./, # RuboCop's deprecated API in spec
+    /`Cop\.registry` is deprecated\./ # RuboCop's deprecated API in spec
   )
 
   def warn(message, ...)
