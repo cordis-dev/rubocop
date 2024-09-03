@@ -34,6 +34,84 @@ RSpec.describe RuboCop::Cop::Style::IfWithSemicolon, :config do
     RUBY
   end
 
+  it 'registers an offense and corrects a single-line `if/;/end` when the then body contains a parenthesized method call with an argument' do
+    expect_offense(<<~RUBY)
+      if cond;do_something(arg) end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      cond ? do_something(arg) : nil
+    RUBY
+  end
+
+  it 'registers an offense and corrects a single-line `if/;/end` when the then body contains an array literal with an argument' do
+    expect_offense(<<~RUBY)
+      if cond;[] end
+      ^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      cond ? [] : nil
+    RUBY
+  end
+
+  it 'registers an offense and corrects a single-line `if/;/end` when the then body contains a method call with an argument' do
+    expect_offense(<<~RUBY)
+      if cond;do_something arg end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      cond ? do_something(arg) : nil
+    RUBY
+  end
+
+  it 'registers an offense and corrects a single-line `if/;/end` when the then body contains a safe navigation method call with an argument' do
+    expect_offense(<<~RUBY)
+      if cond;obj&.do_something arg end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      cond ? obj&.do_something(arg) : nil
+    RUBY
+  end
+
+  it 'registers an offense and corrects a single-line `if/;/else/end` when the then body contains a method call with an argument' do
+    expect_offense(<<~RUBY)
+      if cond;foo foo_arg else bar bar_arg end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      cond ? foo(foo_arg) : bar(bar_arg)
+    RUBY
+  end
+
+  it 'registers an offense and corrects a single-line `if/;/else/end` when the then body contains a safe navigation method call with an argument' do
+    expect_offense(<<~RUBY)
+      if cond;foo obj&.foo_arg else bar obj&.bar_arg end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      cond ? foo(obj&.foo_arg) : bar(obj&.bar_arg)
+    RUBY
+  end
+
+  it 'registers an offense when using multiple expressions in the `else` branch' do
+    expect_offense(<<~RUBY)
+      if cond; foo else bar'arg'; baz end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use `if/else` instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      if cond
+       foo else bar'arg'; baz end
+    RUBY
+  end
+
   it 'can handle modifier conditionals' do
     expect_no_offenses(<<~RUBY)
       class Hash
@@ -104,6 +182,24 @@ RSpec.describe RuboCop::Cop::Style::IfWithSemicolon, :config do
           run2
         else
           dont
+        end
+      RUBY
+    end
+
+    it 'registers an offense when a nested `if` with a semicolon is used' do
+      expect_offense(<<~RUBY)
+        if cond; run
+        ^^^^^^^^^^^^ Do not use `if cond;` - use a newline instead.
+          if cond; run
+          ^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        if cond
+         run
+          cond ? run : nil
         end
       RUBY
     end

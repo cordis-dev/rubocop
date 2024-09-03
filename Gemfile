@@ -16,16 +16,13 @@ gem 'memory_profiler', '!= 1.0.2', platform: :mri
 # https://github.com/lsegal/yard/pull/1545
 # Please remove this dependency when the issue is resolved.
 gem 'ostruct'
-gem 'prism', '>= 0.30.0'
+gem 'prism', '~> 1.0.0'
 gem 'rake', '~> 13.0'
 gem 'rspec', '~> 3.7'
 gem 'rubocop-performance', '~> 1.21.0'
 gem 'rubocop-rake', '~> 0.6.0'
 gem 'rubocop-rspec', '~> 3.0.0'
-# Workaround for cc-test-reporter with SimpleCov 0.18.
-# Stop upgrading SimpleCov until the following issue will be resolved.
-# https://github.com/codeclimate/test-reporter/issues/418
-gem 'simplecov', '~> 0.10', '< 0.18'
+gem 'simplecov', '~> 0.20'
 gem 'stackprof', platform: :mri
 gem 'test-queue'
 gem 'yard', '~> 0.9'

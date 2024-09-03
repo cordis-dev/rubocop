@@ -321,9 +321,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
         ^^^ Useless assignment to variable - `foo`. Use `||` instead of `||=`.
       RUBY
 
-      expect_correction(<<~RUBY)
-        foo || 1
-      RUBY
+      expect_no_corrections
     end
   end
 
@@ -1149,12 +1147,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
         end
       RUBY
 
-      expect_correction(<<~RUBY)
-        def some_method
-          foo = do_something_returns_object_or_nil
-          foo || 1
-        end
-      RUBY
+      expect_no_corrections
     end
   end
 
@@ -1169,13 +1162,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
         end
       RUBY
 
-      expect_correction(<<~RUBY)
-        def some_method
-          foo = do_something_returns_object_or_nil
-          foo || 1
-          some_return_value
-        end
-      RUBY
+      expect_no_corrections
     end
   end
 
@@ -1210,6 +1197,23 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
       expect_correction(<<~RUBY)
         def some_method
           bar = do_something
+        end
+      RUBY
+    end
+  end
+
+  context 'when same name variables are assigned using chained assignment' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo = foo = do_something
+          ^^^ Useless assignment to variable - `foo`.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def some_method
+          foo = do_something
         end
       RUBY
     end
@@ -1713,6 +1717,56 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
           foo = 'some string'
           /(?<foo>\w+)/ =~ foo
           puts foo
+        end
+      RUBY
+    end
+  end
+
+  context 'when a pattern match variable is assigned with `in` and referenced in a block', :ruby27 do
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        def some_method
+          foo in { bar: bar }
+          baz { bar -= 1 }
+          foo
+        end
+      RUBY
+    end
+  end
+
+  context 'when a pattern match variable is assigned with `in` and unreferenced in a block', :ruby27 do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo in { bar: bar }
+          baz { qux -= 1 }
+                ^^^ Useless assignment to variable - `qux`. Use `-` instead of `-=`.
+          foo
+        end
+      RUBY
+    end
+  end
+
+  context 'when a pattern match variable is assigned with `=>` and referenced in a block', :ruby30 do
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        def some_method
+          foo => { bar: bar }
+          baz { bar -= 1 }
+          foo
+        end
+      RUBY
+    end
+  end
+
+  context 'when a pattern match variable is assigned with `=>` and unreferenced in a block', :ruby30 do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo => { bar: bar }
+          baz { qux -= 1 }
+                ^^^ Useless assignment to variable - `qux`. Use `-` instead of `-=`.
+          foo
         end
       RUBY
     end

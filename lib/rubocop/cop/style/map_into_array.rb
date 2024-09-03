@@ -58,12 +58,21 @@ module RuboCop
           [
             ^({begin kwbegin} ...)
             ({block numblock} (send !{nil? self} :each) _
-              (send (lvar _) {:<< :push :append} _))
+              (send (lvar _) {:<< :push :append} {send lvar begin}))
           ]
         PATTERN
 
         # @!method empty_array_asgn?(node)
-        def_node_matcher :empty_array_asgn?, '(lvasgn _ (array))'
+        def_node_matcher :empty_array_asgn?, <<~PATTERN
+          (
+            lvasgn _ {
+              (array)
+              (send (const {nil? cbase} :Array) :[])
+              (send (const {nil? cbase} :Array) :new (array)?)
+              (send nil? :Array (array))
+            }
+          )
+        PATTERN
 
         # @!method lvar_ref?(node, name)
         def_node_matcher :lvar_ref?, '(lvar %1)'
@@ -138,10 +147,8 @@ module RuboCop
             false
           when :begin, :kwbegin
             !node.right_sibling && return_value_used?(parent)
-          when :block, :numblock
-            !parent.void_context?
           else
-            true
+            !parent.respond_to?(:void_context?) || !parent.void_context?
           end
         end
 

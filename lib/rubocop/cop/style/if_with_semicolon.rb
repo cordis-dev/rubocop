@@ -18,6 +18,7 @@ module RuboCop
         extend AutoCorrector
 
         MSG_IF_ELSE = 'Do not use `if %<expr>s;` - use `if/else` instead.'
+        MSG_NEWLINE = 'Do not use `if %<expr>s;` - use a newline instead.'
         MSG_TERNARY = 'Do not use `if %<expr>s;` - use a ternary operator instead.'
 
         def on_normal_if_unless(node)
@@ -26,20 +27,40 @@ module RuboCop
           beginning = node.loc.begin
           return unless beginning&.is?(';')
 
-          message = node.else_branch&.if_type? ? MSG_IF_ELSE : MSG_TERNARY
+          message = message(node)
 
-          add_offense(node, message: format(message, expr: node.condition.source)) do |corrector|
-            corrector.replace(node, autocorrect(node))
+          add_offense(node, message: message) do |corrector|
+            autocorrect(corrector, node)
           end
         end
 
         private
 
-        def autocorrect(node)
+        def message(node)
+          template = if node.if_branch&.begin_type?
+                       MSG_NEWLINE
+                     elsif node.else_branch&.if_type? || node.else_branch&.begin_type?
+                       MSG_IF_ELSE
+                     else
+                       MSG_TERNARY
+                     end
+
+          format(template, expr: node.condition.source)
+        end
+
+        def autocorrect(corrector, node)
+          if node.if_branch&.begin_type? || node.else_branch&.begin_type?
+            corrector.replace(node.loc.begin, "\n")
+          else
+            corrector.replace(node, replacement(node))
+          end
+        end
+
+        def replacement(node)
           return correct_elsif(node) if node.else_branch&.if_type?
 
-          then_code = node.if_branch ? node.if_branch.source : 'nil'
-          else_code = node.else_branch ? node.else_branch.source : 'nil'
+          then_code = node.if_branch ? build_expression(node.if_branch) : 'nil'
+          else_code = node.else_branch ? build_expression(node.else_branch) : 'nil'
 
           "#{node.condition.source} ? #{then_code} : #{else_code}"
         end
@@ -52,6 +73,17 @@ module RuboCop
             end
           RUBY
         end
+
+        # rubocop:disable Metrics/AbcSize
+        def build_expression(expr)
+          return expr.source if !expr.call_type? || expr.parenthesized? || expr.arguments.empty?
+
+          method = expr.source_range.begin.join(expr.loc.selector.end)
+          arguments = expr.first_argument.source_range.begin.join(expr.source_range.end)
+
+          "#{method.source}(#{arguments.source})"
+        end
+        # rubocop:enable Metrics/AbcSize
 
         def build_else_branch(second_condition)
           result = <<~RUBY

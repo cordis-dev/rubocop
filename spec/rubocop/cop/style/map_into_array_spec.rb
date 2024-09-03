@@ -208,6 +208,49 @@ RSpec.describe RuboCop::Cop::Style::MapIntoArray, :config do
     RUBY
   end
 
+  it 'does not register an offense when pushing splat' do
+    expect_no_offenses(<<~RUBY)
+      dest = []
+      src.each { |e| dest.push(*e) }
+    RUBY
+  end
+
+  context 'destination initializer' do
+    shared_examples 'corrects' do |initializer:|
+      it 'registers an offense and corrects' do
+        expect_offense(<<~RUBY)
+          dest = #{initializer}
+          src.each { |e| dest << e * 2 }
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `map` instead of `each` to map elements into an array.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          dest = src.map { |e| e * 2 }
+        RUBY
+      end
+    end
+
+    context '[]' do
+      it_behaves_like 'corrects', initializer: '[]'
+    end
+
+    context 'Array.new' do
+      it_behaves_like 'corrects', initializer: 'Array.new'
+    end
+
+    context 'Array[]' do
+      it_behaves_like 'corrects', initializer: 'Array[]'
+    end
+
+    context 'Array([])' do
+      it_behaves_like 'corrects', initializer: 'Array([])'
+    end
+
+    context 'Array.new([])' do
+      it_behaves_like 'corrects', initializer: 'Array.new([])'
+    end
+  end
+
   context 'new method name for replacement' do
     context 'when `Style/CollectionMethods` is configured for `map`' do
       let(:other_cops) do
@@ -331,6 +374,10 @@ RSpec.describe RuboCop::Cop::Style::MapIntoArray, :config do
           it_behaves_like 'corrects', template: 'begin; %s end'
         end
       end
+
+      context 'in an ensure' do
+        it_behaves_like 'corrects', template: 'begin; ensure; %s end'
+      end
     end
 
     context 'in a block' do
@@ -361,6 +408,18 @@ RSpec.describe RuboCop::Cop::Style::MapIntoArray, :config do
       context 'at the end' do
         it_behaves_like 'skip correcting', template: 'def foo; %s end'
       end
+
+      context 'in a constructor' do
+        it_behaves_like 'corrects', template: 'def initialize; %s; end'
+      end
+
+      context 'in an assignment method' do
+        it_behaves_like 'corrects', template: 'def foo=(value); %s; end'
+      end
+    end
+
+    context 'in a for loop' do
+      it_behaves_like 'corrects', template: 'for i in foo; %s; end'
     end
   end
 end

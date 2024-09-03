@@ -9,13 +9,9 @@ module RuboCop
       # @example
       #
       #   # bad
-      #
       #   array = ['Item 1' 'Item 2']
       #
-      # @example
-      #
       #   # good
-      #
       #   array = ['Item 1Item 2']
       #   array = ['Item 1' + 'Item 2']
       #   array = [
@@ -44,9 +40,9 @@ module RuboCop
             end
 
             add_offense(range, message: message) do |corrector|
-              preferred  = "#{lhs_node.source} + #{rhs_node.source}"
+              range = lhs_node.source_range.end.join(rhs_node.source_range.begin)
 
-              corrector.replace(range, preferred)
+              corrector.replace(range, ' + ')
             end
           end
         end
@@ -80,7 +76,7 @@ module RuboCop
         end
 
         def string_literal?(node)
-          node.str_type? || (node.dstr_type? && node.children.all? { |c| string_literal?(c) })
+          node.str_type? || node.dstr_type?
         end
 
         def string_literals?(node1, node2)
@@ -96,6 +92,8 @@ module RuboCop
         end
 
         def str_content(node)
+          return unless node.respond_to?(:str_type?)
+
           if node.str_type?
             node.children[0]
           else

@@ -493,6 +493,54 @@ RSpec.describe RuboCop::Cop::Lint::Void, :config do
     RUBY
   end
 
+  it 'registers an offense for a frozen literal in a method definition' do
+    expect_offense(<<~RUBY)
+      def something
+        'foo'.freeze
+        ^^^^^^^^^^^^ Literal `'foo'.freeze` used in void context.
+        baz
+      end
+    RUBY
+  end
+
+  it 'registers an offense for a literal frozen via safe navigation in a method definition' do
+    expect_offense(<<~RUBY)
+      def something
+        'foo'&.freeze
+        ^^^^^^^^^^^^^ Literal `'foo'&.freeze` used in void context.
+        baz
+      end
+    RUBY
+  end
+
+  it 'does not register an offense for frozen non-literal in a method definition' do
+    expect_no_offenses(<<~RUBY)
+      def something
+        foo.freeze
+        baz
+      end
+    RUBY
+  end
+
+  it 'registers an offense for a nested array literal composed of frozen and unfrozen literals in a method definition' do
+    expect_offense(<<~RUBY)
+      def something
+        [1, ['foo'.freeze]]
+        ^^^^^^^^^^^^^^^^^^^ Literal `[1, ['foo'.freeze]]` used in void context.
+        baz
+      end
+    RUBY
+  end
+
+  it 'does not register an offense for a nested array literal that includes frozen non-literal value elements in a method definition' do
+    expect_no_offenses(<<~RUBY)
+      def something
+        [1, [foo.freeze]]
+        baz
+      end
+    RUBY
+  end
+
   it 'does not register an offense for a hash literal that includes non-literal value elements in a method definition' do
     expect_no_offenses(<<~RUBY)
       def something
@@ -628,6 +676,22 @@ RSpec.describe RuboCop::Cop::Lint::Void, :config do
     RUBY
   end
 
+  it 'registers two offenses for void literals in a class setter method' do
+    expect_offense(<<~RUBY)
+      def self.foo=(rhs)
+        42
+        ^^ Literal `42` used in void context.
+        42
+        ^^ Literal `42` used in void context.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def self.foo=(rhs)
+      end
+    RUBY
+  end
+
   it 'registers two offenses for void literals in a `#each` method' do
     expect_offense(<<~RUBY)
       array.each do |_item|
@@ -701,6 +765,7 @@ RSpec.describe RuboCop::Cop::Lint::Void, :config do
           _1
           ^^ Variable `_1` used in void context.
           42
+          ^^ Literal `42` used in void context.
         end
       RUBY
 
@@ -709,6 +774,22 @@ RSpec.describe RuboCop::Cop::Lint::Void, :config do
         end
       RUBY
     end
+  end
+
+  it 'registers two offenses for void literals in `#tap` method with a numbered block' do
+    expect_offense(<<~RUBY)
+      foo.tap do
+        _1
+        ^^ Variable `_1` used in void context.
+        42
+        ^^ Literal `42` used in void context.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      foo.tap do
+      end
+    RUBY
   end
 
   it 'accepts empty block' do
@@ -745,6 +826,44 @@ RSpec.describe RuboCop::Cop::Lint::Void, :config do
 
     expect_correction(<<~RUBY)
       for _item in array do
+      end
+    RUBY
+  end
+
+  it 'registers two offense for void literals in an `ensure`' do
+    expect_offense(<<~RUBY)
+      def foo
+      ensure
+        bar
+        42
+        ^^ Literal `42` used in void context.
+        42
+        ^^ Literal `42` used in void context.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def foo
+      ensure
+        bar
+      end
+    RUBY
+  end
+
+  it 'registers an offense when the body of `ensure` is a literal' do
+    expect_offense(<<~RUBY)
+      def foo
+        bar
+      ensure
+        [1, 2, [3]]
+        ^^^^^^^^^^^ Literal `[1, 2, [3]]` used in void context.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def foo
+        bar
+      ensure
       end
     RUBY
   end

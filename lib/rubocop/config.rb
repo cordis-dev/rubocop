@@ -12,7 +12,6 @@ module RuboCop
   class Config
     include PathUtil
     include FileFinder
-    extend Forwardable
 
     CopConfig = Struct.new(:name, :metadata)
 
@@ -60,9 +59,22 @@ module RuboCop
       self
     end
 
-    def_delegators :@hash, :[], :[]=, :delete, :dig, :each, :key?, :keys, :each_key,
-                   :fetch, :map, :merge, :replace, :to_h, :to_hash, :transform_values
-    def_delegators :@validator, :validate, :target_ruby_version
+    %i[[] []= delete dig each key? keys each_key fetch map merge replace to_h to_hash
+       transform_values].each do |method|
+      class_eval(<<~RUBY, __FILE__, __LINE__ + 1)
+        def #{method}(...)     # def key?(...)
+          @hash.#{method}(...) #   @hash.key?(...)
+        end                    # end
+      RUBY
+    end
+
+    def validate(...)
+      @validator.validate(...)
+    end
+
+    def target_ruby_version
+      @validator.target_ruby_version
+    end
 
     def to_s
       @to_s ||= @hash.to_s
@@ -169,6 +181,10 @@ module RuboCop
 
     def active_support_extensions_enabled?
       for_all_cops['ActiveSupportExtensionsEnabled']
+    end
+
+    def string_literals_frozen_by_default?
+      for_all_cops['StringLiteralsFrozenByDefault']
     end
 
     def file_to_include?(file)

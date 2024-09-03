@@ -2932,10 +2932,7 @@ def foo = do_something
 
 # good (without parentheses it's a syntax error)
 def foo() do_something end
-----
 
-[source,ruby]
-----
 # bad
 def Baz.foo()
   do_something
@@ -3562,10 +3559,7 @@ This check only applies if the block takes no parameters.
 
 # good
 5.times { }
-----
 
-[source,ruby]
-----
 # bad
 (0...10).each {}
 
@@ -3949,7 +3943,9 @@ would be a literal, like an empty array, hash, or string.
 ----
 # bad
 a = Array.new
+a = Array[]
 h = Hash.new
+h = Hash[]
 s = String.new
 
 # good
@@ -4249,8 +4245,17 @@ values. However, if `eval` is called without a binding argument, the cop
 will not attempt to automatically add a binding, or add filename and
 line values.
 
-This cop works only when a string literal is given as a code string.
+NOTE: This cop works only when a string literal is given as a code string.
 No offense is reported if a string variable is given as below:
+
+[source,ruby]
+----
+code = <<-RUBY
+  def do_something
+  end
+RUBY
+eval code # not checked.
+----
 
 === Examples
 
@@ -4279,16 +4284,6 @@ C.class_eval <<-RUBY, __FILE__, __LINE__ + 1
   def do_something
   end
 RUBY
-----
-
-[source,ruby]
-----
-# not checked
-code = <<-RUBY
-  def do_something
-  end
-RUBY
-eval code
 ----
 
 == Style/EvenOdd
@@ -4666,8 +4661,7 @@ Favor `File.(bin)read` convenience methods.
 
 [source,ruby]
 ----
-## text mode
-# bad
+# bad - text mode
 File.open(filename).read
 File.open(filename, &:read)
 File.open(filename) { |f| f.read }
@@ -4682,12 +4676,8 @@ end
 
 # good
 File.read(filename)
-----
 
-[source,ruby]
-----
-## binary mode
-# bad
+# bad - binary mode
 File.open(filename, 'rb').read
 File.open(filename, 'rb', &:read)
 File.open(filename, 'rb') do |f|
@@ -4731,8 +4721,7 @@ end
 
 [source,ruby]
 ----
-## text mode
-# bad
+# bad - text mode
 File.open(filename, 'w').write(content)
 File.open(filename, 'w') do |f|
   f.write(content)
@@ -4740,12 +4729,8 @@ end
 
 # good
 File.write(filename, content)
-----
 
-[source,ruby]
-----
-## binary mode
-# bad
+# bad - binary mode
 File.open(filename, 'wb').write(content)
 File.open(filename, 'wb') do |f|
   f.write(content)
@@ -5033,8 +5018,8 @@ which are passed as arguments to those methods:
 The reason is that _unannotated_ format is very similar
 to encoded URLs or Date/Time formatting strings.
 
-This cop can be customized allowed methods with `AllowedMethods`.
-By default, there are no methods to allowed.
+This cop's allowed methods can be customized with `AllowedMethods`.
+By default, there are no allowed methods.
 
 It is allowed to contain unannotated token
 if the number of them is less than or equals to
@@ -6494,10 +6479,7 @@ foo == bar ? true : false
 
 # good
 foo == bar
-----
 
-[source,ruby]
-----
 # bad
 if foo.do_something?
   true
@@ -7471,7 +7453,7 @@ something.to_set { |i| i * 2 }
 |===
 
 Enforces the presence (default) or absence of parentheses in
-method calls containing parameters.
+method calls containing arguments.
 
 In the default style (require_parentheses), macro methods are allowed.
 Additional methods can be added to the `AllowedMethods` or
@@ -7765,8 +7747,8 @@ Array 1
 
 Checks for unwanted parentheses in parameterless method calls.
 
-This cop can be customized allowed methods with `AllowedMethods`.
-By default, there are no methods to allowed.
+This cop's allowed methods can be customized with `AllowedMethods`.
+By default, there are no allowed methods.
 
 NOTE: This cop allows the use of `it()` without arguments in blocks,
 as in `0.times { it() }`, following `Lint/ItWithoutArgumentsInBlock` cop.
@@ -10005,8 +9987,8 @@ Checks for usage of comparison operators (`==`,
 These can be replaced by their respective predicate methods.
 This cop can also be configured to do the reverse.
 
-This cop can be customized allowed methods with `AllowedMethods`.
-By default, there are no methods to allowed.
+This cop's allowed methods can be customized with `AllowedMethods`.
+By default, there are no allowed methods.
 
 This cop disregards `#nonzero?` as its value is truthy or falsey,
 but not `true` and `false`, and thus not always interchangeable with
@@ -11374,10 +11356,7 @@ a = b ? b : c
 
 # good
 a = b || c
-----
 
-[source,ruby]
-----
 # bad
 if b
   b
@@ -12049,6 +12028,40 @@ y << 'b'   # raise `FrozenError`.
 
 # good if @var is already a String
 @var
+----
+
+== Style/RedundantInterpolationUnfreeze
+
+NOTE: Required Ruby version: 3.0
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| Always
+| 1.66
+| -
+|===
+
+Before Ruby 3.0, interpolated strings followed the frozen string literal
+magic comment which sometimes made it necessary to explicitly unfreeze them.
+Ruby 3.0 changed interpolated strings to always be unfrozen which makes
+unfreezing them redundant.
+
+ "#{foo} bar"
+
+=== Examples
+
+[source,ruby]
+----
+# bad
++"#{foo} bar"
+
+# bad
+"#{foo} bar".dup
+
+# good
 ----
 
 == Style/RedundantLineContinuation
@@ -13285,9 +13298,9 @@ of the method is. If this is converted to safe navigation,
 `foo&.bar` can start returning `nil` as well as what the method
 returns.
 
-The default for `MaxChainLength` is `2`
+The default for `MaxChainLength` is `2`.
 We have limited the cop to not register an offense for method chains
-that exceed this option is set.
+that exceed this option's value.
 
 === Safety
 
@@ -16484,10 +16497,7 @@ end
 while x.any?
   do_something(x.pop)
 end
-----
 
-[source,ruby]
-----
 # bad
 until x.empty? do
   do_something(x.pop)
@@ -16530,10 +16540,7 @@ end
 
 # good
 x += 1 while x < 10
-----
 
-[source,ruby]
-----
 # bad
 until x > 10
   x += 1

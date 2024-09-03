@@ -66,7 +66,6 @@ module RuboCop
         BINARY_OPERATORS = %i[* / % + - == === != < > <= >= <=>].freeze
         UNARY_OPERATORS = %i[+@ -@ ~ !].freeze
         OPERATORS = (BINARY_OPERATORS + UNARY_OPERATORS).freeze
-        VOID_CONTEXT_TYPES = %i[def for block].freeze
         NONMUTATING_METHODS_WITH_BANG_VERSION = %i[capitalize chomp chop compact
                                                    delete_prefix delete_suffix downcase
                                                    encode flatten gsub lstrip merge next
@@ -86,13 +85,16 @@ module RuboCop
           check_void_op(node.body) { node.method?(:each) }
           check_expression(node.body)
         end
-
         alias on_numblock on_block
 
         def on_begin(node)
           check_begin(node)
         end
         alias on_kwbegin on_begin
+
+        def on_ensure(node)
+          check_ensure(node)
+        end
 
         private
 
@@ -193,12 +195,24 @@ module RuboCop
           end
         end
 
+        def check_ensure(node)
+          return unless (body = node.body)
+          # NOTE: the `begin` node case is already handled via `on_begin`
+          return if body.begin_type?
+
+          check_void_op(body) do
+            block_node = node.each_ancestor(:block).first
+            block_node&.method?(:each)
+          end
+
+          check_expression(body)
+        end
+
         def in_void_context?(node)
           parent = node.parent
-
           return false unless parent && parent.children.last == node
 
-          VOID_CONTEXT_TYPES.include?(parent.type) && parent.void_context?
+          parent.respond_to?(:void_context?) && parent.void_context?
         end
 
         def autocorrect_void_op(corrector, node)
@@ -231,14 +245,22 @@ module RuboCop
         def entirely_literal?(node)
           case node.type
           when :array
-            node.each_value.all? { |value| entirely_literal?(value) }
+            all_values_entirely_literal?(node)
           when :hash
-            return false unless node.each_key.all? { |key| entirely_literal?(key) }
-
-            node.each_value.all? { |value| entirely_literal?(value) }
+            all_keys_entirely_literal?(node) && all_values_entirely_literal?(node)
+          when :send, :csend
+            node.method?(:freeze) && node.receiver && entirely_literal?(node.receiver)
           else
             node.literal?
           end
+        end
+
+        def all_keys_entirely_literal?(node)
+          node.each_key.all? { |key| entirely_literal?(key) }
+        end
+
+        def all_values_entirely_literal?(node)
+          node.each_value.all? { |value| entirely_literal?(value) }
         end
       end
     end

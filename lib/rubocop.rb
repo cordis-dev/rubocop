@@ -1,10 +1,14 @@
 # frozen_string_literal: true
 
 require 'English'
+
+# fileutils is autoloaded by pathname,
+# but must be explicitly loaded here for inclusion in `$LOADED_FEATURES`.
+require 'fileutils'
+
 before_us = $LOADED_FEATURES.dup
 require 'rainbow'
 
-require 'forwardable'
 require 'regexp_parser'
 require 'set'
 require 'unicode/display_width'
@@ -411,6 +415,7 @@ require_relative 'rubocop/cop/lint/useless_access_modifier'
 require_relative 'rubocop/cop/lint/useless_assignment'
 require_relative 'rubocop/cop/lint/useless_else_without_rescue'
 require_relative 'rubocop/cop/lint/useless_method_definition'
+require_relative 'rubocop/cop/lint/useless_numeric_operation'
 require_relative 'rubocop/cop/lint/useless_rescue'
 require_relative 'rubocop/cop/lint/useless_ruby2_keywords'
 require_relative 'rubocop/cop/lint/useless_setter_call'
@@ -579,6 +584,7 @@ require_relative 'rubocop/cop/style/redundant_file_extension_in_require'
 require_relative 'rubocop/cop/style/redundant_filter_chain'
 require_relative 'rubocop/cop/style/redundant_heredoc_delimiter_quotes'
 require_relative 'rubocop/cop/style/redundant_initialize'
+require_relative 'rubocop/cop/style/redundant_interpolation_unfreeze'
 require_relative 'rubocop/cop/style/redundant_line_continuation'
 require_relative 'rubocop/cop/style/redundant_regexp_argument'
 require_relative 'rubocop/cop/style/redundant_regexp_constructor'

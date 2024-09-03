@@ -82,6 +82,8 @@ AllCops:
   StyleGuideBaseURL: https://rubystyle.guide
   # Documentation URLs will be constructed using the base URL.
   DocumentationBaseURL: https://docs.rubocop.org/rubocop
+  # Documentation URLs will end with this extension.
+  DocumentationExtension: .html
   # Extra details are not displayed in offense messages by default. Change
   # behavior by overriding ExtraDetails, or by giving the
   # `-E/--extra-details` option.
@@ -166,6 +168,11 @@ AllCops:
     rubocop-rspec_rails: [rspec-rails]
   # Enable/Disable checking the methods extended by Active Support.
   ActiveSupportExtensionsEnabled: false
+  # Future version of Ruby will freeze string literals by default.
+  # This allows to opt in early, for example when enabled through RUBYOPT.
+  # For now this will behave as if set to false but in future ruby versions
+  # (likely 4.0) it will be true by default.
+  StringLiteralsFrozenByDefault: ~
 
 #################### Bundler ###############################
 
@@ -2536,8 +2543,7 @@ Lint/UselessAssignment:
   Enabled: true
   AutoCorrect: contextual
   VersionAdded: '0.11'
-  VersionChanged: '1.61'
-  SafeAutoCorrect: false
+  VersionChanged: '1.66'
 
 Lint/UselessElseWithoutRescue:
   Description: 'Checks for useless `else` in `begin..end` without `rescue`.'
@@ -2552,6 +2558,11 @@ Lint/UselessMethodDefinition:
   VersionAdded: '0.90'
   VersionChanged: '1.61'
   Safe: false
+
+Lint/UselessNumericOperation:
+  Description: 'Checks for useless numeric operations.'
+  Enabled: pending
+  VersionAdded: '1.66'
 
 Lint/UselessRescue:
   Description: 'Checks for useless `rescue`s.'
@@ -5050,6 +5061,11 @@ Style/RedundantInterpolation:
   SafeAutoCorrect: false
   VersionAdded: '0.76'
   VersionChanged: '1.30'
+
+Style/RedundantInterpolationUnfreeze:
+  Description: 'Checks for redundant unfreezing of interpolated strings.'
+  Enabled: pending
+  VersionAdded: '1.66'
 
 Style/RedundantLineContinuation:
   Description: 'Check for redundant line continuation.'

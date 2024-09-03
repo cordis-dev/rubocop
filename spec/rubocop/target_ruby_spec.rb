@@ -89,7 +89,18 @@ RSpec.describe RuboCop::TargetRuby, :isolated_environment do
           HEREDOC
 
           create_file(gemspec_file_path, content)
-          expect(target_ruby.version).to eq default_version
+          expect(target_ruby.version).to eq 2.3
+        end
+
+        it 'falls back to the minimal supported analysable ruby version' do
+          content = <<~HEREDOC
+            Gem::Specification.new do |s|
+              s.required_ruby_version = '>= 1.9.0'
+            end
+          HEREDOC
+
+          create_file(gemspec_file_path, content)
+          expect(target_ruby.version).to eq 2.0
         end
 
         it 'sets first known ruby version that satisfies requirement' do
@@ -102,7 +113,7 @@ RSpec.describe RuboCop::TargetRuby, :isolated_environment do
           HEREDOC
 
           create_file(gemspec_file_path, content)
-          expect(target_ruby.version).to eq default_version
+          expect(target_ruby.version).to eq 2.0
         end
 
         it 'sets first known ruby version that satisfies range requirement' do
@@ -115,7 +126,7 @@ RSpec.describe RuboCop::TargetRuby, :isolated_environment do
           HEREDOC
 
           create_file(gemspec_file_path, content)
-          expect(target_ruby.version).to eq default_version
+          expect(target_ruby.version).to eq 2.3
         end
 
         it 'sets first known ruby version that satisfies range requirement in array notation' do
@@ -128,7 +139,7 @@ RSpec.describe RuboCop::TargetRuby, :isolated_environment do
           HEREDOC
 
           create_file(gemspec_file_path, content)
-          expect(target_ruby.version).to eq default_version
+          expect(target_ruby.version).to eq 2.3
         end
 
         it 'sets first known ruby version that satisfies range requirement with frozen strings' do
@@ -141,7 +152,7 @@ RSpec.describe RuboCop::TargetRuby, :isolated_environment do
           HEREDOC
 
           create_file(gemspec_file_path, content)
-          expect(target_ruby.version).to eq default_version
+          expect(target_ruby.version).to eq 2.3
         end
 
         it 'sets first known ruby version that satisfies range requirement in array notation with frozen strings' do
@@ -154,7 +165,7 @@ RSpec.describe RuboCop::TargetRuby, :isolated_environment do
           HEREDOC
 
           create_file(gemspec_file_path, content)
-          expect(target_ruby.version).to eq default_version
+          expect(target_ruby.version).to eq 2.3
         end
       end
 
@@ -255,6 +266,19 @@ RSpec.describe RuboCop::TargetRuby, :isolated_environment do
           expect(described_class::ToolVersionsFile).to receive(:new).and_call_original
           expect(described_class::BundlerLockFile).to receive(:new).and_call_original
           expect(described_class::Default).to receive(:new).and_call_original
+          expect(target_ruby.version).to eq default_version
+        end
+      end
+
+      context 'when file contains a syntax error' do
+        it 'uses the default target ruby version' do
+          content = <<~HEREDOC
+            Gem::Specification.new do |s|
+              s.required_ruby_version = '>= 3.3.0'' # invalid syntax
+            end
+          HEREDOC
+
+          create_file(gemspec_file_path, content)
           expect(target_ruby.version).to eq default_version
         end
       end
