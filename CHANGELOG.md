@@ -11,6 +11,15 @@
 
 ## master (unreleased)
 
+## 1.66.1 (2024-09-04)
+
+### Bug fixes
+
+* [#13191](https://github.com/rubocop/rubocop/pull/13191): Fix an error for `Style/IfWithSemicolon` when using nested single-line if/;/end in block of if/else branches. ([@koic][])
+* [#13178](https://github.com/rubocop/rubocop/pull/13178): Fix false positive for `Style/EmptyLiteral` with `Hash.new([])`. ([@earlopain][])
+* [#13176](https://github.com/rubocop/rubocop/issues/13176): Fix crash in `Style/EmptyElse` when `AllowComments: true` and the else clause is missing. ([@vlad-pisanov][])
+* [#13185](https://github.com/rubocop/rubocop/pull/13185): Fix false negatives in `Style/MapIntoArray` autocorrection when using `ensure`, `def`, `defs` and `for`. ([@vlad-pisanov][])
+
 ## 1.66.0 (2024-08-31)
 
 ### New features
@@ -54,7 +63,7 @@
 
 ### Changes
 
-* [#13050](https://github.com/rubocop/rubocop/issues/13050): Allow `get_!`, `set_!`, `get_?`, `set_?`, `get_=`, and `set_=` in `Naming/AccessorMethodName`. ([@koic][])
+* [#13150](https://github.com/rubocop/rubocop/issues/13150): Allow `get_!`, `set_!`, `get_?`, `set_?`, `get_=`, and `set_=` in `Naming/AccessorMethodName`. ([@koic][])
 * [#13103](https://github.com/rubocop/rubocop/issues/13103): Make `Lint/UselessAssignment` autocorrection safe. ([@koic][])
 * [#13099](https://github.com/rubocop/rubocop/issues/13099): Make `Style/RedundantRegexpArgument` respect the `EnforcedStyle` of `Style/StringLiterals`. ([@koic][])
 * [#13165](https://github.com/rubocop/rubocop/pull/13165): Remove dependency on the `rexml` gem. ([@bquorning][])

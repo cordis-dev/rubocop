@@ -7,6 +7,8 @@ module RuboCop
         # Style omit_parentheses
         # rubocop:disable Metrics/ModuleLength, Metrics/CyclomaticComplexity
         module OmitParentheses
+          include RangeHelp
+
           TRAILING_WHITESPACE_REGEX = /\s+\Z/.freeze
           OMIT_MSG = 'Omit parentheses for method calls with arguments.'
           private_constant :OMIT_MSG
@@ -30,10 +32,13 @@ module RuboCop
           end
 
           def autocorrect(corrector, node)
+            range = args_begin(node)
             if parentheses_at_the_end_of_multiline_call?(node)
-              corrector.replace(args_begin(node), ' \\')
+              # Whitespace after line continuation (`\ `) is a syntax error
+              with_whitespace = range_with_surrounding_space(range, side: :right, newlines: false)
+              corrector.replace(with_whitespace, ' \\')
             else
-              corrector.replace(args_begin(node), ' ')
+              corrector.replace(range, ' ')
             end
             corrector.remove(node.loc.end)
           end
@@ -47,11 +52,11 @@ module RuboCop
             node.each_ancestor(:def, :defs).any?(&:endless?) && node.arguments.any?
           end
 
-          def require_parentheses_for_hash_value_omission?(node)
+          def require_parentheses_for_hash_value_omission?(node) # rubocop:disable Metrics/PerceivedComplexity
             return false unless (last_argument = node.last_argument)
             return false if !last_argument.hash_type? || !last_argument.pairs.last&.value_omission?
 
-            node.parent&.conditional? || !last_expression?(node)
+            node.parent&.conditional? || node.parent&.single_line? || !last_expression?(node)
           end
 
           # Require hash value omission be enclosed in parentheses to prevent the following issue:

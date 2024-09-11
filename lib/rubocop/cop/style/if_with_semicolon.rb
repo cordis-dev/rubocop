@@ -36,10 +36,12 @@ module RuboCop
 
         private
 
+        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def message(node)
           template = if node.if_branch&.begin_type?
                        MSG_NEWLINE
-                     elsif node.else_branch&.if_type? || node.else_branch&.begin_type?
+                     elsif node.else_branch&.if_type? || node.else_branch&.begin_type? ||
+                           use_block_in_branches?(node)
                        MSG_IF_ELSE
                      else
                        MSG_TERNARY
@@ -47,13 +49,18 @@ module RuboCop
 
           format(template, expr: node.condition.source)
         end
+        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def autocorrect(corrector, node)
-          if node.if_branch&.begin_type? || node.else_branch&.begin_type?
+          if node.branches.compact.any?(&:begin_type?) || use_block_in_branches?(node)
             corrector.replace(node.loc.begin, "\n")
           else
             corrector.replace(node, replacement(node))
           end
+        end
+
+        def use_block_in_branches?(node)
+          node.branches.compact.any? { |branch| branch.block_type? || branch.numblock_type? }
         end
 
         def replacement(node)
@@ -74,16 +81,14 @@ module RuboCop
           RUBY
         end
 
-        # rubocop:disable Metrics/AbcSize
         def build_expression(expr)
-          return expr.source if !expr.call_type? || expr.parenthesized? || expr.arguments.empty?
+          return expr.source unless require_argument_parentheses?(expr)
 
           method = expr.source_range.begin.join(expr.loc.selector.end)
           arguments = expr.first_argument.source_range.begin.join(expr.source_range.end)
 
           "#{method.source}(#{arguments.source})"
         end
-        # rubocop:enable Metrics/AbcSize
 
         def build_else_branch(second_condition)
           result = <<~RUBY
@@ -103,6 +108,12 @@ module RuboCop
           end
 
           result
+        end
+
+        def require_argument_parentheses?(node)
+          return false unless node.call_type?
+
+          !node.parenthesized? && node.arguments.any? && !node.method?(:[]) && !node.method?(:[]=)
         end
       end
     end
