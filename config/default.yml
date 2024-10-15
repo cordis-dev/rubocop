@@ -861,6 +861,7 @@ Layout/FirstMethodArgumentLineBreak:
   Enabled: false
   VersionAdded: '0.49'
   AllowMultilineFinalElement: false
+  AllowedMethods: []
 
 Layout/FirstMethodParameterLineBreak:
   Description: >-
@@ -1036,6 +1037,7 @@ Layout/LeadingCommentSpace:
   VersionChanged: '0.73'
   AllowDoxygenCommentStyle: false
   AllowGemfileRubyComment: false
+  AllowRBSInlineAnnotation: false
 
 Layout/LeadingEmptyLines:
   Description: Check for unnecessary blank lines at the beginning of a file.
@@ -1832,6 +1834,11 @@ Lint/DuplicateRescueException:
   Enabled: true
   VersionAdded: '0.89'
 
+Lint/DuplicateSetElement:
+  Description: 'Checks for duplicate elements in Set.'
+  Enabled: pending
+  VersionAdded: '1.67'
+
 Lint/EachWithObjectArgument:
   Description: 'Check for immutable argument given to each_with_object.'
   Enabled: true
@@ -2327,9 +2334,9 @@ Lint/SafeNavigationChain:
 
 Lint/SafeNavigationConsistency:
   Description: >-
-                 Check to make sure that if safe navigation is used for a method
-                 call in an `&&` or `||` condition that safe navigation is used
-                 for all method calls on that same object.
+                 Check to make sure that if safe navigation is used in an `&&` or `||` condition,
+                 consistent and appropriate safe navigation, without excess or deficiency,
+                 is used for all method calls on the same object.
   Enabled: true
   VersionAdded: '0.55'
   VersionChanged: '0.77'
@@ -4069,7 +4076,7 @@ Style/HashSyntax:
   StyleGuide: '#hash-literals'
   Enabled: true
   VersionAdded: '0.9'
-  VersionChanged: '1.24'
+  VersionChanged: '1.67'
   EnforcedStyle: ruby19
   SupportedStyles:
     # checks for 1.9 syntax (e.g. {a: 1}) for all symbol keys
@@ -4081,7 +4088,7 @@ Style/HashSyntax:
     # enforces both ruby19 and no_mixed_keys styles
     - ruby19_no_mixed_keys
   # Force hashes that have a hash value omission
-  EnforcedShorthandSyntax: always
+  EnforcedShorthandSyntax: either
   SupportedShorthandSyntax:
     # forces use of the 3.1 syntax (e.g. {foo:}) when the hash key and value are the same.
     - always
@@ -4318,6 +4325,7 @@ Style/MapIntoArray:
   StyleGuide: '#functional-code'
   Enabled: pending
   VersionAdded: '1.63'
+  VersionChanged: '1.67'
   Safe: false
 
 Style/MapToHash:
@@ -5208,6 +5216,7 @@ Style/ReturnNilInPredicateMethodDefinition:
   AllowedMethods: []
   AllowedPatterns: []
   VersionAdded: '1.53'
+  VersionChanged: '1.67'
 
 Style/SafeNavigation:
   Description: >-
@@ -5218,7 +5227,7 @@ Style/SafeNavigation:
                   be `nil` or truthy, but never `false`.
   Enabled: true
   VersionAdded: '0.43'
-  VersionChanged: '1.27'
+  VersionChanged: '1.67'
   # Safe navigation may cause a statement to start returning `nil` in addition
   # to whatever it used to return.
   ConvertCodeThatCanStartToReturnNil: false

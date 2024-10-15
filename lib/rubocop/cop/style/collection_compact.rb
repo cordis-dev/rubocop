@@ -21,6 +21,7 @@ module RuboCop
       #   array.reject(&:nil?)
       #   array.reject { |e| e.nil? }
       #   array.select { |e| !e.nil? }
+      #   array.filter { |e| !e.nil? }
       #   array.grep_v(nil)
       #   array.grep_v(NilClass)
       #
@@ -29,10 +30,9 @@ module RuboCop
       #
       #   # bad
       #   hash.reject!(&:nil?)
-      #   array.delete_if(&:nil?)
       #   hash.reject! { |k, v| v.nil? }
-      #   array.delete_if { |e| e.nil? }
       #   hash.select! { |k, v| !v.nil? }
+      #   hash.filter! { |k, v| !v.nil? }
       #
       #   # good
       #   hash.compact!
@@ -48,14 +48,15 @@ module RuboCop
         extend TargetRubyVersion
 
         MSG = 'Use `%<good>s` instead of `%<bad>s`.'
-        RESTRICT_ON_SEND = %i[reject delete_if reject! select select! grep_v].freeze
+        RESTRICT_ON_SEND = %i[reject reject! select select! filter filter! grep_v].freeze
         TO_ENUM_METHODS = %i[to_enum lazy].freeze
+        FILTER_METHODS = %i[filter filter!].freeze
 
         minimum_target_ruby_version 2.4
 
         # @!method reject_method_with_block_pass?(node)
         def_node_matcher :reject_method_with_block_pass?, <<~PATTERN
-          (call !nil? {:reject :delete_if :reject!}
+          (call !nil? {:reject :reject!}
             (block_pass
               (sym :nil?)))
         PATTERN
@@ -64,7 +65,7 @@ module RuboCop
         def_node_matcher :reject_method?, <<~PATTERN
           (block
             (call
-              !nil? {:reject :delete_if :reject!})
+              !nil? {:reject :reject!})
             $(args ...)
             (call
               $(lvar _) :nil?))
@@ -74,7 +75,7 @@ module RuboCop
         def_node_matcher :select_method?, <<~PATTERN
           (block
             (call
-              !nil? {:select :select!})
+              !nil? {:select :select! :filter :filter!})
             $(args ...)
             (call
               (call
@@ -87,11 +88,10 @@ module RuboCop
         PATTERN
 
         def on_send(node)
+          return if target_ruby_version < 2.6 && FILTER_METHODS.include?(node.method_name)
           return unless (range = offense_range(node))
           return if allowed_receiver?(node.receiver)
-          if (target_ruby_version <= 3.0 || node.method?(:delete_if)) && to_enum_method?(node)
-            return
-          end
+          return if target_ruby_version <= 3.0 && to_enum_method?(node)
 
           good = good_method_name(node)
           message = format(MSG, good: good, bad: range.source)
@@ -127,7 +127,7 @@ module RuboCop
         end
 
         def good_method_name(node)
-          if node.bang_method? || node.method?(:delete_if)
+          if node.bang_method?
             'compact!'
           else
             'compact'

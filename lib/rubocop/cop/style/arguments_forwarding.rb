@@ -180,7 +180,8 @@ module RuboCop
         end
 
         def only_forwards_all?(send_classifications)
-          send_classifications.all? { |_, c, _, _| c == :all }
+          all_classifications = %i[all all_anonymous].freeze
+          send_classifications.all? { |_, c, _, _| all_classifications.include?(c) }
         end
 
         # rubocop:disable Metrics/MethodLength
@@ -188,8 +189,8 @@ module RuboCop
           _rest_arg, _kwrest_arg, block_arg = *forwardable_args
           registered_block_arg_offense = false
 
-          send_classifications.each do |send_node, _c, forward_rest, forward_kwrest, forward_block_arg| # rubocop:disable Layout/LineLength
-            if !forward_rest && !forward_kwrest
+          send_classifications.each do |send_node, c, forward_rest, forward_kwrest, forward_block_arg| # rubocop:disable Layout/LineLength
+            if !forward_rest && !forward_kwrest && c != :all_anonymous
               # Prevents `anonymous block parameter is also used within block (SyntaxError)` occurs
               # in Ruby 3.3.0.
               if outside_block?(forward_block_arg)
@@ -213,6 +214,7 @@ module RuboCop
         # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
         def add_post_ruby_32_offenses(def_node, send_classifications, forwardable_args)
           return unless use_anonymous_forwarding?
+          return if send_inside_block?(send_classifications)
 
           rest_arg, kwrest_arg, block_arg = *forwardable_args
 
@@ -355,8 +357,15 @@ module RuboCop
           cop_config.fetch('UseAnonymousForwarding', false)
         end
 
+        def send_inside_block?(send_classifications)
+          send_classifications.any? do |send_node, *|
+            send_node.each_ancestor(:block, :numblock).any?
+          end
+        end
+
         def add_parens_if_missing(node, corrector)
           return if parentheses?(node)
+          return if node.send_type? && node.method?(:[])
 
           add_parentheses(node, corrector)
         end
@@ -373,6 +382,23 @@ module RuboCop
 
           # @!method forwarded_block_arg?(node, block_name)
           def_node_matcher :forwarded_block_arg?, '(block_pass {(lvar %1) nil?})'
+
+          # @!method def_all_anonymous_args?(node)
+          def_node_matcher :def_all_anonymous_args?, <<~PATTERN
+            (
+              def _
+              (args ... (restarg) (kwrestarg) (blockarg nil?))
+              _
+            )
+          PATTERN
+
+          # @!method send_all_anonymous_args?(node)
+          def_node_matcher :send_all_anonymous_args?, <<~PATTERN
+            (
+              send _ _
+              ... (forwarded_restarg) (hash (forwarded_kwrestarg)) (block_pass nil?)
+            )
+          PATTERN
 
           def initialize(def_node, send_node, referenced_lvars, forwardable_args, **config)
             @def_node = def_node
@@ -405,7 +431,9 @@ module RuboCop
           def classification
             return nil unless forwarded_rest_arg || forwarded_kwrest_arg || forwarded_block_arg
 
-            if can_forward_all?
+            if ruby_32_only_anonymous_forwarding?
+              :all_anonymous
+            elsif can_forward_all?
               :all
             else
               :rest_or_kwrest
@@ -414,16 +442,28 @@ module RuboCop
 
           private
 
+          # rubocop:disable Metrics/CyclomaticComplexity
           def can_forward_all?
             return false if any_arg_referenced?
-            return false if ruby_32_missing_rest_or_kwest?
+            return false if ruby_30_or_lower_optarg?
+            return false if ruby_32_or_higher_missing_rest_or_kwest?
             return false unless offensive_block_forwarding?
             return false if additional_kwargs_or_forwarded_kwargs?
 
             no_additional_args? || (target_ruby_version >= 3.0 && no_post_splat_args?)
           end
+          # rubocop:enable Metrics/CyclomaticComplexity
 
-          def ruby_32_missing_rest_or_kwest?
+          # def foo(a = 41, ...) is a syntax error in 3.0.
+          def ruby_30_or_lower_optarg?
+            target_ruby_version <= 3.0 && @def_node.arguments.any?(&:optarg_type?)
+          end
+
+          def ruby_32_only_anonymous_forwarding?
+            def_all_anonymous_args?(@def_node) && send_all_anonymous_args?(@send_node)
+          end
+
+          def ruby_32_or_higher_missing_rest_or_kwest?
             target_ruby_version >= 3.2 && !forwarded_rest_and_kwrest_args
           end
 

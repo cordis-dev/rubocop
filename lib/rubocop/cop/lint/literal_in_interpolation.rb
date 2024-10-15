@@ -30,6 +30,8 @@ module RuboCop
           # interpolation should not be removed if the expanded value
           # contains a space character.
           expanded_value = autocorrected_value(final_node)
+          expanded_value = handle_special_regexp_chars(begin_node, expanded_value)
+
           return if in_array_percent_literal?(begin_node) && /\s|\A\z/.match?(expanded_value)
 
           add_offense(final_node) do |corrector|
@@ -76,6 +78,27 @@ module RuboCop
           end
         end
         # rubocop:enable Metrics/MethodLength, Metrics/CyclomaticComplexity
+
+        def handle_special_regexp_chars(begin_node, value)
+          parent_node = begin_node.parent
+
+          return value unless parent_node.regexp_type? && parent_node.slash_literal? && value['/']
+
+          # When a literal string containing a forward slash preceded by backslashes
+          # is interpolated inside a regexp, the number of resultant backslashes in the
+          # compiled Regexp is `(2(n+1) / 4)+1`, where `n` is the number of backslashes
+          # inside the interpolation.
+          # ie. 0-2 backslashes is compiled to 1, 3-6 is compiled to 3, etc.
+          # This maintains that same behavior in order to ensure the Regexp behavior
+          # does not change upon removing the interpolation.
+          value.gsub(%r{(\\*)/}) do
+            backslashes = Regexp.last_match[1]
+            backslash_count = backslashes.length
+            needed_backslashes = (2 * ((backslash_count + 1) / 4)) + 1
+
+            "#{'\\' * needed_backslashes}/"
+          end
+        end
 
         def autocorrected_value_for_string(node)
           if node.source.start_with?("'", '%q')
@@ -150,7 +173,7 @@ module RuboCop
 
         def ends_heredoc_line?(node)
           grandparent = node.parent.parent
-          return false unless grandparent&.dstr_type? && grandparent&.heredoc?
+          return false unless grandparent&.dstr_type? && grandparent.heredoc?
 
           line = processed_source.lines[node.last_line - 1]
           line.size == node.loc.last_column + 1
@@ -161,7 +184,7 @@ module RuboCop
           return false unless parent.dstr_type? || parent.dsym_type?
 
           grandparent = parent.parent
-          grandparent&.array_type? && grandparent&.percent_literal?
+          grandparent&.array_type? && grandparent.percent_literal?
         end
       end
     end

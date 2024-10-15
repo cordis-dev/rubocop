@@ -133,6 +133,44 @@ RSpec.describe RuboCop::Cop::Style::MapIntoArray, :config do
     RUBY
   end
 
+  it 'registers an offense and corrects when the destination comes from `tap` on an empty array' do
+    expect_offense(<<~RUBY)
+      [].tap do |dest|
+        src.each { |e| dest << e * 2 }
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `map` instead of `each` to map elements into an array.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      dest = src.map { |e| e * 2 }
+    RUBY
+  end
+
+  it 'does not register an offense when the destination comes from `tap` on an empty array that has been mutated' do
+    expect_no_offenses(<<~RUBY)
+      [].tap do |dest|
+        do_something(dest)
+        src.each { |e| dest << e * 2 }
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when the destination comes from `tap` on a non-empty array' do
+    expect_no_offenses(<<~RUBY)
+      [1, 2, 3].tap do |dest|
+        src.each { |e| dest << e * 2 }
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when the destination comes from `tap` on a non-array' do
+    expect_no_offenses(<<~RUBY)
+      {}.tap do |dest|
+        src.each { |e| dest << e * 2 }
+      end
+    RUBY
+  end
+
   it 'does not register an offense when the destination is not a local variable' do
     expect_no_offenses(<<~RUBY)
       @dest = []
@@ -147,14 +185,14 @@ RSpec.describe RuboCop::Cop::Style::MapIntoArray, :config do
     RUBY
   end
 
-  it 'does not register an offense and corrects when using `each` without receiver with `<<` to build an array' do
+  it 'does not register an offense when using `each` without receiver with `<<` to build an array' do
     expect_no_offenses(<<~RUBY)
       dest = []
       each { |e| dest << e * 2 }
     RUBY
   end
 
-  it 'does not register an offense and corrects when using `each` with `self` receiver with `<<` to build an array' do
+  it 'does not register an offense when using `each` with `self` receiver with `<<` to build an array' do
     expect_no_offenses(<<~RUBY)
       dest = []
       self.each { |e| dest << e * 2 }

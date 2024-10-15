@@ -2866,6 +2866,36 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'corrects `Style/BlockDelimiters` with `EnforcedStyle: braces_for_chaining` and `Style/RedundantBegin` offenses' do
+    create_file('.rubocop.yml', <<~YAML)
+      Style/BlockDelimiters:
+        EnforcedStyle: braces_for_chaining
+    YAML
+
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      foo.map do |v|
+        begin
+          v.call
+        rescue StandardError
+          baz
+        end
+      end.compact
+    RUBY
+
+    expect(cli.run(['-A', '--only', 'Style/BlockDelimiters,Style/RedundantBegin'])).to eq(0)
+
+    expect(source_file.read).to eq(<<~RUBY)
+      foo.map { |v|
+        begin
+          v.call
+        rescue StandardError
+          baz
+        end
+      }.compact
+    RUBY
+  end
+
   it 'does not crash when using `Layout/CaseIndentation` and `Layout/ElseAlignment`' do
     source_file = Pathname('example.rb')
     create_file(source_file, <<~RUBY)
@@ -3142,6 +3172,36 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
       def some_method
         do_something
       end
+    RUBY
+  end
+
+  it 'corrects `Lint/ImplicitStringConcatenation` with `Lint/TripleQuotes` offenses' do
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      """string"""
+    RUBY
+    status = cli.run(%w[--autocorrect --only Lint/ImplicitStringConcatenation,Lint/TripleQuotes])
+    expect($stdout.string).to eq(<<~RESULT)
+      Inspecting 1 file
+      W
+
+      Offenses:
+
+      example.rb:1:1: W: [Corrected] Lint/ImplicitStringConcatenation: Combine "" and "string" into a single string literal, rather than using implicit string concatenation.
+      """string"""
+      ^^^^^^^^^^
+      example.rb:1:1: W: [Corrected] Lint/TripleQuotes: Delimiting a string with multiple quotes has no effect, use a single quote instead.
+      """string"""
+      ^^^^^^^^^^^^
+      example.rb:1:3: W: [Corrected] Lint/ImplicitStringConcatenation: Combine "string" and "" into a single string literal, rather than using implicit string concatenation.
+      """string"""
+        ^^^^^^^^^^
+
+      1 file inspected, 3 offenses detected, 3 offenses corrected
+    RESULT
+    expect(status).to eq(0)
+    expect(source_file.read).to eq(<<~RUBY)
+      "string"
     RUBY
   end
 
