@@ -1038,6 +1038,7 @@ Layout/LeadingCommentSpace:
   AllowDoxygenCommentStyle: false
   AllowGemfileRubyComment: false
   AllowRBSInlineAnnotation: false
+  AllowSteepAnnotation: false
 
 Layout/LeadingEmptyLines:
   Description: Check for unnecessary blank lines at the beginning of a file.
@@ -1785,6 +1786,7 @@ Lint/DuplicateBranch:
   VersionChanged: '1.7'
   IgnoreLiteralBranches: false
   IgnoreConstantBranches: false
+  IgnoreDuplicateElseBranch: false
 
 Lint/DuplicateCaseCondition:
   Description: 'Do not repeat values in case conditionals.'
@@ -2454,6 +2456,11 @@ Lint/UnderscorePrefixedVariableName:
   Enabled: true
   VersionAdded: '0.21'
   AllowKeywordBlockArguments: false
+
+Lint/UnescapedBracketInRegexp:
+  Description: 'Checks for unescaped literal `]` in Regexp.'
+  Enabled: pending
+  VersionAdded: '1.68'
 
 Lint/UnexpectedBlockArity:
   Description: 'Looks for blocks that have fewer arguments that the calling method expects.'
@@ -3143,6 +3150,12 @@ Style/Alias:
     - prefer_alias
     - prefer_alias_method
 
+Style/AmbiguousEndlessMethodDefinition:
+  Description: 'Checks for endless methods inside operators of lower precedence.'
+  StyleGuide: '#ambiguous-endless-method-defintions'
+  Enabled: pending
+  VersionAdded: '1.68'
+
 Style/AndOr:
   Description: 'Use &&/|| instead of and/or.'
   StyleGuide: '#no-and-or-or'
@@ -3249,6 +3262,13 @@ Style/BisectedAttrAccessor:
                 for the same method can be combined into single `attr_accessor`.
   Enabled: true
   VersionAdded: '0.87'
+
+Style/BitwisePredicate:
+  Description: 'Prefer bitwise predicate methods over direct comparison operations.'
+  StyleGuide: '#bitwise-predicate-methods'
+  Enabled: pending
+  Safe: false
+  VersionAdded: '1.68'
 
 Style/BlockComments:
   Description: 'Do not use block comments.'
@@ -3532,6 +3552,11 @@ Style/ColonMethodDefinition:
   StyleGuide: '#colon-method-definition'
   Enabled: true
   VersionAdded: '0.52'
+
+Style/CombinableDefined:
+  Description: 'Checks successive `defined?` calls that can be combined into a single call.'
+  Enabled: pending
+  VersionAdded: '1.68'
 
 Style/CombinableLoops:
   Description: >-
@@ -4255,6 +4280,14 @@ Style/IpAddresses:
     - '**/Gemfile'
     - '**/gems.rb'
     - '**/*.gemspec'
+
+Style/KeywordArgumentsMerging:
+  Description: >-
+                 When passing an existing hash as keyword arguments, provide additional arguments
+                 directly rather than using `merge`.
+  StyleGuide: '#merging-keyword-arguments'
+  Enabled: pending
+  VersionAdded: '1.68'
 
 Style/KeywordParametersOrder:
   Description: 'Enforces that optional keyword parameters are placed at the end of the parameters list.'
@@ -5240,6 +5273,13 @@ Style/SafeNavigation:
   SafeAutoCorrect: false
   # Maximum length of method chains for register an offense.
   MaxChainLength: 2
+
+Style/SafeNavigationChainLength:
+  Description: 'Enforces safe navigation chains length to not exceed the configured maximum.'
+  StyleGuide: '#safe-navigation'
+  Enabled: pending
+  VersionAdded: '1.68'
+  Max: 2
 
 Style/Sample:
   Description: >-

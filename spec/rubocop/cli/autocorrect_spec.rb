@@ -301,6 +301,24 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'corrects `EnforcedStyle: semantic` of `Style/BlockDelimiters` with `Layout/SpaceInsideBlockBraces`' do
+    create_file('.rubocop.yml', <<~YAML)
+      Style/BlockDelimiters:
+        EnforcedStyle: semantic
+    YAML
+    source = <<~RUBY
+      File.open('a', 'w') { }
+    RUBY
+    create_file('example.rb', source)
+    expect(cli.run([
+                     '--autocorrect-all',
+                     '--only', 'Style/BlockDelimiters,Layout/SpaceInsideBlockBraces'
+                   ])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      File.open('a', 'w') do  end
+    RUBY
+  end
+
   it 'corrects `EnforcedStyle: require_parentheses` of `Style/MethodCallWithArgsParentheses` with `Style/NestedParenthesizedCalls`' do
     create_file('.rubocop.yml', <<~YAML)
       Style/MethodCallWithArgsParentheses:
@@ -589,6 +607,30 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     expect(File.read('example.rb')).to eq(<<~RUBY)
       def some_method(form, **, &)
         render('template', form: form, **, &)
+      end
+    RUBY
+  end
+
+  it 'corrects `Naming/BlockForwarding` with `Style/ExplicitBlockArgument`' do
+    create_file('.rubocop.yml', <<~YAML)
+      AllCops:
+        TargetRubyVersion: 3.2
+    YAML
+    source = <<~RUBY
+      def foo(&block)
+        bar do |baz|
+          yield(baz)
+        end
+      end
+    RUBY
+    create_file('example.rb', source)
+    expect(cli.run([
+                     '--autocorrect',
+                     '--only', 'Naming/BlockForwarding,Style/ExplicitBlockArgument'
+                   ])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      def foo(&)
+        bar(&)
       end
     RUBY
   end
@@ -2090,7 +2132,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
-  it 'corrects `Lint/AmbiguousRange` and offenses and accepts Style/RedundantParentheses' do
+  it 'corrects `Lint/AmbiguousRange` offenses and accepts Style/RedundantParentheses' do
     create_file('example.rb', <<~RUBY)
       x...(y || z)
     RUBY
@@ -2102,7 +2144,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
-  it 'corrects Lint/ParenthesesAsGroupedExpression and offenses and ' \
+  it 'corrects Lint/ParenthesesAsGroupedExpression offenses and ' \
      'accepts Style/RedundantParentheses' do
     create_file('example.rb', <<~RUBY)
       do_something (argument)
@@ -2142,7 +2184,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     special_for_inner_method_call
     special_for_inner_method_call_in_parentheses
   ].each do |style|
-    it 'does not crash `Layout/ArgumentAlignment` and offenses and accepts `Layout/FirstArgumentIndentation` ' \
+    it 'does not crash `Layout/ArgumentAlignment` and accepts `Layout/FirstArgumentIndentation` ' \
        'when specifying `EnforcedStyle: with_fixed_indentation` of `Layout/ArgumentAlignment` ' \
        "and `EnforcedStyle: #{style}` of `Layout/FirstArgumentIndentation`" do
       create_file('example.rb', <<~RUBY)
@@ -2508,7 +2550,7 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
-  it 'does not crash Lint/SafeNavigationWithEmpty and offenses and accepts Style/SafeNavigation ' \
+  it 'does not crash Lint/SafeNavigationWithEmpty and accepts Style/SafeNavigation ' \
      'when checking `foo&.empty?` in a conditional' do
     create_file('example.rb', <<~RUBY)
       do_something if ENV['VERSION'] && ENV['VERSION'].empty?

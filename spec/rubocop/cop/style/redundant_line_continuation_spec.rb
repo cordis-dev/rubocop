@@ -206,6 +206,14 @@ RSpec.describe RuboCop::Cop::Style::RedundantLineContinuation, :config do
     RUBY
   end
 
+  it 'does not register an offense when required line continuations for `&&` is used with an assignment after a line break' do
+    expect_no_offenses(<<~'RUBY')
+      if foo \
+        && (bar = baz)
+      end
+    RUBY
+  end
+
   it 'does not register an offense when required line continuations for multiline leading dot method chain with an empty line' do
     expect_no_offenses(<<~'RUBY')
       obj
@@ -697,6 +705,17 @@ RSpec.describe RuboCop::Cop::Style::RedundantLineContinuation, :config do
         bar }
       foo(bar,
         baz)
+    RUBY
+  end
+
+  it 'registers an offense when there is a line continuation at the EOF' do
+    expect_offense(<<~'RUBY')
+      foo \
+          ^ Redundant line continuation.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      foo#{trailing_whitespace}
     RUBY
   end
 end

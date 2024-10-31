@@ -139,7 +139,7 @@ module RuboCop
         offenses = process_file(file)
         yield file
 
-        if offenses.any? { |o| considered_failure?(o) }
+        if offenses.any? { |o| considered_failure?(o) && offense_displayed?(o) }
           break false if @options[:fail_fast]
 
           next false
@@ -363,8 +363,12 @@ module RuboCop
         result = ruby_extractor.call(processed_source)
         break result if result
       rescue StandardError
-        raise Error, "Ruby extractor #{ruby_extractor.source_location[0]} failed to process " \
-                     "#{processed_source.path}."
+        location = if ruby_extractor.is_a?(Proc)
+                     ruby_extractor.source_location
+                   else
+                     ruby_extractor.method(:call).source_location
+                   end
+        raise Error, "Ruby extractor #{location[0]} failed to process #{processed_source.path}."
       end
     end
 
@@ -436,16 +440,20 @@ module RuboCop
       !offense.corrected? && offense.severity >= minimum_severity_to_fail
     end
 
-    def offenses_to_report(offenses)
+    def offense_displayed?(offense)
       if @options[:display_only_fail_level_offenses]
-        offenses.select { |o| considered_failure?(o) }
+        considered_failure?(offense)
       elsif @options[:display_only_safe_correctable]
-        offenses.select { |o| supports_safe_autocorrect?(o) }
+        supports_safe_autocorrect?(offense)
       elsif @options[:display_only_correctable]
-        offenses.select(&:correctable?)
+        offense.correctable?
       else
-        offenses
+        true
       end
+    end
+
+    def offenses_to_report(offenses)
+      offenses.select { |o| offense_displayed?(o) }
     end
 
     def supports_safe_autocorrect?(offense)

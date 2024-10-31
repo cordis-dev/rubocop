@@ -3,7 +3,7 @@
 module RuboCop
   # This module holds the RuboCop version information.
   module Version
-    STRING = '1.67.0'
+    STRING = '1.68.0'
 
     MSG = '%<version>s (using %<parser_version>s, ' \
           'rubocop-ast %<rubocop_ast_version>s, ' \
@@ -18,12 +18,13 @@ module RuboCop
       'rubocop-md' => 'markdown', 'rubocop-factory_bot' => 'factory_bot'
     }.freeze
 
+    # NOTE: Marked as private but used by gems like standard.
     # @api private
     def self.version(debug: false, env: nil)
       if debug
         verbose_version = format(MSG, version: STRING, parser_version: parser_version,
                                       rubocop_ast_version: RuboCop::AST::Version::STRING,
-                                      target_ruby_version: TargetRuby.new(Config.new).version,
+                                      target_ruby_version: target_ruby_version(env),
                                       ruby_engine: RUBY_ENGINE, ruby_version: RUBY_VERSION,
                                       server_mode: server_mode,
                                       ruby_platform: RUBY_PLATFORM)
@@ -39,6 +40,11 @@ module RuboCop
       else
         STRING
       end
+    end
+
+    # @api private
+    def self.verbose(env: nil)
+      version(debug: true, env: env)
     end
 
     # @api private
@@ -58,12 +64,7 @@ module RuboCop
 
     # @api private
     def self.extension_versions(env)
-      features = Util.silence_warnings do
-        # Suppress any config issues when loading the config (ie. deprecations,
-        # pending cops, etc.).
-        env.config_store.unvalidated.for_pwd.loaded_features.sort
-      end
-
+      features = config_for_pwd(env).loaded_features.sort
       features.filter_map do |loaded_feature|
         next unless (match = loaded_feature.match(/rubocop-(?<feature>.*)/))
 
@@ -82,6 +83,24 @@ module RuboCop
         next unless (feature_version = feature_version(feature))
 
         "  - #{loaded_feature} #{feature_version}"
+      end
+    end
+
+    # @api private
+    def self.target_ruby_version(env)
+      if env
+        config_for_pwd(env).target_ruby_version
+      else
+        TargetRuby.new(Config.new).version
+      end
+    end
+
+    # @api private
+    def self.config_for_pwd(env)
+      Util.silence_warnings do
+        # Suppress any config issues when loading the config (ie. deprecations,
+        # pending cops, etc.).
+        env.config_store.unvalidated.for_pwd
       end
     end
 

@@ -536,6 +536,21 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
+  context 'when a variable is reassigned before a block' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          foo = 1
+          ^^^ Useless assignment to variable - `foo`.
+          foo = 2
+          bar {
+            foo = 3
+          }
+        end
+      RUBY
+    end
+  end
+
   context "when a variable is reassigned in loop body but won't " \
           'be referenced either next iteration or loop condition' do
     it 'registers an offense' do
@@ -1180,6 +1195,36 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
         def some_method
           foo, _ = do_something
           puts foo
+        end
+      RUBY
+    end
+  end
+
+  context 'when a variable is assigned as an argument to a method given to multiple assignment' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method
+          a, b = func(c = 3)
+                      ^ Useless assignment to variable - `c`.
+          [a, b]
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def some_method
+          a, b = func(3)
+          [a, b]
+        end
+      RUBY
+    end
+  end
+
+  context 'when a variable is assigned as an argument to a method given to multiple assignment and later used' do
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        def some_method
+          a, b = func(c = 3)
+          [a, b, c]
         end
       RUBY
     end
