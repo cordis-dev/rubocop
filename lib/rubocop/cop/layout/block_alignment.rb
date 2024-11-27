@@ -127,7 +127,6 @@ module RuboCop
                              start_loc,
                              end_loc,
                              do_source_line_column)
-
           error_source_line_column = if style == :start_of_block
                                        do_source_line_column
                                      else
@@ -189,7 +188,7 @@ module RuboCop
         # In offense message, we want to show the assignment LHS rather than
         # the entire assignment.
         def find_lhs_node(node)
-          node, = *node while node.op_asgn_type? || node.masgn_type?
+          node = node.lhs while node.op_asgn_type? || node.masgn_type?
           node
         end
 

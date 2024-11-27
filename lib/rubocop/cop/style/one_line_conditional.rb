@@ -4,8 +4,8 @@ module RuboCop
   module Cop
     module Style
       # Checks for uses of if/then/else/end constructs on a single line.
-      # AlwaysCorrectToMultiline config option can be set to true to auto-convert all offenses to
-      # multi-line constructs. When AlwaysCorrectToMultiline is false (default case) the
+      # `AlwaysCorrectToMultiline` config option can be set to true to autocorrect all offenses to
+      # multi-line constructs. When `AlwaysCorrectToMultiline` is false (default case) the
       # autocorrect will first try converting them to ternary operators.
       #
       # @example
@@ -30,6 +30,25 @@ module RuboCop
       #   else
       #     baz
       #   end
+      #
+      # @example AlwaysCorrectToMultiline: false (default)
+      #   # bad
+      #   if cond then run else dont end
+      #
+      #   # good
+      #   cond ? run : dont
+      #
+      # @example AlwaysCorrectToMultiline: true
+      #   # bad
+      #   if cond then run else dont end
+      #
+      #   # good
+      #   if cond
+      #     run
+      #   else
+      #     dont
+      #   end
+      #
       class OneLineConditional < Base
         include Alignment
         include ConfigurableEnforcedStyle
@@ -83,11 +102,13 @@ module RuboCop
         end
 
         def cannot_replace_to_ternary?(node)
-          node.elsif_conditional?
+          return true if node.elsif_conditional?
+
+          node.else_branch.begin_type? && node.else_branch.children.compact.count >= 2
         end
 
         def ternary_replacement(node)
-          condition, if_branch, else_branch = *node
+          condition, if_branch, else_branch = *node # rubocop:disable InternalAffairs/NodeDestructuring
 
           "#{expr_replacement(condition)} ? " \
             "#{expr_replacement(if_branch)} : " \

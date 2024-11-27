@@ -5,6 +5,19 @@ module RuboCop
     module Style
       # Checks for unnecessary conditional expressions.
       #
+      # NOTE: Since the intention of the comment cannot be automatically determined,
+      # autocorrection is not applied when a comment is used, as shown below:
+      #
+      # [source,ruby]
+      # -----
+      # if b
+      #   # Important note.
+      #   b
+      # else
+      #   c
+      # end
+      # -----
+      #
       # @example
       #   # bad
       #   a = b ? b : c
@@ -30,6 +43,7 @@ module RuboCop
       #   end
       #
       class RedundantCondition < Base
+        include CommentsHelp
         include RangeHelp
         extend AutoCorrector
 
@@ -39,25 +53,15 @@ module RuboCop
           splat block_pass forwarded_restarg forwarded_kwrestarg forwarded_args
         ].freeze
 
-        # rubocop:disable Metrics/AbcSize
         def on_if(node)
           return if node.modifier_form? || node.elsif_conditional? || !offense?(node)
 
           message = message(node)
 
           add_offense(range_of_offense(node), message: message) do |corrector|
-            if node.ternary? && !branches_have_method?(node)
-              correct_ternary(corrector, node)
-            elsif redundant_condition?(node)
-              corrector.replace(node, node.if_branch.source)
-            else
-              corrected = make_ternary_form(node)
-
-              corrector.replace(node, corrected)
-            end
+            autocorrect(corrector, node)
           end
         end
-        # rubocop:enable Metrics/AbcSize
 
         private
 
@@ -69,6 +73,20 @@ module RuboCop
           end
         end
 
+        def autocorrect(corrector, node)
+          return if node.each_descendant.any? { |descendant| contains_comments?(descendant) }
+
+          if node.ternary? && !branches_have_method?(node)
+            correct_ternary(corrector, node)
+          elsif redundant_condition?(node)
+            corrector.replace(node, node.if_branch.source)
+          else
+            corrected = make_ternary_form(node)
+
+            corrector.replace(node, corrected)
+          end
+        end
+
         def range_of_offense(node)
           return node.source_range unless node.ternary?
           return node.source_range if node.ternary? && branches_have_method?(node)
@@ -77,8 +95,7 @@ module RuboCop
         end
 
         def offense?(node)
-          _condition, _if_branch, else_branch = *node
-
+          _condition, _if_branch, else_branch = *node # rubocop:disable InternalAffairs/NodeDestructuring
           return false if use_if_branch?(else_branch) || use_hash_key_assignment?(else_branch)
 
           synonymous_condition_and_branch?(node) && !node.elsif? &&
@@ -102,7 +119,7 @@ module RuboCop
         end
 
         def synonymous_condition_and_branch?(node)
-          condition, if_branch, _else_branch = *node
+          condition, if_branch, _else_branch = *node # rubocop:disable InternalAffairs/NodeDestructuring
           # e.g.
           #   if var
           #     var
@@ -130,7 +147,7 @@ module RuboCop
         end
 
         def branches_have_assignment?(node)
-          _condition, if_branch, else_branch = *node
+          _condition, if_branch, else_branch = *node # rubocop:disable InternalAffairs/NodeDestructuring
 
           return false unless if_branch && else_branch
 
@@ -144,12 +161,10 @@ module RuboCop
         end
 
         def branches_have_method?(node)
-          _condition, if_branch, else_branch = *node
+          return false unless node.if_branch && node.else_branch
 
-          return false unless if_branch && else_branch
-
-          single_argument_method?(if_branch) && single_argument_method?(else_branch) &&
-            same_method?(if_branch, else_branch)
+          single_argument_method?(node.if_branch) && single_argument_method?(node.else_branch) &&
+            same_method?(node.if_branch, node.else_branch)
         end
 
         def single_argument_method?(node)
@@ -221,7 +236,7 @@ module RuboCop
         end
 
         def make_ternary_form(node)
-          _condition, if_branch, else_branch = *node
+          _condition, if_branch, else_branch = *node # rubocop:disable InternalAffairs/NodeDestructuring
           arithmetic_operation = use_arithmetic_operation?(if_branch)
 
           ternary_form = [

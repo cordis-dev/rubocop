@@ -29,6 +29,9 @@ module RuboCop
       #   tolerance = 0.0001
       #   (x - 0.1).abs < tolerance
       #
+      #   # good - comparing against nil
+      #   Float(x, exception: false) == nil
+      #
       #   # Or some other epsilon based type of comparison:
       #   # https://www.embeddeduse.com/2019/08/26/qt-compare-two-floats/
       #
@@ -42,8 +45,12 @@ module RuboCop
         RESTRICT_ON_SEND = EQUALITY_METHODS
 
         def on_send(node)
-          lhs, _method, rhs = *node
-          return if literal_zero?(lhs) || literal_zero?(rhs)
+          return unless node.arguments.one?
+
+          lhs = node.receiver
+          rhs = node.first_argument
+
+          return if literal_safe?(lhs) || literal_safe?(rhs)
 
           add_offense(node) if float?(lhs) || float?(rhs)
         end
@@ -65,15 +72,16 @@ module RuboCop
           end
         end
 
-        def literal_zero?(node)
-          node&.numeric_type? && node.value.zero?
+        def literal_safe?(node)
+          return false unless node
+
+          (node.numeric_type? && node.value.zero?) || node.nil_type?
         end
 
         # rubocop:disable Metrics/PerceivedComplexity
         def check_send(node)
           if node.arithmetic_operation?
-            lhs, _operation, rhs = *node
-            float?(lhs) || float?(rhs)
+            float?(node.receiver) || float?(node.first_argument)
           elsif FLOAT_RETURNING_METHODS.include?(node.method_name)
             true
           elsif node.receiver&.float_type?

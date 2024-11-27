@@ -214,7 +214,7 @@ module RuboCop
         end
 
         def insert_bang_for_and(corrector, node)
-          lhs, rhs = *node
+          lhs, rhs = *node # rubocop:disable InternalAffairs/NodeDestructuring
 
           if lhs.and_type?
             insert_bang_for_and(corrector, lhs)
@@ -237,8 +237,7 @@ module RuboCop
         end
 
         def wrap_condition?(node)
-          node.and_type? || node.or_type? ||
-            (node.call_type? && node.arguments.any? && !node.parenthesized?)
+          node.operator_keyword? || (node.call_type? && node.arguments.any? && !node.parenthesized?)
         end
 
         def replace_condition(condition)

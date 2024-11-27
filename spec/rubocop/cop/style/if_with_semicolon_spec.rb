@@ -100,6 +100,17 @@ RSpec.describe RuboCop::Cop::Style::IfWithSemicolon, :config do
     RUBY
   end
 
+  it 'registers an offense and corrects a single-line `if/;/end` when the then body contains an arithmetic operator method call' do
+    expect_offense(<<~RUBY)
+      if cond;do_something - arg end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      cond ? do_something - arg : nil
+    RUBY
+  end
+
   it 'registers an offense and corrects a single-line `if/;/end` when the then body contains a method call with `[]`' do
     expect_offense(<<~RUBY)
       if cond; foo[key] else bar end
@@ -125,7 +136,7 @@ RSpec.describe RuboCop::Cop::Style::IfWithSemicolon, :config do
   it 'registers an offense when using multiple expressions in the `else` branch' do
     expect_offense(<<~RUBY)
       if cond; foo else bar'arg'; baz end
-      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use `if/else` instead.
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a newline instead.
     RUBY
 
     expect_correction(<<~RUBY)
@@ -213,7 +224,6 @@ RSpec.describe RuboCop::Cop::Style::IfWithSemicolon, :config do
         if cond; run
         ^^^^^^^^^^^^ Do not use `if cond;` - use a newline instead.
           if cond; run
-          ^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
           end
         end
       RUBY
@@ -221,7 +231,8 @@ RSpec.describe RuboCop::Cop::Style::IfWithSemicolon, :config do
       expect_correction(<<~RUBY)
         if cond
          run
-          cond ? run : nil
+          if cond; run
+          end
         end
       RUBY
     end
@@ -229,52 +240,87 @@ RSpec.describe RuboCop::Cop::Style::IfWithSemicolon, :config do
     it 'registers an offense and corrects when using nested single-line if/;/end in block of if body' do
       expect_offense(<<~RUBY)
         if foo?; bar { if qux?; quux else end } end
-                       ^^^^^^^^^^^^^^^^^^^^^^ Do not use `if qux?;` - use a ternary operator instead.
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if foo?;` - use `if/else` instead.
       RUBY
 
       expect_correction(<<~RUBY)
         if foo?
-         bar { qux? ? quux : nil } end
+         bar { if qux?; quux else end } end
       RUBY
     end
 
     it 'registers an offense and corrects when using nested single-line if/;/end in the block of else body' do
       expect_offense(<<~RUBY)
         if foo?; bar else baz { if qux?; quux else end } end
-                                ^^^^^^^^^^^^^^^^^^^^^^ Do not use `if qux?;` - use a ternary operator instead.
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if foo?;` - use `if/else` instead.
       RUBY
 
       expect_correction(<<~RUBY)
         if foo?
-         bar else baz { qux? ? quux : nil } end
+         bar else baz { if qux?; quux else end } end
       RUBY
     end
 
     it 'registers an offense and corrects when using nested single-line if/;/end in numblock of if body' do
       expect_offense(<<~RUBY)
         if foo?; bar { if _1; quux else end } end
-                       ^^^^^^^^^^^^^^^^^^^^ Do not use `if _1;` - use a ternary operator instead.
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if foo?;` - use `if/else` instead.
       RUBY
 
       expect_correction(<<~RUBY)
         if foo?
-         bar { _1 ? quux : nil } end
+         bar { if _1; quux else end } end
       RUBY
     end
 
     it 'registers an offense and corrects when using nested single-line if/;/end in the numblock of else body' do
       expect_offense(<<~RUBY)
         if foo?; bar else baz { if _1; quux else end } end
-                                ^^^^^^^^^^^^^^^^^^^^ Do not use `if _1;` - use a ternary operator instead.
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if foo?;` - use `if/else` instead.
       RUBY
 
       expect_correction(<<~RUBY)
         if foo?
-         bar else baz { _1 ? quux : nil } end
+         bar else baz { if _1; quux else end } end
+      RUBY
+    end
+
+    it 'registers an offense when using `return` with value in `if` with a semicolon is used' do
+      expect_offense(<<~RUBY)
+        if cond; return value end
+        ^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a newline instead.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        if cond
+         return value end
+      RUBY
+    end
+
+    it 'registers an offense when using `return` without value in `if` with a semicolon is used' do
+      expect_offense(<<~RUBY)
+        if cond; return end
+        ^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        cond ? return : nil
+      RUBY
+    end
+
+    it 'registers an offense and corrects when using nested if/;/end in if body' do
+      expect_offense(<<~RUBY)
+        if cond1; foo + if cond2; bar
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond1;` - use a ternary operator instead.
+          else
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        cond1 ? foo + if cond2; bar
+          else
+          end : nil
       RUBY
     end
   end

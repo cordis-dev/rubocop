@@ -178,7 +178,7 @@ RSpec.describe RuboCop::Cop::Style::SymbolProc, :config do
     expect_no_offenses('something { |x,| x.first }')
   end
 
-  it 'accepts a block with an unused argument with an method call' do
+  it 'accepts a block with an unused argument with a method call' do
     expect_no_offenses('something { |_x| y.call }')
   end
 
@@ -272,7 +272,7 @@ RSpec.describe RuboCop::Cop::Style::SymbolProc, :config do
       RUBY
     end
 
-    it "does not register an offense when receiver is a array literal and using `#{method}` with a block" do
+    it "does not register an offense when receiver is an array literal and using `#{method}` with a block" do
       expect_no_offenses(<<~RUBY)
         [1, 2, 3].#{method} {|item| item.foo }
       RUBY
@@ -459,7 +459,7 @@ RSpec.describe RuboCop::Cop::Style::SymbolProc, :config do
     end
 
     %w[min max].each do |method|
-      it "registers an offense when receiver is an hash literal and using `#{method}` with a numblock" do
+      it "registers an offense when receiver is a hash literal and using `#{method}` with a numblock" do
         expect_offense(<<~RUBY, method: method)
           {foo: 42}.%{method} { _1.foo }
                     _{method} ^^^^^^^^^^ Pass `&:foo` as an argument to `#{method}` instead of a block.
@@ -470,7 +470,7 @@ RSpec.describe RuboCop::Cop::Style::SymbolProc, :config do
         RUBY
       end
 
-      it "does not register an offense when receiver is a array literal and using `#{method}` with a numblock" do
+      it "does not register an offense when receiver is an array literal and using `#{method}` with a numblock" do
         expect_no_offenses(<<~RUBY)
           [1, 2, 3].#{method} { _1.foo }
         RUBY

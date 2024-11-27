@@ -71,9 +71,11 @@ module RuboCop
           return false if node.receiver
 
           any_assignment?(node) do |asgn_node|
-            next variable_in_mass_assignment?(node.method_name, asgn_node) if asgn_node.masgn_type?
-
-            asgn_node.loc.name.source == node.method_name.to_s
+            if asgn_node.masgn_type?
+              variable_in_mass_assignment?(node.method_name, asgn_node)
+            else
+              asgn_node.loc.name.source == node.method_name.to_s
+            end
           end
         end
 
@@ -98,20 +100,14 @@ module RuboCop
             # `obj.method ||= value` parses as (or-asgn (send ...) ...)
             # which IS an `asgn_node`. Similarly, `obj.method += value` parses
             # as (op-asgn (send ...) ...), which is also an `asgn_node`.
-            if asgn_node.shorthand_asgn?
-              asgn_node, _value = *asgn_node
-              next if asgn_node.send_type?
-            end
+            next if asgn_node.shorthand_asgn? && asgn_node.lhs.send_type?
 
             yield asgn_node
           end
         end
 
         def variable_in_mass_assignment?(variable_name, node)
-          mlhs_node, _mrhs_node = *node
-          var_nodes = *mlhs_node
-
-          var_nodes.any? { |n| n.to_a.first == variable_name }
+          node.assignments.any? { |n| n.name == variable_name }
         end
 
         def offense_range(node)

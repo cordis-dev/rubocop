@@ -23,6 +23,7 @@ module RuboCop
 
         def on_normal_if_unless(node)
           return if node.parent&.if_type?
+          return if part_of_ignored_node?(node)
 
           beginning = node.loc.begin
           return unless beginning&.is?(';')
@@ -32,13 +33,14 @@ module RuboCop
           add_offense(node, message: message) do |corrector|
             autocorrect(corrector, node)
           end
+
+          ignore_node(node)
         end
 
         private
 
-        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def message(node)
-          template = if node.if_branch&.begin_type?
+          template = if require_newline?(node)
                        MSG_NEWLINE
                      elsif node.else_branch&.if_type? || node.else_branch&.begin_type? ||
                            use_block_in_branches?(node)
@@ -49,18 +51,25 @@ module RuboCop
 
           format(template, expr: node.condition.source)
         end
-        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def autocorrect(corrector, node)
-          if node.branches.compact.any?(&:begin_type?) || use_block_in_branches?(node)
+          if require_newline?(node) || use_block_in_branches?(node)
             corrector.replace(node.loc.begin, "\n")
           else
             corrector.replace(node, replacement(node))
           end
         end
 
+        def require_newline?(node)
+          node.branches.compact.any?(&:begin_type?) || use_return_with_argument?(node)
+        end
+
         def use_block_in_branches?(node)
           node.branches.compact.any? { |branch| branch.block_type? || branch.numblock_type? }
+        end
+
+        def use_return_with_argument?(node)
+          node.if_branch&.return_type? && node.if_branch&.arguments&.any?
         end
 
         def replacement(node)
@@ -111,7 +120,7 @@ module RuboCop
         end
 
         def require_argument_parentheses?(node)
-          return false unless node.call_type?
+          return false if !node.call_type? || node.arithmetic_operation?
 
           !node.parenthesized? && node.arguments.any? && !node.method?(:[]) && !node.method?(:[]=)
         end

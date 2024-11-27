@@ -42,6 +42,10 @@ Style/IpAddresses:
   Exclude:
     - spec/rubocop/cop/style/ip_addresses_spec.rb
 
+Style/ReturnNilInPredicateMethodDefinition:
+  AllowedMethods:
+    - on_defined? # rubocop-ast node handler
+
 Layout/EndOfLine:
   EnforcedStyle: lf
 
@@ -128,6 +132,12 @@ Naming/InclusiveLanguage:
     'register no offense':
       Suggestions:
         - registers no offense
+    'register an error':
+      Suggestions:
+        - register an offense
+    'registers an error':
+      Suggestions:
+        - registers an offense
     'does not register and corrects':
       Suggestions:
         does not register

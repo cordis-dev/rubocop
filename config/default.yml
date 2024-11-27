@@ -1086,11 +1086,11 @@ Layout/LineLength:
   StyleGuide: '#max-line-length'
   Enabled: true
   VersionAdded: '0.25'
-  VersionChanged: '1.4'
+  VersionChanged: '1.69'
   Max: 120
+  AllowHeredoc: true
   # To make it possible to copy or click on URIs in the code, we allow lines
   # containing a URI to be longer than Max.
-  AllowHeredoc: true
   AllowURI: true
   URISchemes:
     - http
@@ -1102,6 +1102,8 @@ Layout/LineLength:
   # elements. Strings will be converted to Regexp objects. A line that matches
   # any regular expression listed in this option will be ignored by LineLength.
   AllowedPatterns: []
+  # If SplitStrings is true, long strings will be split using continuations
+  SplitStrings: false
 
 Layout/MultilineArrayBraceLayout:
   Description: >-
@@ -1499,7 +1501,6 @@ Layout/SpaceInsideHashLiteralBraces:
     - space
     - no_space
 
-
 Layout/SpaceInsideParens:
   Description: 'No spaces after ( or before ).'
   StyleGuide: '#spaces-braces'
@@ -1634,7 +1635,7 @@ Lint/BinaryOperatorWithIdenticalOperands:
   Enabled: true
   Safe: false
   VersionAdded: '0.89'
-  VersionChanged: '1.7'
+  VersionChanged: '1.69'
 
 Lint/BooleanSymbol:
   Description: 'Check for `:true` and `:false` symbols.'
@@ -1956,6 +1957,11 @@ Lint/HashCompareByIdentity:
   Safe: false
   VersionAdded: '0.93'
 
+Lint/HashNewWithKeywordArgumentsAsDefault:
+  Description: 'Checks for the deprecated use of keyword arguments for hash default in `Hash.new`.'
+  Enabled: pending
+  VersionAdded: '1.69'
+
 Lint/HeredocMethodCallPosition:
   Description: >-
                  Checks for the ordering of a method call where
@@ -2145,6 +2151,11 @@ Lint/NumberedParameterAssignment:
   Description: 'Checks for uses of numbered parameter assignment.'
   Enabled: pending
   VersionAdded: '1.9'
+
+Lint/NumericOperationWithConstantResult:
+  Description: 'Checks for numeric operations with constant results.'
+  Enabled: pending
+  VersionAdded: '1.69'
 
 Lint/OrAssignmentToConstant:
   Description: 'Checks unintended or-assignment to constant.'
@@ -2377,7 +2388,6 @@ Lint/ShadowedArgument:
   VersionAdded: '0.52'
   IgnoreImplicitReferences: false
 
-
 Lint/ShadowedException:
   Description: >-
                   Avoid rescuing a higher level exception
@@ -2521,10 +2531,12 @@ Lint/UnusedMethodArgument:
   Enabled: true
   AutoCorrect: contextual
   VersionAdded: '0.21'
-  VersionChanged: '1.61'
+  VersionChanged: '1.69'
   AllowUnusedKeywordArguments: false
   IgnoreEmptyMethods: true
   IgnoreNotImplementedMethods: true
+  NotImplementedExceptions:
+    - NotImplementedError
 
 Lint/UriEscapeUnescape:
   Description: >-
@@ -2558,6 +2570,11 @@ Lint/UselessAssignment:
   AutoCorrect: contextual
   VersionAdded: '0.11'
   VersionChanged: '1.66'
+
+Lint/UselessDefined:
+  Description: 'Checks for calls to `defined?` with strings and symbols. The result of such a call will always be truthy.'
+  Enabled: pending
+  VersionAdded: '1.69'
 
 Lint/UselessElseWithoutRescue:
   Description: 'Checks for useless `else` in `begin..end` without `rescue`.'
@@ -3698,6 +3715,12 @@ Style/DefWithParentheses:
   VersionAdded: '0.9'
   VersionChanged: '0.12'
 
+Style/DigChain:
+  Description: 'Use `dig` with multiple parameters instead of chaining multiple calls.'
+  Enabled: pending
+  Safe: false
+  VersionAdded: '1.69'
+
 Style/Dir:
   Description: >-
                  Use the `__dir__` method to retrieve the canonicalized
@@ -3924,11 +3947,23 @@ Style/FileEmpty:
   Safe: false
   VersionAdded: '1.48'
 
+Style/FileNull:
+  Description: 'Use `File::NULL` instead of hardcoding "dev/null".'
+  Enabled: pending
+  SafeAutoCorrect: false
+  VersionAdded: '1.69'
+
 Style/FileRead:
   Description: 'Favor `File.(bin)read` convenience methods.'
   StyleGuide: '#file-read'
   Enabled: pending
   VersionAdded: '1.24'
+
+Style/FileTouch:
+  Description: 'Favor `FileUtils.touch` for touching files.'
+  Enabled: pending
+  VersionAdded: '1.69'
+  SafeAutoCorrect: false
 
 Style/FileWrite:
   Description: 'Favor `File.(bin)write` convenience methods.'

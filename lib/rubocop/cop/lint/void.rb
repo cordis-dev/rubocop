@@ -126,7 +126,7 @@ module RuboCop
 
         def check_void_op(node, &block)
           node = node.children.first while node.begin_type?
-          return unless node.send_type? && OPERATORS.include?(node.method_name)
+          return unless node.call_type? && OPERATORS.include?(node.method_name)
           return if block && yield(node)
 
           add_offense(node.loc.selector,
@@ -196,7 +196,7 @@ module RuboCop
         end
 
         def check_ensure(node)
-          return unless (body = node.body)
+          return unless (body = node.branch)
           # NOTE: the `begin` node case is already handled via `on_begin`
           return if body.begin_type?
 
@@ -219,6 +219,7 @@ module RuboCop
           if node.arguments.empty?
             corrector.replace(node, node.receiver.source)
           else
+            corrector.remove(node.loc.dot) if node.loc.dot
             corrector.replace(
               range_with_surrounding_space(range: node.loc.selector, side: :both,
                                            newlines: false),

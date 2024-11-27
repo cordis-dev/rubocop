@@ -70,6 +70,7 @@ module RuboCop
       #     private :bar, :baz
       #     private *%i[qux quux]
       #     private *METHOD_NAMES
+      #     private *private_methods
       #
       #   end
       #
@@ -80,6 +81,7 @@ module RuboCop
       #     private :bar, :baz
       #     private *%i[qux quux]
       #     private *METHOD_NAMES
+      #     private *private_methods
       #
       #   end
       #
@@ -133,21 +135,18 @@ module RuboCop
         # @!method access_modifier_with_symbol?(node)
         def_node_matcher :access_modifier_with_symbol?, <<~PATTERN
           (send nil? {:private :protected :public :module_function}
-            {(sym _) (splat {#percent_symbol_array? const})}
+            {(sym _)+ (splat {#percent_symbol_array? const send})}
           )
         PATTERN
 
         # @!method access_modifier_with_attr?(node)
         def_node_matcher :access_modifier_with_attr?, <<~PATTERN
           (send nil? {:private :protected :public :module_function}
-            (send nil? {:attr :attr_reader :attr_writer :attr_accessor} _))
+            (send nil? {:attr :attr_reader :attr_writer :attr_accessor} _+))
         PATTERN
 
         def on_send(node)
-          return unless node.access_modifier?
-          return if ALLOWED_NODE_TYPES.include?(node.parent&.type)
-          return if allow_modifiers_on_symbols?(node)
-          return if allow_modifiers_on_attrs?(node)
+          return if allowed?(node)
 
           if offense?(node)
             add_offense(node.loc.selector) do |corrector|
@@ -161,15 +160,22 @@ module RuboCop
 
         private
 
+        def allowed?(node)
+          !node.access_modifier? ||
+            ALLOWED_NODE_TYPES.include?(node.parent&.type) ||
+            allow_modifiers_on_symbols?(node) ||
+            allow_modifiers_on_attrs?(node)
+        end
+
         def autocorrect(corrector, node)
           case style
           when :group
-            def_node = find_corresponding_def_node(node)
-            return unless def_node
+            def_nodes = find_corresponding_def_nodes(node)
+            return unless def_nodes.any?
 
-            replace_def(corrector, node, def_node)
+            replace_defs(corrector, node, def_nodes)
           when :inline
-            remove_node(corrector, node)
+            remove_nodes(corrector, node)
             select_grouped_def_nodes(node).each do |grouped_def_node|
               insert_inline_modifier(corrector, grouped_def_node, node.method_name)
             end
@@ -194,6 +200,13 @@ module RuboCop
             (inline_style? && access_modifier_is_not_inlined?(node))
         end
 
+        def correctable_group_offense?(node)
+          return false unless group_style?
+          return false if allowed?(node)
+
+          access_modifier_is_inlined?(node) && find_corresponding_def_nodes(node).any?
+        end
+
         def group_style?
           style == :group
         end
@@ -212,7 +225,11 @@ module RuboCop
 
         def right_siblings_same_inline_method?(node)
           node.right_siblings.any? do |sibling|
-            sibling.send_type? && sibling.method?(node.method_name) && !sibling.arguments.empty?
+            sibling.send_type? &&
+              correctable_group_offense?(sibling) &&
+              sibling.method?(node.method_name) &&
+              !sibling.arguments.empty? &&
+              find_corresponding_def_nodes(sibling).any?
           end
         end
 
@@ -226,14 +243,22 @@ module RuboCop
           end
         end
 
-        def find_corresponding_def_node(node)
+        def find_corresponding_def_nodes(node)
           if access_modifier_with_symbol?(node)
-            method_name = node.first_argument.respond_to?(:value) && node.first_argument.value
-            node.parent.each_child_node(:def).find do |child|
-              child.method?(method_name)
+            method_names = node.arguments.filter_map do |argument|
+              next unless argument.sym_type?
+
+              argument.respond_to?(:value) && argument.value
             end
+
+            def_nodes = node.parent.each_child_node(:def).select do |child|
+              method_names.include?(child.method_name)
+            end
+
+            # If there isn't a `def` node for each symbol, we will skip autocorrection.
+            def_nodes.size == method_names.size ? def_nodes : []
           else
-            node.first_argument
+            [node.first_argument]
           end
         end
 
@@ -251,8 +276,8 @@ module RuboCop
           end.select(&:def_type?)
         end
 
-        def replace_def(corrector, node, def_node)
-          source = def_source(node, def_node)
+        def replace_defs(corrector, node, def_nodes)
+          source = def_source(node, def_nodes)
           argument_less_modifier_node = find_argument_less_modifier_node(node)
           if argument_less_modifier_node
             corrector.insert_after(argument_less_modifier_node, "\n\n#{source}")
@@ -264,20 +289,24 @@ module RuboCop
             return
           end
 
-          remove_node(corrector, def_node)
-          remove_node(corrector, node)
+          remove_nodes(corrector, *def_nodes, node)
         end
 
         def insert_inline_modifier(corrector, node, modifier_name)
           corrector.insert_before(node, "#{modifier_name} ")
         end
 
-        def remove_node(corrector, node)
-          corrector.remove(range_with_comments_and_lines(node))
+        def remove_nodes(corrector, *nodes)
+          nodes.each do |node|
+            corrector.remove(range_with_comments_and_lines(node))
+          end
         end
 
-        def def_source(node, def_node)
-          [*processed_source.ast_with_comments[node].map(&:text), def_node.source].join("\n")
+        def def_source(node, def_nodes)
+          [
+            *processed_source.ast_with_comments[node].map(&:text),
+            *def_nodes.map(&:source)
+          ].join("\n")
         end
       end
     end
