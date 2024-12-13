@@ -68,6 +68,15 @@ RSpec.describe RuboCop::Cop::Lint::UnescapedBracketInRegexp, :config do
         RUBY
       end
     end
+
+    context 'character class in lookbehind' do
+      # See https://github.com/ammar/regexp_parser/issues/93
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          /(?<=[<>=:])/
+        RUBY
+      end
+    end
   end
 
   context '%r{} Regexp' do
@@ -132,6 +141,15 @@ RSpec.describe RuboCop::Cop::Lint::UnescapedBracketInRegexp, :config do
       it 'does not register an offense' do
         expect_no_offenses(<<~RUBY)
           %r{[abc]}
+        RUBY
+      end
+    end
+
+    context 'character class in lookbehind' do
+      # See https://github.com/ammar/regexp_parser/issues/93
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          %r{(?<=[<>=:])}
         RUBY
       end
     end
@@ -209,6 +227,23 @@ RSpec.describe RuboCop::Cop::Lint::UnescapedBracketInRegexp, :config do
           expect_no_offenses(<<~RUBY)
             Regexp.#{method}("(?:\#{arr[1]}:\\s*)")
           RUBY
+        end
+      end
+
+      context 'invalid regular expressions' do
+        %w[+ * {42} \xff].each do |invalid_regexp|
+          it "does not register an offense for single invalid `/#{invalid_regexp}/` regexp`" do
+            expect_no_offenses(<<~RUBY)
+              Regexp.#{method}("#{invalid_regexp}")
+            RUBY
+          end
+
+          it "registers an offense for regexp following invalid `/#{invalid_regexp}/` regexp" do
+            expect_offense(<<~RUBY, method: method, invalid_regexp: invalid_regexp)
+              [Regexp.#{method}('#{invalid_regexp}'), Regexp.#{method}('abc]123')]
+                      _{method}  _{invalid_regexp}           _{method}     ^ Regular expression has `]` without escape.
+            RUBY
+          end
         end
       end
     end

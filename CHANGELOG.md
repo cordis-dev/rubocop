@@ -11,6 +11,48 @@
 
 ## master (unreleased)
 
+## 1.69.2 (2024-12-12)
+
+### Bug fixes
+
+* [#13553](https://github.com/rubocop/rubocop/issues/13553): Fix an incorrect autocorrect for `Style/MultipleComparison` when a variable is compared multiple times after a method call. ([@koic][])
+* [#13562](https://github.com/rubocop/rubocop/pull/13562): Fix `Bundler/DuplicatedGem` cop error in case of empty branch. ([@viralpraxis][])
+* [#13573](https://github.com/rubocop/rubocop/pull/13573): Fix `Lint/UnescapedBracketInRegexp` cop failure with invalid multibyte escape. ([@earlopain][])
+* [#13556](https://github.com/rubocop/rubocop/issues/13556): Fix false positives for `Style/FileNull` when using `'nul'` string. ([@koic][])
+* [#12995](https://github.com/rubocop/rubocop/issues/12995): Fix `--disable-uncorrectable` to not insert directives inside a string. ([@dvandersluis][])
+* [#13320](https://github.com/rubocop/rubocop/issues/13320): Fix incorrect autocorrect when `Layout/LineContinuationLeadingSpace` and `Style/StringLiterals` autocorrects in the same pass. ([@dvandersluis][])
+* [#13299](https://github.com/rubocop/rubocop/issues/13299): Fix `Style/BlockDelimiters` to always accept braces when an operator method argument is chained. ([@dvandersluis][])
+* [#13565](https://github.com/rubocop/rubocop/pull/13565): Fix `Style/RedundantLineContinuation` false negatives when a redundant continuation follows a required continuation. ([@dvandersluis][])
+* [#13551](https://github.com/rubocop/rubocop/pull/13551): Fix an incorrect autocorrect for `Style/IfWithSemicolon` when using multi value assignment in `if` with a semicolon is used. ([@koic][])
+* [#13534](https://github.com/rubocop/rubocop/pull/13534): Fix `Layout/LineLength` cop failure in case of YARD-comment-like string. ([@viralpraxis][])
+* [#13558](https://github.com/rubocop/rubocop/pull/13558): Fix `Lint/NonAtomicFileOperation` cop error in case of implicit receiver. ([@viralpraxis][])
+* [#13564](https://github.com/rubocop/rubocop/pull/13564): Fix `Metrics/ClassLength` cop error in case of chained assignments. ([@viralpraxis][])
+* [#13570](https://github.com/rubocop/rubocop/pull/13570): Fix `Naming/RescuedExceptionsVariableName` cop error when exception is assigned with writer method. ([@viralpraxis][])
+* [#13559](https://github.com/rubocop/rubocop/pull/13559): Fix a false positive for `Style/RedundantLineContinuation` when a method definition is used as an argument for a method call. ([@davidrunger][])
+* [#13574](https://github.com/rubocop/rubocop/pull/13574): Fix `Style/ExactRegexpMatch` cop error on invalid regular expression literal. ([@viralpraxis][])
+* [#13554](https://github.com/rubocop/rubocop/pull/13554): Fix `Style/FrozenStringLiteralComment` false positive in case of non-downcased value literal. ([@viralpraxis][])
+* [#13569](https://github.com/rubocop/rubocop/pull/13569): Fix `Style/MethodCallWithoutArgsParentheses` cop error in case of mass hash assignment. ([@viralpraxis][])
+* [#13542](https://github.com/rubocop/rubocop/pull/13542): Fix `Style/RedundantCondition` cop failure in case of empty arguments. ([@viralpraxis][])
+* [#13509](https://github.com/rubocop/rubocop/issues/13509): Update `Layout/ExtraSpacing` and `Layout/SpaceAroundOperators` to handle preceding operators inside strings. ([@dvandersluis][])
+
+## 1.69.1 (2024-12-03)
+
+### Bug fixes
+
+* [#13502](https://github.com/rubocop/rubocop/issues/13502): Fix an incorrect autocorrect for `Style/DigChain` when using safe navigation method chain with `dig` method. ([@koic][])
+* [#13505](https://github.com/rubocop/rubocop/issues/13505): Fix an error for `Style/ParallelAssignment` when using the anonymous splat operator. ([@earlopain][])
+* [#13184](https://github.com/rubocop/rubocop/pull/13184): Fix some false positives in  `Lint/UnreachableCode`. ([@isuckatcs][])
+* [#13494](https://github.com/rubocop/rubocop/pull/13494): Fix false positives for `Style/HashExcept` cop when using `reject/!include?`, `reject/!in?` or `select/!exclude?` combinations. ([@lovro-bikic][])
+* [#13522](https://github.com/rubocop/rubocop/pull/13522): Fix `Lint/UnescapedBracketInRegexp` cop failure with invalid regular expression. ([@viralpraxis][])
+* [#13523](https://github.com/rubocop/rubocop/pull/13523): Fix `Style::AccessModifierDeclarations` cop failure in case of `if` node without `else`. ([@viralpraxis][])
+* [#13524](https://github.com/rubocop/rubocop/pull/13524): Fix `Style/RedundantArgument` cop failure while inspecting string literal with invalid encoding. ([@viralpraxis][])
+* [#13528](https://github.com/rubocop/rubocop/pull/13528): Fix `Style/RedundantParentheses` cop failure in case of splatted `case` node without condition. ([@viralpraxis][])
+* [#13521](https://github.com/rubocop/rubocop/pull/13521): Fix `Style/RedundantSelf` cop failure with `kwnilarg` argument node. ([@viralpraxis][])
+* [#13526](https://github.com/rubocop/rubocop/pull/13526): Fix `Style/StringConcatenation` cop failure when there are mixed implicit and explicit concatenations. ([@viralpraxis][])
+* [#13511](https://github.com/rubocop/rubocop/issues/13511): Fix false positive in `Lint/UnescapedBracketInRegexp` when using regexp_parser 2.9.2 and earlier. ([@dvandersluis][])
+* [#13096](https://github.com/rubocop/rubocop/issues/13096): Update `Style/BlockDelimiters` to not change braces when they are required for syntax. ([@dvandersluis][])
+* [#13512](https://github.com/rubocop/rubocop/pull/13512): Update `Style/LambdaCall` to be aware of safe navigation. ([@dvandersluis][])
+
 ## 1.69.0 (2024-11-26)
 
 ### New features
@@ -8076,3 +8118,4 @@
 [@d4be4st]: https://github.com/d4be4st
 [@lovro-bikic]: https://github.com/lovro-bikic
 [@aduth]: https://github.com/aduth
+[@isuckatcs]: https://github.com/isuckatcs

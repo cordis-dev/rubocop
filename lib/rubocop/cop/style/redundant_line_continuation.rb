@@ -73,7 +73,7 @@ module RuboCop
         LINE_CONTINUATION_PATTERN = /(\\\n)/.freeze
         ALLOWED_STRING_TOKENS = %i[tSTRING tSTRING_CONTENT].freeze
         ARGUMENT_TYPES = %i[
-          kFALSE kNIL kSELF kTRUE tCONSTANT tCVAR tFLOAT tGVAR tIDENTIFIER tINTEGER tIVAR
+          kDEF kFALSE kNIL kSELF kTRUE tCONSTANT tCVAR tFLOAT tGVAR tIDENTIFIER tINTEGER tIVAR
           tLBRACK tLCURLY tLPAREN_ARG tSTRING tSTRING_BEG tSYMBOL tXSTRING_BEG
         ].freeze
         ARGUMENT_TAKING_FLOW_TOKEN_TYPES = %i[tIDENTIFIER kRETURN kBREAK kNEXT kYIELD].freeze
@@ -129,11 +129,10 @@ module RuboCop
           return true unless (node = find_node_for_line(range.last_line))
           return false if argument_newline?(node)
 
-          source = node.source
-          while (node = node.parent)
-            source = node.source
-          end
-          parse(source.gsub("\\\n", "\n")).valid_syntax?
+          # Check if source is still valid without the continuation
+          source = processed_source.raw_source.dup
+          source[range.begin_pos, range.length] = "\n"
+          parse(source).valid_syntax?
         end
 
         def inspect_end_of_ruby_code_line_continuation
