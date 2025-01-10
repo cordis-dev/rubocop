@@ -98,6 +98,8 @@ RSpec.shared_context 'config' do # rubocop:disable Metrics/BlockLength
 
   let(:cop_options) { {} }
 
+  let(:gem_versions) { {} }
+
   ### Utilities
 
   def source_range(range, buffer: source_buffer)
@@ -138,7 +140,8 @@ RSpec.shared_context 'config' do # rubocop:disable Metrics/BlockLength
 
     allow(config).to receive(:gem_versions_in_target).and_return(
       {
-        'railties' => rails_version_in_gemfile
+        'railties' => rails_version_in_gemfile,
+        **gem_versions.transform_values { |value| Gem::Version.new(value) }
       }
     )
 

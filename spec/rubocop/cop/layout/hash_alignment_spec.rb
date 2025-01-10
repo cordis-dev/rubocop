@@ -146,6 +146,32 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
       RUBY
     end
 
+    it 'registers an offense and corrects misaligned keys in implicit hash for safe navigation' do
+      expect_offense(<<~RUBY)
+        foo&.bar(a: 0,
+          b: 1)
+          ^^^^ Align the keys of a hash literal if they span more than one line.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo&.bar(a: 0,
+                 b: 1)
+      RUBY
+    end
+
+    it 'registers an offense and corrects misaligned keys in explicit hash for safe navigation' do
+      expect_offense(<<~RUBY)
+        foo&.bar({a: 0,
+          b: 1})
+          ^^^^ Align the keys of a hash literal if they span more than one line.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo&.bar({a: 0,
+                  b: 1})
+      RUBY
+    end
+
     context 'when using hash value omission', :ruby31 do
       it 'registers offense and corrects misaligned keys in implicit hash' do
         expect_offense(<<~RUBY)
@@ -268,6 +294,33 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
         proc.(key: value)
       RUBY
     end
+
+    it 'does not register an offense for a method with a positional argument' do
+      expect_no_offenses(<<~RUBY)
+        do_something(
+          foo, baz: true,
+          quux: false
+        )
+      RUBY
+    end
+
+    it 'does not register an offense for a method with a positional argument that spans multiple lines' do
+      expect_no_offenses(<<~RUBY)
+        do_something(
+          foo(
+            bar
+          ), baz: true,
+          quux: false
+        )
+      RUBY
+    end
+
+    it 'does not register an offense when a multiline hash starts on the same line as an implicit `call`' do
+      expect_no_offenses(<<~RUBY)
+        do_something.(foo: bar, baz: qux,
+          quux: corge)
+      RUBY
+    end
   end
 
   context 'always ignore last argument hash' do
@@ -311,6 +364,20 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
     it 'accepts misaligned keys in explicit hash for yield' do
       expect_no_offenses(<<~RUBY)
         yield({a: 0,
+          b: 1})
+      RUBY
+    end
+
+    it 'accepts misaligned keys in implicit hash for safe navigation' do
+      expect_no_offenses(<<~RUBY)
+        foo&.bar(a: 0,
+          b: 1)
+      RUBY
+    end
+
+    it 'accepts misaligned keys in explicit hash for safe navigation' do
+      expect_no_offenses(<<~RUBY)
+        foo&.bar({a: 0,
           b: 1})
       RUBY
     end
@@ -376,6 +443,26 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
       expect_correction(<<~RUBY)
         yield({a: 0,
                b: 1})
+      RUBY
+    end
+
+    it 'accepts misaligned keys in implicit hash for safe navigation' do
+      expect_no_offenses(<<~RUBY)
+        foo&.bar(a: 0,
+          b: 1)
+      RUBY
+    end
+
+    it 'registers an offense and corrects misaligned keys in explicit hash for safe navigation' do
+      expect_offense(<<~RUBY)
+        foo&.bar({a: 0,
+          b: 1})
+          ^^^^ Align the keys of a hash literal if they span more than one line.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo&.bar({a: 0,
+                  b: 1})
       RUBY
     end
   end
@@ -461,6 +548,26 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
     it 'accepts misaligned keys in explicit hash for yield' do
       expect_no_offenses(<<~RUBY)
         yield({a: 0,
+          b: 1})
+      RUBY
+    end
+
+    it 'registers an offense and corrects misaligned keys in implicit hash for safe navigation' do
+      expect_offense(<<~RUBY)
+        foo&.bar(a: 0,
+          b: 1)
+          ^^^^ Align the keys of a hash literal if they span more than one line.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo&.bar(a: 0,
+                 b: 1)
+      RUBY
+    end
+
+    it 'accepts misaligned keys in explicit hash for safe navigation' do
+      expect_no_offenses(<<~RUBY)
+        foo&.bar({a: 0,
           b: 1})
       RUBY
     end

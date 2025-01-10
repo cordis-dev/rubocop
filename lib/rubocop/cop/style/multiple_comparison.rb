@@ -55,6 +55,22 @@ module RuboCop
         MSG = 'Avoid comparing a variable with multiple items ' \
               'in a conditional, use `Array#include?` instead.'
 
+        # @!method simple_double_comparison?(node)
+        def_node_matcher :simple_double_comparison?, <<~PATTERN
+          (send lvar :== lvar)
+        PATTERN
+
+        # @!method simple_comparison_lhs(node)
+        def_node_matcher :simple_comparison_lhs, <<~PATTERN
+          (send ${lvar call} :== $_)
+        PATTERN
+
+        # @!method simple_comparison_rhs(node)
+        def_node_matcher :simple_comparison_rhs, <<~PATTERN
+          (send $_ :== ${lvar call})
+        PATTERN
+
+        # rubocop:disable Metrics/AbcSize
         def on_or(node)
           root_of_or_node = root_of_or_node(node)
           return unless node == root_of_or_node
@@ -67,26 +83,15 @@ module RuboCop
 
           add_offense(range) do |corrector|
             elements = values.map(&:source).join(', ')
-            prefer_method = "[#{elements}].include?(#{variable_name(variable)})"
+            argument = variable.lvar_type? ? variable_name(variable) : variable.source
+            prefer_method = "[#{elements}].include?(#{argument})"
 
             corrector.replace(range, prefer_method)
           end
         end
+        # rubocop:enable Metrics/AbcSize
 
         private
-
-        # @!method simple_double_comparison?(node)
-        def_node_matcher :simple_double_comparison?, '(send $lvar :== $lvar)'
-
-        # @!method simple_comparison_lhs?(node)
-        def_node_matcher :simple_comparison_lhs?, <<~PATTERN
-          (send $lvar :== $_)
-        PATTERN
-
-        # @!method simple_comparison_rhs?(node)
-        def_node_matcher :simple_comparison_rhs?, <<~PATTERN
-          (send $_ :== $lvar)
-        PATTERN
 
         # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def find_offending_var(node, variables = Set.new, values = [])
@@ -95,8 +100,8 @@ module RuboCop
             find_offending_var(node.rhs, variables, values)
           elsif simple_double_comparison?(node)
             return
-          elsif (var, obj = simple_comparison?(node))
-            return if allow_method_comparison? && obj.send_type?
+          elsif (var, obj = simple_comparison(node))
+            return if allow_method_comparison? && obj.call_type?
 
             variables << var
             return if variables.size > 1
@@ -125,12 +130,13 @@ module RuboCop
         end
 
         def comparison?(node)
-          simple_comparison?(node) || nested_comparison?(node)
+          !!simple_comparison(node) || nested_comparison?(node)
         end
 
-        def simple_comparison?(node)
-          if (var, obj = simple_comparison_lhs?(node)) ||
-             (obj, var = simple_comparison_rhs?(node))
+        def simple_comparison(node)
+          if (var, obj = simple_comparison_lhs(node)) || (obj, var = simple_comparison_rhs(node))
+            return if var.call_type? && !allow_method_comparison?
+
             [var, obj]
           end
         end

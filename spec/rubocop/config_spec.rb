@@ -96,7 +96,20 @@ RSpec.describe RuboCop::Config do
       it 'raises validation error' do
         expect { configuration.validate }
           .to raise_error(RuboCop::ValidationError,
-                          %r{^empty section Layout/LineLength})
+                          %r{^empty section "Layout/LineLength"})
+      end
+    end
+
+    context 'when the configuration has the wrong type' do
+      before { create_file(configuration_path, ['Layout/LineLength: Enabled']) }
+
+      it 'raises validation error' do
+        expect { configuration.validate }.to(
+          raise_error(
+            RuboCop::ValidationError,
+            %r{^The configuration for "Layout/LineLength" in .* is not a Hash.\n\nFound: "Enabled"}
+          )
+        )
       end
     end
 
@@ -105,7 +118,7 @@ RSpec.describe RuboCop::Config do
 
       it 'raises validation error' do
         expect { configuration.validate }
-          .to raise_error(RuboCop::ValidationError, /^empty section AllCops/)
+          .to raise_error(RuboCop::ValidationError, /^empty section "AllCops"/)
       end
     end
 
@@ -721,6 +734,42 @@ RSpec.describe RuboCop::Config do
           'Bar' => 43 }
       )
     end
+  end
+
+  describe '#for_enabled_cop' do
+    let(:hash) do
+      {
+        'Layout/TrailingWhitespace' => { 'Enabled' => true },
+        'Layout/LineLength' => { 'Enabled' => false },
+        'Metrics/MethodLength' => { 'Enabled' => 'pending' }
+      }
+    end
+
+    it 'returns config for an enabled cop' do
+      expect(configuration.for_enabled_cop('Layout/TrailingWhitespace')).to eq('Enabled' => true)
+    end
+
+    it 'returns an empty hash for a disabled cop' do
+      expect(configuration.for_enabled_cop('Layout/LineLength')).to be_empty
+    end
+
+    it 'returns config for an pending cop' do
+      expect(configuration.for_enabled_cop('Metrics/MethodLength')).to eq('Enabled' => 'pending')
+    end
+  end
+
+  describe '#cop_enabled?' do
+    let(:hash) do
+      {
+        'Layout/TrailingWhitespace' => { 'Enabled' => true },
+        'Layout/LineLength' => { 'Enabled' => false },
+        'Metrics/MethodLength' => { 'Enabled' => 'pending' }
+      }
+    end
+
+    it { is_expected.to be_cop_enabled('Layout/TrailingWhitespace') }
+    it { is_expected.not_to be_cop_enabled('Layout/LineLength') }
+    it { is_expected.to be_cop_enabled('Metrics/MethodLength') }
   end
 
   context 'whether the cop is enabled' do

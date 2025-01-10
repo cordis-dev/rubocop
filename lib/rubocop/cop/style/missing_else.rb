@@ -144,6 +144,8 @@ module RuboCop
         end
 
         def autocorrect(corrector, node)
+          node = node.ancestors.find { |ancestor| ancestor.loc.end } unless node.loc.end
+
           case empty_else_style
           when :empty
             corrector.insert_before(node.loc.end, 'else; nil; ')

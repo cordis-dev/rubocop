@@ -193,11 +193,18 @@ module RuboCop
           enforced_style.sub(/^Enforced/, 'Supported').sub('Style', 'Styles')
       end
 
+      def parse_regexp(text)
+        Regexp::Parser.parse(text)
+      rescue Regexp::Parser::Error
+        # Upon encountering an invalid regular expression,
+        # we aim to proceed and identify any remaining potential offenses.
+        nil
+      end
+
       private
 
       def compatible_external_encoding_for?(src)
-        src = src.dup if RUBY_ENGINE == 'jruby'
-        src.force_encoding(Encoding.default_external).valid_encoding?
+        src.dup.force_encoding(Encoding.default_external).valid_encoding?
       end
 
       def include_or_equal?(source, target)

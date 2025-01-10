@@ -16,6 +16,7 @@ module RuboCop
 
     CopConfig = Struct.new(:name, :metadata)
 
+    EMPTY_CONFIG = {}.freeze
     DEFAULT_RAILS_VERSION = 5.0
     attr_reader :loaded_path
 
@@ -80,10 +81,7 @@ module RuboCop
 
     def make_excludes_absolute
       each_key do |key|
-        @validator.validate_section_presence(key)
-        next unless self[key]['Exclude']
-
-        self[key]['Exclude'].map! do |exclude_elem|
+        dig(key, 'Exclude')&.map! do |exclude_elem|
           if exclude_elem.is_a?(String) && !absolute?(exclude_elem)
             File.expand_path(File.join(base_dir_for_path_parameters, exclude_elem))
           else
@@ -123,6 +121,13 @@ module RuboCop
       @for_cop[cop]
     end
 
+    # @return [Config, Hash] for the given cop / cop name.
+    # If the given cop is enabled, returns its configuration hash.
+    # Otherwise, returns an empty hash.
+    def for_enabled_cop(cop)
+      cop_enabled?(cop) ? for_cop(cop) : EMPTY_CONFIG
+    end
+
     # @return [Config] for the given cop merged with that of its department (if any)
     # Note: the 'Enabled' attribute is same as that returned by `for_cop`
     def for_badge(badge)
@@ -157,6 +162,10 @@ module RuboCop
 
     def for_all_cops
       @for_all_cops ||= self['AllCops'] || {}
+    end
+
+    def cop_enabled?(name)
+      !!for_cop(name)['Enabled']
     end
 
     def disabled_new_cops?
