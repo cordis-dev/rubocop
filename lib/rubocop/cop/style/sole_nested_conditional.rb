@@ -156,7 +156,7 @@ module RuboCop
           # Handle `send` and `block` nodes that need to be wrapped in parens
           # FIXME: autocorrection prevents syntax errors by wrapping the entire node in parens,
           #        but wrapping the argument list would be a more ergonomic correction.
-          node_to_check = condition&.block_type? ? condition.send_node : condition
+          node_to_check = condition&.any_block_type? ? condition.send_node : condition
           return unless wrap_condition?(node_to_check)
 
           if condition.call_type?
@@ -243,7 +243,7 @@ module RuboCop
         def replace_condition(condition)
           return condition.source unless wrap_condition?(condition)
 
-          if condition.call_type?
+          if condition.call_type? && !condition.comparison_method?
             parenthesized_method_arguments(condition)
           else
             "(#{condition.source})"

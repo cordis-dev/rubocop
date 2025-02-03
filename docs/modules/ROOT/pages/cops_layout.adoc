@@ -20,7 +20,7 @@
 |===
 
 Bare access modifiers (those not applying to specific methods) should be
-indented as deep as method definitions, or as deep as the class/module
+indented as deep as method definitions, or as deep as the `class`/`module`
 keyword, depending on configuration.
 
 [#examples-layoutaccessmodifierindentation]
@@ -95,7 +95,7 @@ end
 | 0.77
 |===
 
-Check that the arguments on a multi-line method definition are aligned.
+Check that the arguments on a multi-line method call are aligned.
 
 [#examples-layoutargumentalignment]
 === Examples
@@ -683,23 +683,23 @@ end
 | 1.53
 |===
 
-Checks if the code style follows the ExpectedOrder configuration:
+Checks if the code style follows the `ExpectedOrder` configuration:
 
 `Categories` allows us to map macro names into a category.
 
 Consider an example of code style that covers the following order:
 
-* Module inclusion (include, prepend, extend)
+* Module inclusion (`include`, `prepend`, `extend`)
 * Constants
-* Associations (has_one, has_many)
-* Public attribute macros (attr_accessor, attr_writer, attr_reader)
-* Other macros (validates, validate)
+* Associations (`has_one`, `has_many`)
+* Public attribute macros (`attr_accessor`, `attr_writer`, `attr_reader`)
+* Other macros (`validates`, `validate`)
 * Public class methods
 * Initializer
 * Public instance methods
-* Protected attribute macros (attr_accessor, attr_writer, attr_reader)
+* Protected attribute macros (`attr_accessor`, `attr_writer`, `attr_reader`)
 * Protected instance methods
-* Private attribute macros (attr_accessor, attr_writer, attr_reader)
+* Private attribute macros (`attr_accessor`, `attr_writer`, `attr_reader`)
 * Private instance methods
 
 You can configure the following order:
@@ -833,7 +833,7 @@ end
 | Name | Default value | Configurable values
 
 | Categories
-| `{"module_inclusion"=>["include", "prepend", "extend"]}`
+| `{"module_inclusion" => ["include", "prepend", "extend"]}`
 | 
 
 | ExpectedOrder
@@ -2271,7 +2271,7 @@ end
 Checks if empty lines exist around the bodies of `begin`
 sections. This cop doesn't check empty lines at `begin` body
 beginning/end and around method definition body.
-`Style/EmptyLinesAroundBeginBody` or `Style/EmptyLinesAroundMethodBody`
+`Layout/EmptyLinesAroundBeginBody` or `Layout/EmptyLinesAroundMethodBody`
 can be used for this purpose.
 
 [#examples-layoutemptylinesaroundexceptionhandlingkeywords]
@@ -3134,7 +3134,7 @@ Checks the indentation of the first key in a hash literal
 where the opening brace and the first key are on separate lines. The
 other keys' indentations are handled by the HashAlignment cop.
 
-By default, Hash literals that are arguments in a method call with
+By default, `Hash` literals that are arguments in a method call with
 parentheses, and where the opening curly brace of the hash is on the
 same line as the opening parenthesis of the method call, shall have
 their first key indented one step (two spaces) more than the position
@@ -3557,10 +3557,10 @@ end
 
 Checks the indentation of the first parameter in a method
 definition. Parameters after the first one are checked by
-Layout/ParameterAlignment, not by this cop.
+`Layout/ParameterAlignment`, not by this cop.
 
 For indenting the first argument of method _calls_, check out
-Layout/FirstArgumentIndentation, which supports options related to
+`Layout/FirstArgumentIndentation`, which supports options related to
 nesting that are irrelevant for method _definitions_.
 
 [#examples-layoutfirstparameterindentation]
@@ -6393,9 +6393,9 @@ end.join('-')
 | -
 |===
 
-Checks for colon (:) not followed by some kind of space.
+Checks for colon (`:`) not followed by some kind of space.
 N.B. this cop does not handle spaces after a ternary operator, which are
-instead handled by Layout/SpaceAroundOperators.
+instead handled by `Layout/SpaceAroundOperators`.
 
 [#examples-layoutspaceaftercolon]
 === Examples
@@ -6427,7 +6427,7 @@ def f(a:, b: 2); {a: 3}; end
 | -
 |===
 
-Checks for comma (,) not followed by some kind of space.
+Checks for comma (`,`) not followed by some kind of space.
 
 [#examples-layoutspaceaftercomma]
 === Examples
@@ -6527,7 +6527,7 @@ Checks for space after `!`.
 | -
 |===
 
-Checks for semicolon (;) not followed by some kind of space.
+Checks for semicolon (`;`) not followed by some kind of space.
 
 [#examples-layoutspaceaftersemicolon]
 === Examples
@@ -7030,7 +7030,7 @@ collection[index_or_key]
 | -
 |===
 
-Checks for comma (,) preceded by space.
+Checks for comma (`,`) preceded by space.
 
 [#examples-layoutspacebeforecomma]
 === Examples
@@ -7136,7 +7136,7 @@ something 'hello'
 | -
 |===
 
-Checks for semicolon (;) preceded by space.
+Checks for semicolon (`;`) preceded by space.
 
 [#examples-layoutspacebeforesemicolon]
 === Examples

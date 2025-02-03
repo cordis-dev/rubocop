@@ -1616,6 +1616,12 @@ Lint/AmbiguousRegexpLiteral:
   VersionAdded: '0.17'
   VersionChanged: '0.83'
 
+Lint/ArrayLiteralInRegexp:
+  Description: 'Checks for an array literal interpolated inside a regexp.'
+  Enabled: pending
+  VersionAdded: '1.71'
+  SafeAutoCorrect: false
+
 Lint/AssignmentInCondition:
   Description: "Don't use assignment in conditions."
   StyleGuide: '#safe-assignment-in-condition'
@@ -4063,6 +4069,9 @@ Style/FrozenStringLiteralComment:
     # exist in a file.
     - never
   SafeAutoCorrect: false
+  Exclude:
+    # Prevent the Ruby warning: `'frozen_string_literal' is ignored after any tokens` when using Active Admin.
+    - '**/*.arb'
 
 Style/GlobalStdStream:
   Description: 'Enforces the use of `$stdout/$stderr/$stdin` instead of `STDOUT/STDERR/STDIN`.'
@@ -4140,6 +4149,14 @@ Style/HashLikeCase:
   # `MinBranchesCount` defines the number of branches `case` needs to have
   # to trigger this cop
   MinBranchesCount: 3
+
+Style/HashSlice:
+  Description: >-
+                 Checks for usages of `Hash#reject`, `Hash#select`, and `Hash#filter` methods
+                 that can be replaced with `Hash#slice` method.
+  Enabled: pending
+  Safe: false
+  VersionAdded: '1.71'
 
 Style/HashSyntax:
   Description: >-

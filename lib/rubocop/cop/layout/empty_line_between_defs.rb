@@ -22,8 +22,6 @@ module RuboCop
       #   def b
       #   end
       #
-      # @example
-      #
       #   # good
       #   def a
       #   end
@@ -41,8 +39,6 @@ module RuboCop
       #   end
       #   def b
       #   end
-      #
-      # @example
       #
       #   # good
       #   class A
@@ -64,8 +60,6 @@ module RuboCop
       #   end
       #   def b
       #   end
-      #
-      # @example
       #
       #   # good
       #   module A
@@ -162,7 +156,7 @@ module RuboCop
         private
 
         def def_location(correction_node)
-          if correction_node.block_type?
+          if correction_node.any_block_type?
             correction_node.source_range.join(correction_node.children.first.source_range)
           else
             correction_node.loc.keyword.join(correction_node.loc.name)
@@ -181,12 +175,12 @@ module RuboCop
         end
 
         def macro_candidate?(node)
-          node.block_type? && node.children.first.macro? &&
+          node.any_block_type? && node.children.first.macro? &&
             empty_line_between_macros.include?(node.children.first.method_name)
         end
 
         def method_candidate?(node)
-          cop_config['EmptyLineBetweenMethodDefs'] && (node.def_type? || node.defs_type?)
+          cop_config['EmptyLineBetweenMethodDefs'] && node.type?(:def, :defs)
         end
 
         def class_candidate?(node)
@@ -246,7 +240,7 @@ module RuboCop
         end
 
         def def_start(node)
-          if node.block_type? && node.children.first.send_type?
+          if node.any_block_type? && node.children.first.send_type?
             node.source_range.line
           else
             node.loc.keyword.line
@@ -258,7 +252,7 @@ module RuboCop
         end
 
         def end_loc(node)
-          if (node.def_type? || node.defs_type?) && node.endless?
+          if node.type?(:def, :defs) && node.endless?
             node.source_range.end
           else
             node.loc.end
@@ -283,6 +277,8 @@ module RuboCop
           case node.type
           when :def, :defs
             :method
+          when :numblock
+            :block
           else
             node.type
           end

@@ -94,8 +94,8 @@ module RuboCop
         end
 
         def require_parentheses?(node, condition_body)
-          return false if !node.while_type? && !node.until_type?
-          return false if !condition_body.block_type? && !condition_body.numblock_type?
+          return false unless node.type?(:while, :until)
+          return false unless condition_body.any_block_type?
 
           condition_body.send_node.block_literal? && condition_body.keywords?
         end

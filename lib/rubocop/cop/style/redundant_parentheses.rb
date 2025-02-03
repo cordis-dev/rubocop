@@ -50,7 +50,7 @@ module RuboCop
         def ignore_syntax?(node)
           return false unless (parent = node.parent)
 
-          parent.while_post_type? || parent.until_post_type? || parent.match_with_lvasgn_type? ||
+          parent.type?(:while_post, :until_post, :match_with_lvasgn) ||
             like_method_argument_parentheses?(parent) || multiline_control_flow_statements?(node)
         end
 
@@ -72,7 +72,7 @@ module RuboCop
           ancestor = node.ancestors.first
           return false unless ancestor
 
-          !ancestor.begin_type? && !ancestor.def_type? && !ancestor.block_type?
+          !ancestor.type?(:begin, :def, :any_block)
         end
 
         def allowed_ternary?(node)
@@ -89,7 +89,7 @@ module RuboCop
         end
 
         def like_method_argument_parentheses?(node)
-          return false if !node.send_type? && !node.super_type? && !node.yield_type?
+          return false unless node.type?(:send, :super, :yield)
 
           node.arguments.one? && !node.parenthesized? &&
             !node.arithmetic_operation? && node.first_argument.begin_type?
@@ -99,7 +99,7 @@ module RuboCop
           return false unless (parent = node.parent)
           return false if parent.single_line?
 
-          parent.return_type? || parent.next_type? || parent.break_type?
+          parent.type?(:return, :next, :break)
         end
 
         def empty_parentheses?(node)
@@ -140,6 +140,9 @@ module RuboCop
           return 'a literal' if disallowed_literal?(begin_node, node)
           return 'a variable' if node.variable?
           return 'a constant' if node.const_type?
+          if node.assignment? && (begin_node.parent.nil? || begin_node.parent.begin_type?)
+            return 'an assignment'
+          end
           if node.lambda_or_proc? && (node.braces? || node.send_node.lambda_literal?)
             return 'an expression'
           end
@@ -276,9 +279,9 @@ module RuboCop
         end
 
         def do_end_block_in_method_chain?(begin_node, node)
-          return false unless (block = node.each_descendant(:block, :numblock).first)
+          return false unless (block = node.each_descendant(:any_block).first)
 
-          block.keywords? && begin_node.each_ancestor(:send, :csend).any?
+          block.keywords? && begin_node.each_ancestor(:call).any?
         end
       end
     end

@@ -98,7 +98,7 @@ module RuboCop
             # When defining dynamic methods, implicitly calling `super` is not possible.
             # Since there is a possibility of delegation to `define_method`,
             # `super` used within the block is always allowed.
-            break if node.block_type? && !block_sends_to_super?(super_node, node)
+            break if node.any_block_type? && !block_sends_to_super?(super_node, node)
 
             break node if DEF_TYPES.include?(node.type)
           end
@@ -136,13 +136,13 @@ module RuboCop
           # Checks if the send node of a block is the given super node,
           # or a method chain containing it.
           return false unless parent_node
-          return false unless parent_node.type?(:block, :numblock)
+          return false unless parent_node.any_block_type?
 
           parent_node.send_node.each_node(:super).any?(super_node)
         end
 
         def positional_arg_same?(def_arg, super_arg)
-          return false unless def_arg.arg_type? || def_arg.optarg_type?
+          return false unless def_arg.type?(:arg, :optarg)
           return false unless super_arg.lvar_type?
 
           def_arg.name == super_arg.children.first
@@ -159,7 +159,7 @@ module RuboCop
         end
 
         def keyword_arg_same?(def_arg, super_arg)
-          return false unless def_arg.kwarg_type? || def_arg.kwoptarg_type?
+          return false unless def_arg.type?(:kwarg, :kwoptarg)
           return false unless (pair_node = super_arg).pair_type?
           return false unless (sym_node = pair_node.key).sym_type?
           return false unless (lvar_node = pair_node.value).lvar_type?

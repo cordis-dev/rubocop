@@ -514,33 +514,14 @@ NOTE: Requires Ruby version 2.7
 | 1.58
 |===
 
-In Ruby 2.7, arguments forwarding has been added.
-
-This cop identifies places where `do_something(*args, &block)`
-can be replaced by `do_something(...)`.
-
-In Ruby 3.1, anonymous block forwarding has been added.
-
-This cop identifies places where `do_something(&block)` can be replaced
-by `do_something(&)`; if desired, this functionality can be disabled
-by setting `UseAnonymousForwarding: false`.
-
-In Ruby 3.2, anonymous args/kwargs forwarding has been added.
-
-This cop also identifies places where `use_args(*args)`/`use_kwargs(**kwargs)` can be
-replaced by `use_args(*)`/`use_kwargs(**)`; if desired, this functionality can be disabled
-by setting `UseAnonymousForwarding: false`.
-
-And this cop has `RedundantRestArgumentNames`, `RedundantKeywordRestArgumentNames`,
-and `RedundantBlockArgumentNames` options. This configuration is a list of redundant names
-that are sufficient for anonymizing meaningless naming.
-
-Meaningless names that are commonly used can be anonymized by default:
-e.g., `*args`, `**options`, `&block`, and so on.
-
-Names not on this list are likely to be meaningful and are allowed by default.
-
-This cop handles not only method forwarding but also forwarding to `super`.
+[source,ruby]
+----
+def foo(&block)
+  # Using an anonymous block would be a syntax error on Ruby 3.3.0
+  block_method { bar(&block) }
+end
+----
+--
 
 [#examples-styleargumentsforwarding]
 === Examples
@@ -2306,7 +2287,7 @@ items.include?
 | Name | Default value | Configurable values
 
 | PreferredMethods
-| `{"collect"=>"map", "collect!"=>"map!", "collect_concat"=>"flat_map", "inject"=>"reduce", "detect"=>"find", "find_all"=>"select", "member?"=>"include?"}`
+| `{"collect" => "map", "collect!" => "map!", "collect_concat" => "flat_map", "inject" => "reduce", "detect" => "find", "find_all" => "select", "member?" => "include?"}`
 | 
 
 | MethodsAcceptingSymbol
@@ -4008,7 +3989,7 @@ end
 |===
 
 Checks for loops which iterate a constant number of times,
-using a Range literal and `#each`. This can be done more readably using
+using a `Range` literal and `#each`. This can be done more readably using
 `Integer#times`.
 
 This check only applies if the block takes no parameters.
@@ -4843,7 +4824,7 @@ end
 | -
 |===
 
-Checks for exact regexp match inside Regexp literals.
+Checks for exact regexp match inside `Regexp` literals.
 
 [#examples-styleexactregexpmatch]
 === Examples
@@ -5096,7 +5077,7 @@ for numbers in the code (eg 1.2e4). Different styles are supported:
 Suggests `ENV.fetch` for the replacement of `ENV[]`.
 `ENV[]` silently fails and returns `nil` when the environment variable is unset,
 which may cause unexpected behaviors when the developer forgets to set it.
-On the other hand, `ENV.fetch` raises KeyError or returns the explicitly
+On the other hand, `ENV.fetch` raises `KeyError` or returns the explicitly
 specified default value.
 
 [#examples-stylefetchenvvar]
@@ -5947,6 +5928,10 @@ end
 | EnforcedStyle
 | `always`
 | `always`, `always_true`, `never`
+
+| Exclude
+| `+**/*.arb+`
+| Array
 |===
 
 [#styleglobalstdstream]
@@ -6375,7 +6360,7 @@ Hash[*ary]
 | 1.16
 |===
 
-Checks for uses of `each_key` and `each_value` Hash methods.
+Checks for uses of `each_key` and `each_value` `Hash` methods.
 
 NOTE: If you have an array of two-element arrays, you can put
   parentheses around the block arguments to indicate that you're not
@@ -6483,6 +6468,29 @@ is a `Hash` or responds to the replacement method.
 {foo: 1, bar: 2, baz: 3}.select {|k, v| !%i[bar].include?(k) }
 {foo: 1, bar: 2, baz: 3}.filter {|k, v| !%i[bar].include?(k) }
 
+# good
+{foo: 1, bar: 2, baz: 3}.except(:bar)
+----
+
+[#allcops_activesupportextensionsenabled_-false-_default_-stylehashexcept]
+==== AllCops:ActiveSupportExtensionsEnabled: false (default)
+
+[source,ruby]
+----
+# good
+{foo: 1, bar: 2, baz: 3}.reject {|k, v| !%i[bar].exclude?(k) }
+{foo: 1, bar: 2, baz: 3}.select {|k, v| %i[bar].exclude?(k) }
+
+# good
+{foo: 1, bar: 2, baz: 3}.reject {|k, v| k.in?(%i[bar]) }
+{foo: 1, bar: 2, baz: 3}.select {|k, v| !k.in?(%i[bar]) }
+----
+
+[#allcops_activesupportextensionsenabled_-true-stylehashexcept]
+==== AllCops:ActiveSupportExtensionsEnabled: true
+
+[source,ruby]
+----
 # bad
 {foo: 1, bar: 2, baz: 3}.reject {|k, v| !%i[bar].exclude?(k) }
 {foo: 1, bar: 2, baz: 3}.select {|k, v| %i[bar].exclude?(k) }
@@ -6564,6 +6572,90 @@ end
 | `3`
 | Integer
 |===
+
+[#stylehashslice]
+== Style/HashSlice
+
+NOTE: Requires Ruby version 2.5
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| No
+| Always (Unsafe)
+| 1.71
+| -
+|===
+
+Checks for usages of `Hash#reject`, `Hash#select`, and `Hash#filter` methods
+that can be replaced with `Hash#slice` method.
+
+This cop should only be enabled on Ruby version 2.5 or higher.
+(`Hash#slice` was added in Ruby 2.5.)
+
+For safe detection, it is limited to commonly used string and symbol comparisons
+when using `==` or `!=`.
+
+This cop doesn't check for `Hash#delete_if` and `Hash#keep_if` because they
+modify the receiver.
+
+[#safety-stylehashslice]
+=== Safety
+
+This cop is unsafe because it cannot be guaranteed that the receiver
+is a `Hash` or responds to the replacement method.
+
+[#examples-stylehashslice]
+=== Examples
+
+[source,ruby]
+----
+# bad
+{foo: 1, bar: 2, baz: 3}.select {|k, v| k == :bar }
+{foo: 1, bar: 2, baz: 3}.reject {|k, v| k != :bar }
+{foo: 1, bar: 2, baz: 3}.filter {|k, v| k == :bar }
+{foo: 1, bar: 2, baz: 3}.select {|k, v| k.eql?(:bar) }
+
+# bad
+{foo: 1, bar: 2, baz: 3}.select {|k, v| %i[bar].include?(k) }
+{foo: 1, bar: 2, baz: 3}.reject {|k, v| !%i[bar].include?(k) }
+{foo: 1, bar: 2, baz: 3}.filter {|k, v| %i[bar].include?(k) }
+
+# good
+{foo: 1, bar: 2, baz: 3}.slice(:bar)
+----
+
+[#allcops_activesupportextensionsenabled_-false-_default_-stylehashslice]
+==== AllCops:ActiveSupportExtensionsEnabled: false (default)
+
+[source,ruby]
+----
+# good
+{foo: 1, bar: 2, baz: 3}.select {|k, v| !%i[bar].exclude?(k) }
+{foo: 1, bar: 2, baz: 3}.reject {|k, v| %i[bar].exclude?(k) }
+
+# good
+{foo: 1, bar: 2, baz: 3}.select {|k, v| k.in?(%i[bar]) }
+{foo: 1, bar: 2, baz: 3}.reject {|k, v| !k.in?(%i[bar]) }
+----
+
+[#allcops_activesupportextensionsenabled_-true-stylehashslice]
+==== AllCops:ActiveSupportExtensionsEnabled: true
+
+[source,ruby]
+----
+# bad
+{foo: 1, bar: 2, baz: 3}.select {|k, v| !%i[bar].exclude?(k) }
+{foo: 1, bar: 2, baz: 3}.reject {|k, v| %i[bar].exclude?(k) }
+
+# bad
+{foo: 1, bar: 2, baz: 3}.select {|k, v| k.in?(%i[bar]) }
+{foo: 1, bar: 2, baz: 3}.reject {|k, v| !k.in?(%i[bar]) }
+
+# good
+{foo: 1, bar: 2, baz: 3}.slice(:bar)
+----
 
 [#stylehashsyntax]
 == Style/HashSyntax
@@ -7533,11 +7625,11 @@ end
 | Name | Default value | Configurable values
 
 | InverseMethods
-| `{:any?=>:none?, :even?=>:odd?, :===>:!=, :=~=>:!~, :<=>:>=, :>=>:<=}`
+| `{any?: :none?, even?: :odd?, "==": :!=, "=~": :!~, "<": :>=, ">": :<=}`
 | 
 
 | InverseBlocks
-| `{:select=>:reject, :select!=>:reject!}`
+| `{select: :reject, select!: :reject!}`
 | 
 |===
 
@@ -7615,7 +7707,7 @@ foo if !condition
 | Name | Default value | Configurable values
 
 | InverseMethods
-| `{:!==>:==, :>=>:<=, :<==>:>, :<=>:>=, :>==>:<, :!~=>:=~, :zero?=>:nonzero?, :nonzero?=>:zero?, :any?=>:none?, :none?=>:any?, :even?=>:odd?, :odd?=>:even?}`
+| `{"!=": :==, ">": :<=, "<=": :>, "<": :>=, ">=": :<, "!~": :=~, zero?: :nonzero?, nonzero?: :zero?, any?: :none?, none?: :any?, even?: :odd?, odd?: :even?}`
 | 
 |===
 
@@ -9980,7 +10072,7 @@ From Ruby 3.0, this cop honours the magic comment
 acceptable value other than none, it will suppress the offenses
 raised by this cop. It enforces frozen state.
 
-NOTE: Regexp and Range literals are frozen objects since Ruby 3.0.
+NOTE: `Regexp` and `Range` literals are frozen objects since Ruby 3.0.
 
 NOTE: From Ruby 3.0, interpolated strings are not frozen when
 `# frozen-string-literal: true` is used, so this cop enforces explicit
@@ -11424,7 +11516,7 @@ end
 | 1.51
 |===
 
-Flags uses of OpenStruct, as it is now officially discouraged
+Flags uses of `OpenStruct`, as it is now officially discouraged
 to be used for performance, version compatibility, and potential security issues.
 
 [#safety-styleopenstructuse]
@@ -11433,7 +11525,8 @@ to be used for performance, version compatibility, and potential security issues
 Note that this cop may flag false positives; for instance, the following legal
 use of a hand-rolled `OpenStruct` type would be considered an offense:
 
-```
+[source,ruby]
+-----
 module MyNamespace
   class OpenStruct # not the OpenStruct we're looking for
   end
@@ -11442,7 +11535,7 @@ module MyNamespace
     OpenStruct.new # resolves to MyNamespace::OpenStruct
   end
 end
-```
+-----
 
 [#examples-styleopenstructuse]
 === Examples
@@ -11919,7 +12012,7 @@ default.
 | Name | Default value | Configurable values
 
 | PreferredDelimiters
-| `{"default"=>"()", "%i"=>"[]", "%I"=>"[]", "%r"=>"{}", "%w"=>"[]", "%W"=>"[]"}`
+| `{"default" => "()", "%i" => "[]", "%I" => "[]", "%r" => "{}", "%w" => "[]", "%W" => "[]"}`
 | 
 |===
 
@@ -12216,7 +12309,7 @@ will also suggest constructing error objects when the exception is
 passed multiple arguments.
 
 The exploded style has an `AllowedCompactTypes` configuration
-option that takes an Array of exception name Strings.
+option that takes an `Array` of exception name Strings.
 
 [#safety-styleraiseargs]
 === Safety
@@ -12405,7 +12498,7 @@ A.foo
 | Name | Default value | Configurable values
 
 | Methods
-| `{"join"=>"", "sum"=>0, "exit"=>true, "exit!"=>false, "split"=>" ", "chomp"=>"\n", "chomp!"=>"\n"}`
+| `{"join" => "", "sum" => 0, "exit" => true, "exit!" => false, "split" => " ", "chomp" => "\n", "chomp!" => "\n"}`
 | 
 |===
 
@@ -12883,7 +12976,7 @@ array.each_with_object { |v, o| do_something(v, o) }
 | 0.29
 |===
 
-Checks for RuntimeError as the argument of raise/fail.
+Checks for `RuntimeError` as the argument of `raise`/`fail`.
 
 [#examples-styleredundantexception]
 === Examples
@@ -13124,7 +13217,7 @@ arr.any? { |x| x > 1 }
 
 Check for uses of `Object#freeze` on immutable objects.
 
-NOTE: Regexp and Range literals are frozen objects since Ruby 3.0.
+NOTE: `Regexp` and `Range` literals are frozen objects since Ruby 3.0.
 
 NOTE: From Ruby 3.0, this cop allows explicit freezing of interpolated
 string literals when `# frozen-string-literal: true` is used.
@@ -13611,7 +13704,7 @@ a deterministic regexp to a string.
 | -
 |===
 
-Checks for unnecessary single-element Regexp character classes.
+Checks for unnecessary single-element `Regexp` character classes.
 
 [#examples-styleredundantregexpcharacterclass]
 === Examples
@@ -13684,7 +13777,7 @@ Regexp.compile('regexp')
 | -
 |===
 
-Checks for redundant escapes inside Regexp literals.
+Checks for redundant escapes inside `Regexp` literals.
 
 [#examples-styleredundantregexpescape]
 === Examples
@@ -13911,12 +14004,8 @@ args.concat(foo)
 args += foo
 hash.merge!(other)
 
-# bad
-self.foo = foo.concat(ary)
-
 # good
 foo.concat(ary)
-self.foo += ary
 ----
 
 [#styleredundantselfassignmentbranch]
@@ -15431,7 +15520,7 @@ For instance one can configure `reduce`(`inject`) to use |a, e| as
 parameters.
 
 Configuration option: Methods
-Should be set to use this cop. Array of hashes, where each key is the
+Should be set to use this cop. `Array` of hashes, where each key is the
 method name and value - array of argument names.
 
 [#examples-stylesinglelineblockparams]
@@ -15465,7 +15554,7 @@ end
 | Name | Default value | Configurable values
 
 | Methods
-| `{"reduce"=>["acc", "elem"]}`, `{"inject"=>["acc", "elem"]}`
+| `{"reduce" => ["acc", "elem"]}`, `{"inject" => ["acc", "elem"]}`
 | Array
 |===
 
@@ -16358,7 +16447,7 @@ regexp = /Tests #{success ? "PASS" : "FAIL"}/
 |===
 
 Enforces the use of consistent method names
-from the String class.
+from the `String` class.
 
 [#examples-stylestringmethods]
 === Examples
@@ -16381,7 +16470,7 @@ from the String class.
 | Name | Default value | Configurable values
 
 | PreferredMethods
-| `{"intern"=>"to_sym"}`
+| `{"intern" => "to_sym"}`
 | 
 |===
 
@@ -17239,11 +17328,14 @@ Checks for trailing comma in argument lists.
 The supported styles are:
 
 * `consistent_comma`: Requires a comma after the last argument,
-for all parenthesized method calls with arguments.
+for all parenthesized multi-line method calls with arguments.
 * `comma`: Requires a comma after the last argument, but only for
 parenthesized method calls where each argument is on its own line.
 * `no_comma`: Requires that there is no comma after the last
 argument.
+
+Regardless of style, trailing commas are not allowed in
+single-line method calls.
 
 [#examples-styletrailingcommainarguments]
 === Examples
@@ -18640,15 +18732,6 @@ x ^ 1
 CONST + 1
 60 * 24
 ----
-
-[#configurable-attributes-styleyodaexpression]
-=== Configurable attributes
-
-|===
-| Name | Default value | Configurable values
-
-
-|===
 
 [#stylezerolengthpredicate]
 == Style/ZeroLengthPredicate

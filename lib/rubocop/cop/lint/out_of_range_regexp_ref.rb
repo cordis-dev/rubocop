@@ -3,7 +3,7 @@
 module RuboCop
   module Cop
     module Lint
-      # Looks for references of Regexp captures that are out of range
+      # Looks for references of `Regexp` captures that are out of range
       # and thus always returns nil.
       #
       # @safety
@@ -61,6 +61,7 @@ module RuboCop
             check_regexp(node.receiver)
           end
         end
+        alias after_csend after_send
 
         def on_when(node)
           regexp_conditions = node.conditions.select(&:regexp_type?)

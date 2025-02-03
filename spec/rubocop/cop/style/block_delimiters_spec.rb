@@ -281,6 +281,52 @@ RSpec.describe RuboCop::Cop::Style::BlockDelimiters, :config do
       expect_no_offenses('return if any? { |x| x }')
     end
 
+    it 'accepts a single line block with {} if used in an `if` condition' do
+      expect_no_offenses(<<~RUBY)
+        if any? { |x| x }
+          return
+        end
+      RUBY
+    end
+
+    it 'accepts a single line block with {} if used in an `unless` condition' do
+      expect_no_offenses(<<~RUBY)
+        unless any? { |x| x }
+          return
+        end
+      RUBY
+    end
+
+    it 'accepts a single line block with {} if used in a `case` condition' do
+      expect_no_offenses(<<~RUBY)
+        case foo { |x| x }
+        when bar
+        end
+      RUBY
+    end
+
+    it 'accepts a single line block with {} if used in a `case` match condition' do
+      expect_no_offenses(<<~RUBY)
+        case foo { |x| x }
+        in bar
+        end
+      RUBY
+    end
+
+    it 'accepts a single line block with {} if used in a `while` condition' do
+      expect_no_offenses(<<~RUBY)
+        while foo { |x| x }
+        end
+      RUBY
+    end
+
+    it 'accepts a single line block with {} if used in an `until` condition' do
+      expect_no_offenses(<<~RUBY)
+        until foo { |x| x }
+        end
+      RUBY
+    end
+
     it 'accepts a single line block with {} if used in a logical or' do
       expect_no_offenses('any? { |c| c } || foo')
     end
@@ -625,6 +671,22 @@ RSpec.describe RuboCop::Cop::Style::BlockDelimiters, :config do
         RUBY
       end
 
+      it 'accepts braces with safe navigation if do-end would change the meaning' do
+        expect_no_offenses(<<~RUBY)
+          foo&.bar baz {
+            y
+          }
+        RUBY
+      end
+
+      it 'accepts braces with chained safe navigation if do-end would change the meaning' do
+        expect_no_offenses(<<~RUBY)
+          foo.bar baz {
+            y
+          }&.quux
+        RUBY
+      end
+
       it 'accepts a multi-line functional block with {} if it is an ignored method' do
         expect_no_offenses(<<~RUBY)
           foo = proc {
@@ -724,6 +786,13 @@ RSpec.describe RuboCop::Cop::Style::BlockDelimiters, :config do
       it 'does not register an offense for a multi-line block with `{` and `}` with method chain' do
         expect_no_offenses(<<~RUBY)
           foo bar + baz {
+          }.qux.quux
+        RUBY
+      end
+
+      it 'does not register an offense for a multi-line block with `{` and `}` with method chain and safe navigation' do
+        expect_no_offenses(<<~RUBY)
+          foo x&.bar + baz {
           }.qux.quux
         RUBY
       end

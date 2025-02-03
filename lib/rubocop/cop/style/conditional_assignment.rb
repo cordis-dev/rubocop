@@ -107,7 +107,7 @@ module RuboCop
           parent = node.parent
           return true unless parent
 
-          !(parent.mlhs_type? || parent.resbody_type?)
+          !parent.type?(:mlhs, :resbody)
         end
       end
 
@@ -309,7 +309,7 @@ module RuboCop
         end
 
         def allowed_single_line?(branches)
-          single_line_conditions_only? && branches.any?(&:begin_type?)
+          single_line_conditions_only? && branches.compact.any?(&:begin_type?)
         end
 
         def assignment_node(node)
@@ -326,7 +326,7 @@ module RuboCop
         end
 
         def move_assignment_outside_condition(corrector, node)
-          if node.case_type? || node.case_match_type?
+          if node.type?(:case, :case_match)
             CaseCorrector.correct(corrector, self, node)
           elsif node.ternary?
             TernaryCorrector.correct(corrector, node)
@@ -340,7 +340,7 @@ module RuboCop
 
           if ternary_condition?(condition)
             TernaryCorrector.move_assignment_inside_condition(corrector, node)
-          elsif condition.case_type? || condition.case_match_type?
+          elsif condition.type?(:case, :case_match)
             CaseCorrector.move_assignment_inside_condition(corrector, node)
           elsif condition.if_type?
             IfCorrector.move_assignment_inside_condition(corrector, node)
@@ -445,6 +445,8 @@ module RuboCop
           end
 
           [condition.loc.else, condition.loc.end].each do |loc|
+            next unless loc
+
             corrector.remove_preceding(loc, loc.column - column)
           end
         end

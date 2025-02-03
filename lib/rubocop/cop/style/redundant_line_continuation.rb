@@ -73,10 +73,15 @@ module RuboCop
         LINE_CONTINUATION_PATTERN = /(\\\n)/.freeze
         ALLOWED_STRING_TOKENS = %i[tSTRING tSTRING_CONTENT].freeze
         ARGUMENT_TYPES = %i[
-          kDEF kFALSE kNIL kSELF kTRUE tCONSTANT tCVAR tFLOAT tGVAR tIDENTIFIER tINTEGER tIVAR
-          tLBRACK tLCURLY tLPAREN_ARG tSTRING tSTRING_BEG tSYMBOL tXSTRING_BEG
+          kDEF kDEFINED kFALSE kNIL kSELF kTRUE tAMPER tBANG tCARET tCHARACTER tCOLON3 tCONSTANT
+          tCVAR tDOT2 tDOT3 tFLOAT tGVAR tIDENTIFIER tINTEGER tIVAR tLAMBDA tLBRACK tLCURLY
+          tLPAREN_ARG tPIPE tQSYMBOLS_BEG tQWORDS_BEG tREGEXP_BEG tSTAR tSTRING tSTRING_BEG tSYMBEG
+          tSYMBOL tSYMBOLS_BEG tTILDE tUMINUS tUNARY_NUM tUPLUS tWORDS_BEG tXSTRING_BEG
         ].freeze
-        ARGUMENT_TAKING_FLOW_TOKEN_TYPES = %i[tIDENTIFIER kRETURN kBREAK kNEXT kYIELD].freeze
+        ARGUMENT_TAKING_FLOW_TOKEN_TYPES = %i[
+          tIDENTIFIER kBREAK kNEXT kRETURN kSUPER kYIELD
+        ].freeze
+        ARITHMETIC_OPERATOR_TOKENS = %i[tDIVIDE tDSTAR tMINUS tPERCENT tPLUS tSTAR2].freeze
 
         def on_new_investigation
           return unless processed_source.ast
@@ -96,15 +101,20 @@ module RuboCop
         private
 
         def require_line_continuation?(range)
-          !ends_with_backslash_without_comment?(range.source_line) ||
+          !ends_with_uncommented_backslash?(range) ||
             string_concatenation?(range.source_line) ||
-            start_with_arithmetic_operator?(processed_source[range.line]) ||
+            start_with_arithmetic_operator?(range) ||
             inside_string_literal_or_method_with_argument?(range) ||
             leading_dot_method_chain_with_blank_line?(range)
         end
 
-        def ends_with_backslash_without_comment?(source_line)
-          source_line.gsub(/#.+/, '').end_with?('\\')
+        def ends_with_uncommented_backslash?(range)
+          # A line continuation always needs to be the last character on the line, which
+          # means that it is impossible to have a comment following a continuation.
+          # Therefore, if the line contains a comment, it cannot end with a continuation.
+          return false if processed_source.line_with_comment?(range.line)
+
+          range.source_line.end_with?(LINE_CONTINUATION)
         end
 
         def string_concatenation?(source_line)
@@ -140,7 +150,7 @@ module RuboCop
 
         def inspect_end_of_ruby_code_line_continuation
           last_line = processed_source.lines[processed_source.ast.last_line - 1]
-          return unless last_line.end_with?(LINE_CONTINUATION)
+          return unless code_ends_with_continuation?(last_line)
 
           last_column = last_line.length
           line_continuation_range = range_between(last_column - 1, last_column)
@@ -148,6 +158,12 @@ module RuboCop
           add_offense(line_continuation_range) do |corrector|
             corrector.remove_trailing(line_continuation_range, 1)
           end
+        end
+
+        def code_ends_with_continuation?(last_line)
+          return false if processed_source.line_with_comment?(processed_source.ast.last_line)
+
+          last_line.end_with?(LINE_CONTINUATION)
         end
 
         def inside_string_literal?(range, token)
@@ -213,8 +229,9 @@ module RuboCop
           node.call_type? && !node.arguments.empty?
         end
 
-        def start_with_arithmetic_operator?(source_line)
-          %r{\A\s*[+\-*/%]}.match?(source_line)
+        def start_with_arithmetic_operator?(range)
+          line_range = processed_source.buffer.line_range(range.line + 1)
+          ARITHMETIC_OPERATOR_TOKENS.include?(processed_source.first_token_of(line_range).type)
         end
       end
     end

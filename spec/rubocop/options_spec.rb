@@ -13,6 +13,21 @@ RSpec.describe RuboCop::Options, :isolated_environment do
 
   describe 'option' do
     describe '-h/--help' do
+      # HACK: `help` option is implemented with OptionParser, if the environment vars
+      # `RUBY_PAGER` or `PAGER` are set, the mock for stdout will not be applied.
+      # To ensure stdout is mocked, a simple way is to temporarily delete these environment vars.
+      # https://github.com/ruby/optparse/blob/v0.6.0/lib/optparse.rb#L1053-L1071
+      around do |example|
+        original_ruby_pager = ENV.delete('RUBY_PAGER')
+        original_pager = ENV.delete('PAGER')
+        begin
+          example.run
+        ensure
+          ENV['RUBY_PAGER'] = original_ruby_pager
+          ENV['PAGER'] = original_pager
+        end
+      end
+
       it 'exits cleanly `-h`' do
         expect { options.parse ['-h'] }.to exit_with_code(0)
       end
@@ -21,6 +36,7 @@ RSpec.describe RuboCop::Options, :isolated_environment do
         expect { options.parse ['--help'] }.to exit_with_code(0)
       end
 
+      # rubocop:disable RSpec/ExampleLength
       it 'shows help text' do
         begin
           options.parse(['--help'])
@@ -188,6 +204,7 @@ RSpec.describe RuboCop::Options, :isolated_environment do
                   --show-cops [COP1,COP2,...]  Shows the given cops, or all cops by
                                                default, and their configurations for the
                                                current directory.
+                                               You can use `*` as a wildcard.
                   --show-docs-url [COP1,COP2,...]
                                                Display url to documentation for the given
                                                cops, or base url by default.
@@ -214,6 +231,7 @@ RSpec.describe RuboCop::Options, :isolated_environment do
 
         expect($stdout.string).to eq(expected_help)
       end
+      # rubocop:enable RSpec/ExampleLength
 
       it 'lists all builtin formatters' do
         begin

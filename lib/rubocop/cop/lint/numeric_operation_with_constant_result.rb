@@ -9,10 +9,10 @@ module RuboCop
       # As such, they can be replaced with that result.
       # These are probably leftover from debugging, or are mistakes.
       # Other numeric operations that are similarly leftover from debugging or mistakes
-      # are handled by Lint/UselessNumericOperation.
+      # are handled by `Lint/UselessNumericOperation`.
       #
       # NOTE: This cop doesn't detect offenses for the `-` and `%` operator because it
-      # can't determine the type of `x`. If `x` is an Array or String, it doesn't perform
+      # can't determine the type of `x`. If `x` is an `Array` or `String`, it doesn't perform
       # a numeric operation.
       #
       # @example
@@ -50,43 +50,38 @@ module RuboCop
 
         # @!method operation_with_constant_result?(node)
         def_node_matcher :operation_with_constant_result?,
-                         '(send (send nil? $_) $_ ({int | send nil?} $_))'
+                         '(call (call nil? $_lhs) $_operation ({int | call nil?} $_rhs))'
 
         # @!method abbreviated_assignment_with_constant_result?(node)
         def_node_matcher :abbreviated_assignment_with_constant_result?,
-                         '(op-asgn (lvasgn $_) $_ ({int | lvar} $_))'
+                         '(op-asgn (lvasgn $_lhs) $_operation ({int lvar} $_rhs))'
 
         def on_send(node)
-          return unless operation_with_constant_result?(node)
-
-          variable, operation, number = operation_with_constant_result?(node)
-          result = constant_result?(variable, operation, number)
-          return unless result
+          return unless (lhs, operation, rhs = operation_with_constant_result?(node))
+          return unless (result = constant_result?(lhs, operation, rhs))
 
           add_offense(node) do |corrector|
             corrector.replace(node, result.to_s)
           end
         end
+        alias on_csend on_send
 
         def on_op_asgn(node)
-          return unless abbreviated_assignment_with_constant_result?(node)
-
-          variable, operation, number = abbreviated_assignment_with_constant_result?(node)
-          result = constant_result?(variable, operation, number)
-          return unless result
+          return unless (lhs, operation, rhs = abbreviated_assignment_with_constant_result?(node))
+          return unless (result = constant_result?(lhs, operation, rhs))
 
           add_offense(node) do |corrector|
-            corrector.replace(node, "#{variable} = #{result}")
+            corrector.replace(node, "#{lhs} = #{result}")
           end
         end
 
         private
 
-        def constant_result?(variable, operation, number)
-          if number.to_s == '0'
+        def constant_result?(lhs, operation, rhs)
+          if rhs.to_s == '0'
             return 0 if operation == :*
             return 1 if operation == :**
-          elsif number == variable
+          elsif rhs == lhs
             return 1 if operation == :/
           end
           # If we weren't able to find any matches, return false so we can bail out.

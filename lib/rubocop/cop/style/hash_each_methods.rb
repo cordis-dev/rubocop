@@ -3,7 +3,7 @@
 module RuboCop
   module Cop
     module Style
-      # Checks for uses of `each_key` and `each_value` Hash methods.
+      # Checks for uses of `each_key` and `each_value` `Hash` methods.
       #
       # NOTE: If you have an array of two-element arrays, you can put
       #   parentheses around the block arguments to indicate that you're not
@@ -44,7 +44,7 @@ module RuboCop
 
         # @!method kv_each(node)
         def_node_matcher :kv_each, <<~PATTERN
-          ({block numblock} $(call (call _ ${:keys :values}) :each) ...)
+          (any_block $(call (call _ ${:keys :values}) :each) ...)
         PATTERN
 
         # @!method each_arguments(node)
@@ -162,10 +162,7 @@ module RuboCop
 
         def use_array_converter_method_as_preceding?(node)
           return false unless (preceding_method = node.children.first.children.first)
-          unless preceding_method.call_type? ||
-                 preceding_method.block_type? || preceding_method.numblock_type?
-            return false
-          end
+          return false unless preceding_method.type?(:call, :any_block)
 
           ARRAY_CONVERTER_METHODS.include?(preceding_method.method_name)
         end

@@ -103,7 +103,7 @@ module RuboCop
           expressions.pop unless in_void_context?(node)
           expressions.each do |expr|
             check_void_op(expr) do
-              block_node = node.each_ancestor(:block).first
+              block_node = node.each_ancestor(:any_block).first
 
               block_node&.method?(:each)
             end
@@ -179,7 +179,7 @@ module RuboCop
         end
 
         def check_nonmutating(node)
-          return if !node.send_type? && !node.block_type? && !node.numblock_type?
+          return unless node.type?(:send, :any_block)
 
           method_name = node.method_name
           return unless NONMUTATING_METHODS.include?(method_name)
@@ -200,11 +200,6 @@ module RuboCop
           return unless (body = node.branch)
           # NOTE: the `begin` node case is already handled via `on_begin`
           return if body.begin_type?
-
-          check_void_op(body) do
-            block_node = node.each_ancestor(:block).first
-            block_node&.method?(:each)
-          end
 
           check_expression(body)
         end

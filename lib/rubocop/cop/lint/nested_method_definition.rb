@@ -102,7 +102,7 @@ module RuboCop
           return unless def_ancestor
 
           within_scoping_def =
-            node.each_ancestor(:block, :numblock, :sclass).any? do |ancestor|
+            node.each_ancestor(:any_block, :sclass).any? do |ancestor|
               scoping_method_call?(ancestor)
             end
 
@@ -129,12 +129,12 @@ module RuboCop
 
         # @!method eval_call?(node)
         def_node_matcher :eval_call?, <<~PATTERN
-          ({block numblock} (send _ {:instance_eval :class_eval :module_eval} ...) ...)
+          (any_block (send _ {:instance_eval :class_eval :module_eval} ...) ...)
         PATTERN
 
         # @!method exec_call?(node)
         def_node_matcher :exec_call?, <<~PATTERN
-          ({block numblock} (send _ {:instance_exec :class_exec :module_exec} ...) ...)
+          (any_block (send _ {:instance_exec :class_exec :module_exec} ...) ...)
         PATTERN
       end
     end
