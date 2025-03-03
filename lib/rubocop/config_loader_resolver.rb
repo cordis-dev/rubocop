@@ -2,16 +2,34 @@
 
 require 'pathname'
 require 'yaml'
+require_relative 'plugin'
 
 module RuboCop
   # A help class for ConfigLoader that handles configuration resolution.
   # @api private
   class ConfigLoaderResolver # rubocop:disable Metrics/ClassLength
+    def resolve_plugins(rubocop_config, plugins)
+      return if (plugins = Array(plugins)).empty?
+
+      Plugin.integrate_plugins(rubocop_config, plugins)
+    end
+
     def resolve_requires(path, hash)
       config_dir = File.dirname(path)
       hash.delete('require').tap do |loaded_features|
         Array(loaded_features).each do |feature|
-          FeatureLoader.load(config_directory_path: config_dir, feature: feature)
+          if Plugin.plugin_capable?(feature)
+            # NOTE: Compatibility for before plugins style.
+            warn Rainbow(<<~MESSAGE).yellow
+              #{feature} extension supports plugin, specify `plugins: #{feature}` instead of `require: #{feature}` in #{path}.
+              For more information, see https://docs.rubocop.org/rubocop/plugin_migration_guide.html.
+            MESSAGE
+            rubocop_config = Config.create(hash, path, check: false)
+
+            resolve_plugins(rubocop_config, feature)
+          else
+            FeatureLoader.load(config_directory_path: config_dir, feature: feature)
+          end
         end
       end
     end
@@ -105,7 +123,7 @@ module RuboCop
         elsif merge_hashes?(base_hash, derived_hash, key)
           result[key] = merge(base_hash[key], derived_hash[key], **opts)
         elsif should_union?(derived_hash, base_hash, opts[:inherit_mode], key)
-          result[key] = base_hash[key] | derived_hash[key]
+          result[key] = Array(base_hash[key]) | Array(derived_hash[key])
         elsif opts[:debug]
           warn_on_duplicate_setting(base_hash, derived_hash, key, **opts)
         end
@@ -157,7 +175,7 @@ module RuboCop
       return false if inherited_file.nil? # Not inheritance resolving merge
       return false if inherited_file.start_with?('..') # Legitimate override
       return false if base_hash[key] == derived_hash[key] # Same value
-      return false if remote_file?(inherited_file) # Can't change
+      return false if PathUtil.remote_file?(inherited_file) # Can't change
 
       Gem.path.none? { |dir| inherited_file.start_with?(dir) } # Can change?
     end
@@ -187,7 +205,7 @@ module RuboCop
     end
 
     def should_union?(derived_hash, base_hash, root_mode, key)
-      return false unless base_hash[key].is_a?(Array)
+      return false unless base_hash[key].is_a?(Array) || derived_hash[key].is_a?(Array)
 
       derived_mode = derived_hash['inherit_mode']
       return false if should_override?(derived_mode, key)
@@ -225,7 +243,7 @@ module RuboCop
     end
 
     def inherited_file(path, inherit_from, file)
-      if remote_file?(inherit_from)
+      if PathUtil.remote_file?(inherit_from)
         # A remote configuration, e.g. `inherit_from: http://example.com/rubocop.yml`.
         RemoteConfig.new(inherit_from, File.dirname(path))
       elsif Pathname.new(inherit_from).absolute?
@@ -243,10 +261,6 @@ module RuboCop
         print 'Inheriting ' if ConfigLoader.debug?
         File.expand_path(inherit_from, File.dirname(path))
       end
-    end
-
-    def remote_file?(uri)
-      uri.start_with?('http://', 'https://')
     end
 
     def remote_config?(file)

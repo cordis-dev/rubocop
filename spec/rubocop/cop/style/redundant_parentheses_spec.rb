@@ -50,6 +50,10 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
   it_behaves_like 'redundant', '(1; 2)', '1; 2', 'a literal'
   it_behaves_like 'redundant', '(1i)', '1i', 'a literal'
   it_behaves_like 'redundant', '(1r)', '1r', 'a literal'
+  it_behaves_like 'redundant', '((1..42))', '(1..42)', 'a literal'
+  it_behaves_like 'redundant', '((1...42))', '(1...42)', 'a literal'
+  it_behaves_like 'redundant', '((1..))', '(1..)', 'a literal'
+  it_behaves_like 'redundant', '((..42))', '(..42)', 'a literal'
   it_behaves_like 'redundant', '(__FILE__)', '__FILE__', 'a keyword'
   it_behaves_like 'redundant', '(__LINE__)', '__LINE__', 'a keyword'
   it_behaves_like 'redundant', '(__ENCODING__)', '__ENCODING__', 'a keyword'
@@ -164,7 +168,12 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
   it_behaves_like 'redundant', '("x".to_sym)', '"x".to_sym', 'a method call'
   it_behaves_like 'redundant', '("x"&.to_sym)', '"x"&.to_sym', 'a method call'
   it_behaves_like 'redundant', '(x[:y])', 'x[:y]', 'a method call'
+  it_behaves_like 'redundant', '(@x[:y])', '@x[:y]', 'a method call'
+  it_behaves_like 'redundant', '(@@x[:y])', '@@x[:y]', 'a method call'
+  it_behaves_like 'redundant', '($x[:y])', '$x[:y]', 'a method call'
+  it_behaves_like 'redundant', '(X[:y])', 'X[:y]', 'a method call'
   it_behaves_like 'redundant', '("foo"[0])', '"foo"[0]', 'a method call'
+  it_behaves_like 'redundant', '(foo[0][0])', 'foo[0][0]', 'a method call'
   it_behaves_like 'redundant', '(["foo"][0])', '["foo"][0]', 'a method call'
   it_behaves_like 'redundant', '({0 => :a}[0])', '{0 => :a}[0]', 'a method call'
   it_behaves_like 'redundant', '(x; y)', 'x; y', 'a method call'
@@ -557,6 +566,8 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
   it_behaves_like 'plausible', 'x + (foo; bar)'
   it_behaves_like 'plausible', 'x((foo; bar))'
 
+  it_behaves_like 'plausible', '(foo[key] & bar.baz).any?'
+
   it 'registers an offense for parens around method body' do
     expect_offense(<<~RUBY)
       def x
@@ -684,6 +695,20 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
 
   it 'accepts parentheses around an erange' do
     expect_no_offenses('(a...b)')
+  end
+
+  it 'accepts parentheses around an irange when a different expression precedes it' do
+    expect_no_offenses(<<~RUBY)
+      do_something
+      (a..b)
+    RUBY
+  end
+
+  it 'accepts parentheses around an erange when a different expression precedes it' do
+    expect_no_offenses(<<~RUBY)
+      do_something
+      (a...b)
+    RUBY
   end
 
   it 'accepts an irange starting is a parenthesized condition' do

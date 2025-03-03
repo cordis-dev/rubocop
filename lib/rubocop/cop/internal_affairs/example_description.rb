@@ -50,10 +50,12 @@ module RuboCop
         }.freeze
 
         EXPECT_NO_CORRECTIONS_DESCRIPTION_MAPPING = {
-          /\A(auto[- ]?)?correct/ => 'does not correct'
+          /\A(auto[- ]?)?corrects?/ => 'does not correct',
+          /\band (auto[- ]?)?corrects/ => 'but does not correct'
         }.freeze
 
         EXPECT_CORRECTION_DESCRIPTION_MAPPING = {
+          /\bbut (does not|doesn't) (auto[- ]?)?correct/ => 'and autocorrects',
           /\b(does not|doesn't) (auto[- ]?)?correct/ => 'autocorrects'
         }.freeze
 
@@ -90,8 +92,10 @@ module RuboCop
           description_text = string_contents(current_description)
           return unless (new_description = correct_description(description_text, description_map))
 
+          quote = current_description.dstr_type? ? '"' : "'"
+
           add_offense(current_description, message: message) do |corrector|
-            corrector.replace(current_description, "'#{new_description}'")
+            corrector.replace(current_description, "#{quote}#{new_description}#{quote}")
           end
         end
 
@@ -106,7 +110,7 @@ module RuboCop
         end
 
         def string_contents(node)
-          node.str_type? ? node.value : node.source
+          node.type?(:str, :dstr) ? node.value : node.source
         end
       end
     end

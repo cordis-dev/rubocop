@@ -17,7 +17,7 @@ do so.
 
 ```console
 $ rubocop -V
-1.71.1 (using Parser 3.3.5.0, rubocop-ast 1.32.3, analyzing as Ruby 3.3, running on ruby 3.3.5) [x86_64-linux]
+1.73.1 (using Parser 3.3.5.0, rubocop-ast 1.32.3, analyzing as Ruby 3.3, running on ruby 3.3.5) [x86_64-linux]
   - rubocop-performance 1.22.1
   - rubocop-rspec 3.1.0
 ```
@@ -36,7 +36,7 @@ $ rubocop -V
 * If your change has a corresponding open GitHub issue, prefix the commit message with `[Fix #github-issue-number]`.
 * Make sure to add tests for it. This is important so I don't break it
   in a future version unintentionally.
-* Add an entry to the [Changelog](CHANGELOG.md) by creating a file `changelog/{type}_{some_description}.md`. See [changelog entry format](#changelog-entry-format) for details.
+* Add a changelog entry by creating a file `changelog/{type}_{some_description}.md`. See [changelog entry format](#changelog-entry-format) for details.
 * Please try not to mess with the Rakefile, version, or history. If
   you want to have your own version, or is otherwise necessary, that
   is fine, but please isolate to its own commit so I can cherry-pick

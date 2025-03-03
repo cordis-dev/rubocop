@@ -8,6 +8,7 @@ require_relative 'internal_affairs/example_description'
 require_relative 'internal_affairs/example_heredoc_delimiter'
 require_relative 'internal_affairs/inherit_deprecated_cop_class'
 require_relative 'internal_affairs/lambda_or_proc'
+require_relative 'internal_affairs/location_exists'
 require_relative 'internal_affairs/location_expression'
 require_relative 'internal_affairs/location_line_equality_comparison'
 require_relative 'internal_affairs/method_name_end_with'
@@ -16,6 +17,7 @@ require_relative 'internal_affairs/node_destructuring'
 require_relative 'internal_affairs/node_first_or_last_argument'
 require_relative 'internal_affairs/node_matcher_directive'
 require_relative 'internal_affairs/node_pattern_groups'
+require_relative 'internal_affairs/node_type_group'
 require_relative 'internal_affairs/node_type_multiple_predicates'
 require_relative 'internal_affairs/node_type_predicate'
 require_relative 'internal_affairs/numblock_handler'
@@ -36,19 +38,3 @@ require_relative 'internal_affairs/style_detected_api_use'
 require_relative 'internal_affairs/undefined_config'
 require_relative 'internal_affairs/useless_message_assertion'
 require_relative 'internal_affairs/useless_restrict_on_send'
-
-module RuboCop
-  # Patch in the InternalAffairs specific config values
-  module InternalAffairs
-    def self.inject!
-      path = File.join(ConfigLoader::RUBOCOP_HOME, 'config', 'internal_affairs.yml')
-      hash = ConfigLoader.load_yaml_configuration(path)
-      config = Config.new(hash, path)
-      puts "configuration from #{path}" if ConfigLoader.debug?
-      config = ConfigLoader.merge_with_default(config, path)
-      ConfigLoader.instance_variable_set(:@default_configuration, config)
-    end
-  end
-end
-
-RuboCop::InternalAffairs.inject!

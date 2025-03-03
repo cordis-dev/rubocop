@@ -243,6 +243,7 @@ module RuboCop
         option(opts, '--init')
         option(opts, '-c', '--config FILE')
         option(opts, '-d', '--debug')
+        option(opts, '--plugin FILE') { |f| plugin_feature(f) }
         option(opts, '-r', '--require FILE') { |f| require_feature(f) }
         option(opts, '--[no-]color')
         option(opts, '-v', '--version')
@@ -299,11 +300,25 @@ module RuboCop
       long_opt[2..].sub('[no-]', '').sub(/ .*/, '').tr('-', '_').gsub(/[\[\]]/, '').to_sym
     end
 
-    def require_feature(file)
-      # If any features were added on the CLI from `--require`,
+    def plugin_feature(file)
+      # If any features were added on the CLI from `--plugin`,
       # add them to the config.
-      ConfigLoader.add_loaded_features(file)
-      require file
+      ConfigLoaderResolver.new.resolve_plugins(Config.new, file)
+    end
+
+    def require_feature(file)
+      if Plugin.plugin_capable?(file)
+        # NOTE: Compatibility for before plugins style.
+        warn Rainbow(<<~MESSAGE).yellow
+          #{file} gem supports plugin, use `--plugin` instead of `--require`.
+        MESSAGE
+        plugin_feature(file)
+      else
+        # If any features were added on the CLI from `--require`,
+        # add them to the config.
+        require file
+        ConfigLoader.add_loaded_features(file)
+      end
     end
   end
 
@@ -397,7 +412,7 @@ module RuboCop
       return if @options[:format] == 'junit'
 
       raise OptionArgumentError,
-            format('--display-only-failed can only be used together with --format junit.')
+            '--display-only-failed can only be used together with --format junit.'
     end
 
     def validate_display_only_correctable_and_autocorrect
@@ -415,14 +430,13 @@ module RuboCop
                 !@options.key?(:display_only_safe_correctable)
 
       raise OptionArgumentError,
-            format('--display-only-failed cannot be used together with other display options.')
+            '--display-only-failed cannot be used together with other display options.'
     end
 
     def validate_lsp_and_editor_mode
       return if !@options.key?(:lsp) || !@options.key?(:editor_mode)
 
-      raise OptionArgumentError,
-            format('Do not specify `--editor-mode` as it is redundant in `--lsp`.')
+      raise OptionArgumentError, 'Do not specify `--editor-mode` as it is redundant in `--lsp`.'
     end
 
     def validate_autocorrect
@@ -436,7 +450,7 @@ module RuboCop
       return unless @options.key?(:disable_uncorrectable)
 
       raise OptionArgumentError,
-            format('--disable-uncorrectable can only be used together with --autocorrect.')
+            '--disable-uncorrectable can only be used together with --autocorrect.'
     end
 
     def disable_parallel_when_invalid_option_combo
@@ -504,6 +518,7 @@ module RuboCop
       only_guide_cops:                  ['Run only cops for rules that link to a',
                                          'style guide.'],
       except:                           'Exclude the given cop(s).',
+      plugin:                           'Load a RuboCop plugin.',
       require:                          'Require Ruby file.',
       config:                           'Specify configuration file.',
       auto_gen_config:                  ['Generate a configuration file acting as a',
@@ -542,8 +557,8 @@ module RuboCop
       only_recognized_file_types:       ['Inspect files given on the command line only if',
                                          'they are listed in `AllCops/Include` parameters',
                                          'of user configuration or default configuration.'],
-      ignore_disable_comments:          ['Run cops even when they are disabled locally',
-                                         'by a `rubocop:disable` directive.'],
+      ignore_disable_comments:          ['Report offenses even if they have been manually disabled',
+                                         'with a `rubocop:disable` or `rubocop:todo` directive.'],
       ignore_parent_exclusion:          ['Prevent from inheriting `AllCops/Exclude` from',
                                          'parent folders.'],
       ignore_unrecognized_cops:         ['Ignore unrecognized cops or departments in the config.'],

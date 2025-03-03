@@ -1765,11 +1765,25 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
         OUTPUT
     end
 
-    it 'prints a warning for an unrecognized configuration parameter' do
+    it 'prints a warning for an unrecognized configuration parameter, ignoring permitted ones' do
       create_file('example/example1.rb', '#' * 90)
 
       create_file('example/.rubocop.yml', <<~YAML)
+        # Default config includes none of Min, Reference, or StyleGuide
+        Layout/AssignmentIndentation:
+          Enabled: true
+          Min: 10
+          StyleGuide: '#assignment-indentation'
+
+        # Default config includes StyleGuide, but neither Min nor Reference
         Layout/LineLength:
+          Enabled: true
+          Min: 10
+          Reference:
+            - 'https://example.com#layout-line-length-decision-log'
+
+        # Default config includes Reference and StyleGuide, but not Min
+        Style/GlobalVars:
           Enabled: true
           Min: 10
       YAML
@@ -1777,6 +1791,12 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
       expect(cli.run(%w[--format simple example])).to eq(1)
 
       expect($stderr.string).to eq(<<~RESULT)
+        Warning: Layout/AssignmentIndentation does not support Min parameter.
+
+        Supported parameters are:
+
+          - Enabled
+          - IndentationWidth
         Warning: Layout/LineLength does not support Min parameter.
 
         Supported parameters are:
@@ -1789,6 +1809,12 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
           - IgnoreCopDirectives
           - AllowedPatterns
           - SplitStrings
+        Warning: Style/GlobalVars does not support Min parameter.
+
+        Supported parameters are:
+
+          - Enabled
+          - AllowedVariables
       RESULT
     end
 
@@ -2047,6 +2073,32 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
         expect($stderr.string).to match(regexp)
       end
     end
+
+    context 'when using `plugins` to enable a plugin' do
+      it 'exits with 0 without warning' do
+        create_file('.rubocop.yml', <<~YAML)
+          plugins:
+            - rubocop-internal_affairs
+        YAML
+
+        expect(cli.run([])).to eq(0)
+        expect($stderr.string).to be_blank
+      end
+    end
+
+    context 'when using `require` to enable a plugin' do
+      it 'exits with 0 with warning' do
+        create_file('.rubocop.yml', <<~YAML)
+          require:
+            - rubocop/cop/internal_affairs
+        YAML
+
+        expect(cli.run([])).to eq(0)
+        expect($stderr.string).to start_with(
+          'rubocop/cop/internal_affairs extension supports plugin'
+        )
+      end
+    end
   end
 
   describe 'obsolete cops' do
@@ -2233,8 +2285,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
       create_file('example.rb', <<~RUBY)
         # frozen_string_literal: true
 
-        if foo and bar
-        end
+        a.foo..b.bar # Lint/AmbiguousRange offense is not safe correctable
       RUBY
       expect(cli.run(['--display-only-safe-correctable', 'example.rb'])).to eq(0)
       expect($stderr.string).to eq('')

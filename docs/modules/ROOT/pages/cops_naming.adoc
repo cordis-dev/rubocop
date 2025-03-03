@@ -201,6 +201,21 @@ NOTE: Requires Ruby version 3.1
 | -
 |===
 
+In Ruby 3.1, anonymous block forwarding has been added.
+
+This cop identifies places where `do_something(&block)` can be replaced
+by `do_something(&)`.
+
+It also supports the opposite style by alternative `explicit` option.
+You can specify the block variable name for autocorrection with `BlockForwardingName`.
+The default variable name is `block`. If the name is already in use, it will not be
+autocorrected.
+
+[NOTE]
+====
+Because of a bug in Ruby 3.3.0, when a block is referenced inside of another block,
+no offense will be registered until Ruby 3.4:
+
 [source,ruby]
 ----
 def foo(&block)
@@ -208,7 +223,7 @@ def foo(&block)
   block_method { bar(&block) }
 end
 ----
---
+====
 
 [#examples-namingblockforwarding]
 === Examples
@@ -1163,6 +1178,10 @@ methods which begin with a forbidden prefix are not allowed, even if
 they end with a `?`. These methods should be changed to remove the
 prefix.
 
+When `UseSorbetSigs` set to true (optional), the cop will only report
+offenses if the method has a Sorbet `sig` with a return type of
+`T::Boolean`. Dynamic methods are not supported with this configuration.
+
 [#examples-namingpredicatename]
 === Examples
 
@@ -1227,6 +1246,40 @@ def is_even?(value)
 end
 ----
 
+[#usesorbetsigs_-false-_default_-namingpredicatename]
+==== UseSorbetSigs: false (default)
+
+[source,ruby]
+----
+# bad
+sig { returns(String) }
+def is_this_thing_on
+  "yes"
+end
+
+# good - Sorbet signature is not evaluated
+sig { returns(String) }
+def is_this_thing_on?
+  "yes"
+end
+----
+
+[#usesorbetsigs_-true-namingpredicatename]
+==== UseSorbetSigs: true
+
+[source,ruby]
+----
+# bad
+sig { returns(T::Boolean) }
+def odd(value)
+end
+
+# good
+sig { returns(T::Boolean) }
+def odd?(value)
+end
+----
+
 [#methoddefinitionmacros_-__define_method__-_define_singleton_method__-_default_-namingpredicatename]
 ==== MethodDefinitionMacros: ['define_method', 'define_singleton_method'] (default)
 
@@ -1272,6 +1325,10 @@ def_node_matcher(:even?) { |value| }
 | MethodDefinitionMacros
 | `define_method`, `define_singleton_method`
 | Array
+
+| UseSorbetSigs
+| `false`
+| Boolean
 
 | Exclude
 | `+spec/**/*+`
@@ -1385,11 +1442,18 @@ end
 | Yes
 | No
 | 0.50
-| 1.8
+| 1.73
 |===
 
-Makes sure that all variables use the configured style,
-snake_case or camelCase, for their names.
+Checks that the configured style (snake_case or camelCase) is used for all variable names.
+This includes local variables, instance variables, class variables, method arguments
+(positional, keyword, rest or block), and block arguments.
+
+The cop can also be configured to forbid using specific names for variables, using
+`ForbiddenIdentifiers` or `ForbiddenPatterns`. In addition to the above, this applies
+to global variables as well.
+
+Method definitions and method calls are not affected by this cop.
 
 [#examples-namingvariablename]
 === Examples
@@ -1433,7 +1497,31 @@ fooBar = 1
 [source,ruby]
 ----
 # good (with EnforcedStyle: camelCase)
-:release_v1
+release_v1 = true
+----
+
+[#forbiddenidentifiers_-__foobar__-namingvariablename]
+==== ForbiddenIdentifiers: ['fooBar']
+
+[source,ruby]
+----
+# bad (in all cases)
+fooBar = 1
+@fooBar = 1
+@@fooBar = 1
+$fooBar = 1
+----
+
+[#forbiddenpatterns_-___v_d__z__-namingvariablename]
+==== ForbiddenPatterns: ['_v\d+\z']
+
+[source,ruby]
+----
+# bad (in all cases)
+release_v1 = true
+@release_v1 = true
+@@release_v1 = true
+$release_v1 = true
 ----
 
 [#configurable-attributes-namingvariablename]
@@ -1451,6 +1539,14 @@ fooBar = 1
 | Array
 
 | AllowedPatterns
+| `[]`
+| Array
+
+| ForbiddenIdentifiers
+| `[]`
+| Array
+
+| ForbiddenPatterns
 | `[]`
 | Array
 |===

@@ -52,7 +52,7 @@ To prevent an unwanted RuboCop update you might want to use a conservative versi
 in your `Gemfile`:
 
 ```rb
-gem 'rubocop', '~> 1.71', require: false
+gem 'rubocop', '~> 1.73', require: false
 ```
 
 See [our versioning policy](https://docs.rubocop.org/rubocop/versioning.html) for further details.
@@ -241,9 +241,9 @@ Become a sponsor and get your logo on our README on GitHub with a link to your s
 <a href="https://opencollective.com/rubocop/organization/28/website" target="_blank"><img src="https://opencollective.com/rubocop/organization/28/avatar.svg"></a>
 <a href="https://opencollective.com/rubocop/organization/29/website" target="_blank"><img src="https://opencollective.com/rubocop/organization/29/avatar.svg"></a>
 
-## Changelog
+## Release Notes
 
-RuboCop's changelog is available [here](CHANGELOG.md).
+RuboCop's release notes are available [here](https://github.com/rubocop/rubocop/releases).
 
 ## Copyright
 

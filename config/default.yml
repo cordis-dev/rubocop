@@ -1685,6 +1685,11 @@ Lint/ConstantResolution:
   # Restrict this cop from only looking at certain names
   Ignore: []
 
+Lint/CopDirectiveSyntax:
+  Description: 'Checks that `# rubocop:` directives are strictly formatted.'
+  Enabled: pending
+  VersionAdded: '1.72'
+
 Lint/Debugger:
   Description: 'Check for debugger calls.'
   Enabled: true
@@ -1882,10 +1887,9 @@ Lint/EmptyConditionalBody:
   Description: 'Checks for the presence of `if`, `elsif` and `unless` branches without a body.'
   Enabled: true
   AutoCorrect: contextual
-  SafeAutoCorrect: false
   AllowComments: true
   VersionAdded: '0.89'
-  VersionChanged: '1.61'
+  VersionChanged: '<<next>>'
 
 Lint/EmptyEnsure:
   Description: 'Checks for empty ensure block.'
@@ -2041,6 +2045,7 @@ Lint/LambdaWithoutLiteralBlock:
 Lint/LiteralAsCondition:
   Description: 'Checks of literals used in conditions.'
   Enabled: true
+  AutoCorrect: contextual
   VersionAdded: '0.51'
 
 Lint/LiteralAssignmentInCondition:
@@ -2254,9 +2259,8 @@ Lint/RedundantRegexpQuantifiers:
 Lint/RedundantRequireStatement:
   Description: 'Checks for unnecessary `require` statement.'
   Enabled: true
-  SafeAutoCorrect: false
   VersionAdded: '0.76'
-  VersionChanged: '1.57'
+  VersionChanged: '1.73'
 
 Lint/RedundantSafeNavigation:
   Description: 'Checks for redundant safe navigation calls.'
@@ -2284,6 +2288,11 @@ Lint/RedundantStringCoercion:
   Enabled: true
   VersionAdded: '0.19'
   VersionChanged: '0.77'
+
+Lint/RedundantTypeConversion:
+  Description: 'Checks for redundantly converting a literal to the same type.'
+  Enabled: pending
+  VersionAdded: '1.72'
 
 Lint/RedundantWithIndex:
   Description: 'Checks for redundant `with_index`.'
@@ -2432,6 +2441,12 @@ Lint/SuppressedException:
   AllowNil: true
   VersionAdded: '0.9'
   VersionChanged: '1.12'
+
+Lint/SuppressedExceptionInNumberConversion:
+  Description: 'Checks for cases where exceptions unrelated to the numeric constructors may be unintentionally swallowed.'
+  Enabled: pending
+  SafeAutoCorrect: false
+  VersionAdded: '1.72'
 
 Lint/SymbolConversion:
   Description: 'Checks for unnecessary symbol conversions.'
@@ -2587,6 +2602,11 @@ Lint/UselessAssignment:
   AutoCorrect: contextual
   VersionAdded: '0.11'
   VersionChanged: '1.66'
+
+Lint/UselessConstantScoping:
+  Description: 'Checks for useless constant scoping.'
+  Enabled: pending
+  VersionAdded: '1.72'
 
 Lint/UselessDefined:
   Description: 'Checks for calls to `defined?` with strings and symbols. The result of such a call will always be truthy.'
@@ -3041,6 +3061,8 @@ Naming/PredicateName:
   MethodDefinitionMacros:
     - define_method
     - define_singleton_method
+  # Use Sorbet's T::Boolean return type to detect predicate methods.
+  UseSorbetSigs: false
   # Exclude Rspec specs because there is a strong convention to write spec
   # helpers in the form of `have_something` or `be_something`.
   Exclude:
@@ -3058,13 +3080,15 @@ Naming/VariableName:
   StyleGuide: '#snake-case-symbols-methods-vars'
   Enabled: true
   VersionAdded: '0.50'
-  VersionChanged: '1.8'
+  VersionChanged: '1.73'
   EnforcedStyle: snake_case
   SupportedStyles:
     - snake_case
     - camelCase
   AllowedIdentifiers: []
   AllowedPatterns: []
+  ForbiddenIdentifiers: []
+  ForbiddenPatterns: []
 
 Naming/VariableNumber:
   Description: 'Use the configured style when numbering symbols, methods and variables.'
@@ -3899,6 +3923,8 @@ Style/EndlessMethod:
     - allow_single_line
     - allow_always
     - disallow
+    - require_single_line
+    - require_always
 
 Style/EnvHome:
   Description: "Checks for consistent usage of `ENV['HOME']`."
@@ -5081,6 +5107,9 @@ Style/RedundantCondition:
   Description: 'Checks for unnecessary conditional expressions.'
   Enabled: true
   VersionAdded: '0.76'
+  VersionChanged: '1.73'
+  AllowedMethods:
+    - nonzero?
 
 Style/RedundantConditional:
   Description: "Don't return true/false from a conditional."
@@ -5144,6 +5173,13 @@ Style/RedundantFilterChain:
   SafeAutoCorrect: false
   VersionAdded: '1.52'
   VersionChanged: '1.57'
+
+Style/RedundantFormat:
+  Description: 'Checks for usages of `Kernel#format` or `Kernel#sprintf` with only a single argument.'
+  Enabled: pending
+  SafeAutoCorrect: false
+  VersionAdded: '1.72'
+  VersionChanged: '1.72'
 
 Style/RedundantFreeze:
   Description: "Checks usages of Object#freeze on immutable objects."
@@ -5671,14 +5707,17 @@ Style/TrailingCommaInArrayLiteral:
   StyleGuide: '#no-trailing-array-commas'
   Enabled: true
   VersionAdded: '0.53'
-  # If `comma`, the cop requires a comma after the last item in an array,
-  # but only when each item is on its own line.
-  # If `consistent_comma`, the cop requires a comma after the last item of all
-  # non-empty, multiline array literals.
+  # If `comma`, the cop requires a comma after the last item in an array, but only when each item is
+  # on its own line.
+  # If `consistent_comma`, the cop requires a comma after the last item of all non-empty, multiline
+  # array literals.
+  # If `diff_comma`, the cop requires a comma after the last item of all non-empty, multiline array
+  # literals, but only when that last item immediately precedes a newline.
   EnforcedStyleForMultiline: no_comma
   SupportedStylesForMultiline:
     - comma
     - consistent_comma
+    - diff_comma
     - no_comma
 
 Style/TrailingCommaInBlockArgs:
@@ -5690,14 +5729,17 @@ Style/TrailingCommaInBlockArgs:
 Style/TrailingCommaInHashLiteral:
   Description: 'Checks for trailing comma in hash literals.'
   Enabled: true
-  # If `comma`, the cop requires a comma after the last item in a hash,
-  # but only when each item is on its own line.
-  # If `consistent_comma`, the cop requires a comma after the last item of all
-  # non-empty, multiline hash literals.
+  # If `comma`, the cop requires a comma after the last item in a hash, but only when each item is
+  # on its own line.
+  # If `consistent_comma`, the cop requires a comma after the last item of all non-empty, multiline
+  # hash literals.
+  # If `diff_comma`, the cop requires a comma after the last item of all non-empty, multiline hash
+  # literals, but only when that last item immediately precedes a newline.
   EnforcedStyleForMultiline: no_comma
   SupportedStylesForMultiline:
     - comma
     - consistent_comma
+    - diff_comma
     - no_comma
   VersionAdded: '0.53'
 

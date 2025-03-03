@@ -18,12 +18,15 @@ module RuboCop
       #   end
       #
       #   # bad
-      #   if some_var && true
+      #   # We're only interested in the left hand side being a truthy literal,
+      #   # because it affects the evaluation of the &&, whereas the right hand
+      #   # side will be conditionally executed/called and can be a literal.
+      #   if true && some_var
       #     do_something
       #   end
       #
       #   # good
-      #   if some_var && some_condition
+      #   if some_var
       #     do_something
       #   end
       #
@@ -34,27 +37,90 @@ module RuboCop
       #   end
       class LiteralAsCondition < Base
         include RangeHelp
+        extend AutoCorrector
 
         MSG = 'Literal `%<literal>s` appeared as a condition.'
         RESTRICT_ON_SEND = [:!].freeze
 
+        def on_and(node)
+          return unless node.lhs.truthy_literal?
+
+          add_offense(node.lhs) do |corrector|
+            corrector.replace(node, node.rhs.source)
+          end
+        end
+
         def on_if(node)
-          check_for_literal(node)
+          cond = condition(node)
+
+          if node.unless?
+            correct_if_node(node, cond, true) if cond.falsey_literal?
+            correct_if_node(node, cond, false) if cond.truthy_literal?
+          else
+            correct_if_node(node, cond, true) if cond.truthy_literal?
+            correct_if_node(node, cond, false) if cond.falsey_literal?
+          end
         end
 
         def on_while(node)
-          return if condition(node).true_type?
+          return if node.condition.source == 'true'
 
-          check_for_literal(node)
+          if node.condition.truthy_literal?
+            add_offense(node.condition) do |corrector|
+              corrector.replace(node.condition, 'true')
+            end
+          elsif node.condition.falsey_literal?
+            add_offense(node.condition) do |corrector|
+              corrector.remove(node)
+            end
+          end
         end
-        alias on_while_post on_while
+
+        # rubocop:disable Metrics/AbcSize
+        def on_while_post(node)
+          return if node.condition.source == 'true'
+
+          if node.condition.truthy_literal?
+            add_offense(node.condition) do |corrector|
+              corrector.replace(node, node.source.sub(node.condition.source, 'true'))
+            end
+          elsif node.condition.falsey_literal?
+            add_offense(node.condition) do |corrector|
+              corrector.replace(node, node.body.child_nodes.map(&:source).join("\n"))
+            end
+          end
+        end
+        # rubocop:enable Metrics/AbcSize
 
         def on_until(node)
-          return if condition(node).false_type?
+          return if node.condition.source == 'false'
 
-          check_for_literal(node)
+          if node.condition.falsey_literal?
+            add_offense(node.condition) do |corrector|
+              corrector.replace(node.condition, 'false')
+            end
+          elsif node.condition.truthy_literal?
+            add_offense(node.condition) do |corrector|
+              corrector.remove(node)
+            end
+          end
         end
-        alias on_until_post on_until
+
+        # rubocop:disable Metrics/AbcSize
+        def on_until_post(node)
+          return if node.condition.source == 'false'
+
+          if node.condition.falsey_literal?
+            add_offense(node.condition) do |corrector|
+              corrector.replace(node, node.source.sub(node.condition.source, 'false'))
+            end
+          elsif node.condition.truthy_literal?
+            add_offense(node.condition) do |corrector|
+              corrector.replace(node, node.body.child_nodes.map(&:source).join("\n"))
+            end
+          end
+        end
+        # rubocop:enable Metrics/AbcSize
 
         def on_case(case_node)
           if case_node.condition
@@ -130,6 +196,8 @@ module RuboCop
 
         def handle_node(node)
           if node.literal?
+            return if node.parent.and_type?
+
             add_offense(node)
           elsif %i[send and or begin].include?(node.type)
             check_node(node)
@@ -159,6 +227,28 @@ module RuboCop
             when_node.conditions.last.source_range.end_pos
           )
         end
+
+        # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+        def correct_if_node(node, cond, result)
+          if result
+            add_offense(cond) do |corrector|
+              corrector.replace(node, node.if_branch.source)
+            end
+          elsif node.elsif_conditional?
+            add_offense(cond) do |corrector|
+              corrector.replace(node, "#{node.else_branch.source.sub('elsif', 'if')}\nend")
+            end
+          elsif node.else? || node.ternary?
+            add_offense(cond) do |corrector|
+              corrector.replace(node, node.else_branch.source)
+            end
+          else
+            add_offense(cond) do |corrector|
+              corrector.remove(node)
+            end
+          end
+        end
+        # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
       end
     end
   end

@@ -32,6 +32,21 @@ RSpec.describe RuboCop::Cop::InternalAffairs::ExampleDescription, :config do
       RUBY
     end
 
+    it 'registers an offense when given an improper description contains string interpolation' do
+      expect_offense(<<~'RUBY')
+        it "does not register an offense #{string_interpolation}" do
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Description does not match use of `expect_offense`.
+          expect_offense('code')
+        end
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        it "registers an offense #{string_interpolation}" do
+          expect_offense('code')
+        end
+      RUBY
+    end
+
     it 'registers an offense when given an improper description with single option' do
       expect_offense(<<~RUBY)
         it 'does not register an offense', :ruby30 do
@@ -140,6 +155,21 @@ RSpec.describe RuboCop::Cop::InternalAffairs::ExampleDescription, :config do
       RUBY
     end
 
+    it 'registers an offense when given an improper description contains string interpolation for `registers`' do
+      expect_offense(<<~'RUBY')
+        it "registers an offense #{string_interpolation}" do
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Description does not match use of `expect_no_offenses`.
+          expect_no_offenses('code')
+        end
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        it "does not register an offense #{string_interpolation}" do
+          expect_no_offenses('code')
+        end
+      RUBY
+    end
+
     it 'does not register an offense when given a proper description' do
       expect_no_offenses(<<~RUBY)
         it 'does not flag' do
@@ -173,6 +203,12 @@ RSpec.describe RuboCop::Cop::InternalAffairs::ExampleDescription, :config do
           expect_correction('code', source: 'new code')
         end
       RUBY
+
+      expect_correction(<<~RUBY)
+        it 'autocorrects' do
+          expect_correction('code', source: 'new code')
+        end
+      RUBY
     end
 
     context 'in conjunction with expect_offense' do
@@ -184,6 +220,13 @@ RSpec.describe RuboCop::Cop::InternalAffairs::ExampleDescription, :config do
             expect_correction('code')
           end
         RUBY
+
+        expect_correction(<<~RUBY)
+          it 'registers an offense and autocorrects' do
+            expect_offense('code')
+            expect_correction('code')
+          end
+        RUBY
       end
 
       context 'when the description is invalid for both methods' do
@@ -191,6 +234,13 @@ RSpec.describe RuboCop::Cop::InternalAffairs::ExampleDescription, :config do
           expect_offense(<<~RUBY)
             it 'does not register an offense and does not autocorrect' do
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Description does not match use of `expect_offense`.
+              expect_offense('code')
+              expect_correction('code')
+            end
+          RUBY
+
+          expect_correction(<<~RUBY)
+            it 'registers an offense and autocorrects' do
               expect_offense('code')
               expect_correction('code')
             end
@@ -208,6 +258,12 @@ RSpec.describe RuboCop::Cop::InternalAffairs::ExampleDescription, :config do
           expect_no_corrections
         end
       RUBY
+
+      expect_correction(<<~RUBY)
+        it 'does not correct' do
+          expect_no_corrections
+        end
+      RUBY
     end
 
     context 'in conjunction with expect_offense' do
@@ -219,7 +275,44 @@ RSpec.describe RuboCop::Cop::InternalAffairs::ExampleDescription, :config do
             expect_no_corrections
           end
         RUBY
+
+        expect_correction(<<~RUBY)
+          it 'does not correct' do
+            expect_offense('code')
+            expect_no_corrections
+          end
+        RUBY
       end
+    end
+
+    it 'registers an offense with a "registers an offense and corrects" description' do
+      expect_offense(<<~RUBY)
+        it 'registers an offense and corrects' do
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Description does not match use of `expect_no_corrections`.
+          expect_no_corrections
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        it 'registers an offense but does not correct' do
+          expect_no_corrections
+        end
+      RUBY
+    end
+
+    it 'registers an offense with a "registers an offense and autocorrects" description' do
+      expect_offense(<<~RUBY)
+        it 'registers an offense and autocorrects' do
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Description does not match use of `expect_no_corrections`.
+          expect_no_corrections
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        it 'registers an offense but does not correct' do
+          expect_no_corrections
+        end
+      RUBY
     end
   end
 

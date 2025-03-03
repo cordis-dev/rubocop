@@ -24,7 +24,7 @@ RSpec.describe RuboCop::Version do
     end
   end
 
-  describe '.extension_versions', :isolated_environment, :restore_registry do
+  describe '.extension_versions', :isolated_environment, :restore_configuration, :restore_registry do
     subject(:extension_versions) { described_class.extension_versions(env) }
 
     let(:env) { instance_double(RuboCop::CLI::Environment, config_store: config_store) }
@@ -143,7 +143,7 @@ RSpec.describe RuboCop::Version do
       end
 
       before do
-        allow(config).to receive(:loaded_features).and_return(known_features)
+        allow(config).to receive_messages(loaded_plugins: [], loaded_features: known_features)
         allow(config_store).to receive(:for_dir).and_return(config)
 
         stub_const('RuboCop::GraphQL::Version::STRING', '1.0.0')

@@ -117,15 +117,14 @@ RSpec.describe RuboCop::Cop::Lint::MixedCaseRange, :config do
     RUBY
   end
 
-  it 'registers an offense for nested (intersected) unsafe ranges' do
+  it 'registers an offense for negated ranges' do
     expect_offense(<<~RUBY)
-      foo = /[_A-z;&&[^G-f]]/
-                       ^^^ #{message}
+      foo = /[^G-f]/
                ^^^ #{message}
     RUBY
 
     expect_correction(<<~RUBY)
-      foo = /[_A-Za-z;&&[^G-Za-f]]/
+      foo = /[^G-Za-f]/
     RUBY
   end
 
@@ -225,6 +224,12 @@ RSpec.describe RuboCop::Cop::Lint::MixedCaseRange, :config do
   it 'does not register an offense with nested character class' do
     expect_no_offenses(<<~RUBY)
       foo = /[a-[bc]]/
+    RUBY
+  end
+
+  it 'does not register an offense with `/[[ ]]/' do
+    expect_no_offenses(<<~RUBY)
+      /[[ ]]/
     RUBY
   end
 

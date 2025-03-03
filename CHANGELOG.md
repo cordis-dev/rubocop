@@ -11,6 +11,114 @@
 
 ## master (unreleased)
 
+## 1.73.1 (2025-02-27)
+
+### Bug fixes
+
+* [#13920](https://github.com/rubocop/rubocop/issues/13920): Fix an error for `Lint/MixedCaseRange` when `/[[ ]]/` is used. ([@koic][])
+* [#13912](https://github.com/rubocop/rubocop/pull/13912): Fix wrong autocorrect for `Lint/EmptyConditionalBody` when assigning to a variable with only a single branch. ([@earlopain][])
+* [#13913](https://github.com/rubocop/rubocop/issues/13913): Fix false positives for `Style/RedundantCondition` when using when true is used as the true branch and the condition is not a predicate method. ([@koic][])
+* [#13909](https://github.com/rubocop/rubocop/issues/13909): Fix false positive with `Layout/ClosingParenthesisIndentation` when first parameter is a hash. ([@tejasbubane][])
+* [#13915](https://github.com/rubocop/rubocop/pull/13915): Fix writing generics type of rbs-inline annotation for nested class in `Style/CommentedKeyword`. ([@dak2][])
+* [#13916](https://github.com/rubocop/rubocop/issues/13916): Fix `Lint/LiteralAsCondition` acting on the right hand side of && nodes. ([@zopolis4][])
+
+## 1.73.0 (2025-02-26)
+
+### New features
+
+* [#11024](https://github.com/rubocop/rubocop/issues/11024): Add `require_always` option to `Style/EndlessMethod`. ([@koic][])
+* [#11024](https://github.com/rubocop/rubocop/issues/11024): Add `require_single_line` option to `Style/EndlessMethod`. ([@jtannas][])
+* [#9935](https://github.com/rubocop/rubocop/issues/9935): Introduce EnforcedStyleForMultiline "diff_comma". ([@flavorjones][])
+
+### Bug fixes
+
+* [#13867](https://github.com/rubocop/rubocop/issues/13867): Fix an error for plugins when not running RuboCop through Bundler. ([@earlopain][])
+* [#13902](https://github.com/rubocop/rubocop/pull/13902): Fix false negative for `Style/RedundantSelfAssignment` when the method receives a block. ([@vlad-pisanov][])
+* [#13826](https://github.com/rubocop/rubocop/issues/13826): Fix false positives for regex cops when `Lint/MixedCaseRange` is enabled. ([@earlopain][])
+* [#13818](https://github.com/rubocop/rubocop/issues/13818): Fix false positives for `Lint/Void` when using operator method call without argument. ([@koic][])
+* [#13896](https://github.com/rubocop/rubocop/pull/13896): Fix a false positive for `Style/TrivialAccessors` with `instance_eval` and numblocks. ([@earlopain][])
+* [#13910](https://github.com/rubocop/rubocop/pull/13910): Fix false positives for `Style/EndlessMethod` when using setter method definitions. ([@koic][])
+* [#13889](https://github.com/rubocop/rubocop/pull/13889): Fix autocorrection for `Layout/LineLength` with interpolated strings when not on the first line. ([@dvandersluis][])
+* [#13900](https://github.com/rubocop/rubocop/issues/13900): Fix infinite loop between `Layout/EmptyLinesAroundAccessModifier` and `Layout/EmptyLinesAroundBlockBody` with `EnforcedStyle: no_empty_lines`. ([@dvandersluis][])
+* [#12692](https://github.com/rubocop/rubocop/issues/12692): Fix `Style/AccessorGrouping` with constants. ([@tejasbubane][])
+* [#13882](https://github.com/rubocop/rubocop/issues/13882): Fix `Style/RedundantFormat` for annotated template strings with missing hash keys. ([@dvandersluis][])
+* [#13880](https://github.com/rubocop/rubocop/issues/13880): Fix `Style/RedundantFormat` when given double-splatted arguments. ([@dvandersluis][])
+* [#13907](https://github.com/rubocop/rubocop/pull/13907): Don't offer autocorrect for `Style/StringConcatenation` when numblocks are used. ([@earlopain][])
+* [#13876](https://github.com/rubocop/rubocop/issues/13876): Don't consider `require 'pp'` to be redundant for `Lint/RedundantRequireStatement`. ([@earlopain][])
+* [#13885](https://github.com/rubocop/rubocop/issues/13885): Update `Style/HashExcept` and `Style/HashSlice` to not register an offense if selecting over the hash value. ([@dvandersluis][])
+
+### Changes
+
+* [#12948](https://github.com/rubocop/rubocop/issues/12948): Add `ForbiddenNames` configuration to `Naming/VariableName` to specify names that are forbidden. ([@dvandersluis][])
+* [#13117](https://github.com/rubocop/rubocop/issues/13117): Add partial autocorrect support to `Lint/LiteralAsCondition` cop to check for redundant conditions. ([@zopolis4][])
+* [#13892](https://github.com/rubocop/rubocop/pull/13892): Allow merging of configured arrays and non-arrays. ([@sambostock][])
+* [#13833](https://github.com/rubocop/rubocop/pull/13833): Add `Reference` to common params. ([@sambostock][])
+* [#13890](https://github.com/rubocop/rubocop/pull/13890): Update `Lint/RedundantTypeConversion` to not register an offense when given a constructor with `exception: false`. ([@dvandersluis][])
+* [#13729](https://github.com/rubocop/rubocop/pull/13729): Update `Style/RedundantCondition` cop to detect conditional expressions where the true branch is `true` and suggest replacing them with a logical OR. ([@datpmt][])
+
+## 1.72.2 (2025-02-17)
+
+### Bug fixes
+
+* [#13853](https://github.com/rubocop/rubocop/pull/13853): Fix exclusion of relative paths in plugin's `AllCops: Exclude` as expected. ([@koic][])
+* [#13844](https://github.com/rubocop/rubocop/issues/13844): Fix an error for `Style/RedundantFormat` when a template argument is used without keyword arguments. ([@koic][])
+* [#13857](https://github.com/rubocop/rubocop/pull/13857): Fix an error for `Style/RedundantFormat` when numeric placeholders is used in the template argument. ([@koic][])
+* [#13861](https://github.com/rubocop/rubocop/issues/13861): Fix `ArgumentError` related to two deprecated `AllowedPattern` APIs. ([@koic][])
+* [#13849](https://github.com/rubocop/rubocop/issues/13849): Fix an error for `Lint/UselessConstantScoping` when multiple assigning to constants after `private` access modifier. ([@koic][])
+* [#13856](https://github.com/rubocop/rubocop/issues/13856): Fix false positives for `Lint/UselessConstantScoping` when a constant is used after `private` access modifier with arguments. ([@koic][])
+
+### Changes
+
+* [#13846](https://github.com/rubocop/rubocop/issues/13846): Mark `Style/RedundantFormat` as unsafe autocorrect. ([@koic][])
+
+## 1.72.1 (2025-02-15)
+
+### Bug fixes
+
+* [#13836](https://github.com/rubocop/rubocop/issues/13836): Fix an error for `Style/RedundantParentheses` when a different expression appears before a range literal. ([@koic][])
+* [#13839](https://github.com/rubocop/rubocop/issues/13839): Fix false positives for `Lint/RedundantTypeConversion` when passing block arguments when generating a Hash or a Set. ([@koic][])
+
+### Changes
+
+* [#13839](https://github.com/rubocop/rubocop/pull/13839): Extension plugin is loaded automatically with `require 'rubocop/rspec/support'. ([@koic][])
+
+## 1.72.0 (2025-02-14)
+
+### New features
+
+* [#13740](https://github.com/rubocop/rubocop/pull/13740): Add new `Lint/CopDirectiveSyntax` cop. ([@kyanagi][])
+* [#13800](https://github.com/rubocop/rubocop/issues/13800): Add new `Lint/SuppressedExceptionInNumberConversion` cop. ([@koic][])
+* [#13702](https://github.com/rubocop/rubocop/pull/13702): Add new `Lint/RedundantTypeConversion` cop. ([@dvandersluis][])
+* [#13831](https://github.com/rubocop/rubocop/pull/13831): Add new `Lint/UselessConstantScoping` cop. ([@koic][])
+* [#13793](https://github.com/rubocop/rubocop/pull/13793): Add new `Style/RedundantFormat` cop to check for uses of `format` or `sprintf` with only a single string argument. ([@dvandersluis][])
+* [#13581](https://github.com/rubocop/rubocop/pull/13581): Add new `InternalAffairs/LocationExists` cop to check for code that can be replaced with `Node#loc?` or `Node#loc_is?`. ([@dvandersluis][])
+* [#13661](https://github.com/rubocop/rubocop/issues/13661): Make server mode detect local paths in .rubocop.yml under `inherit_from` and `require` for automatically restart. ([@koic][])
+* [#13721](https://github.com/rubocop/rubocop/pull/13721): `Naming/PredicateName`: Optionally use Sorbet to detect predicate methods. ([@issyl0][])
+* [#6012](https://github.com/rubocop/rubocop/issues/6012): Support RuboCop extension plugin. ([@koic][])
+
+### Bug fixes
+
+* [#13807](https://github.com/rubocop/rubocop/issues/13807): Fix false negatives for `Style/RedundantParentheses` when chaining `[]` method calls. ([@koic][])
+* [#13788](https://github.com/rubocop/rubocop/issues/13788): Fix false negatives for `Style/RedundantParentheses` when `[]` method is called with variable or constant receivers. ([@koic][])
+* [#13811](https://github.com/rubocop/rubocop/issues/13811): Fix false negatives for `Style/RedundantParentheses` when handling range literals with redundant parentheses. ([@koic][])
+* [#13796](https://github.com/rubocop/rubocop/pull/13796): Fix crash in `Layout/EmptyLinesAroundMethodBody` for endless methods. ([@dvandersluis][])
+* [#13817](https://github.com/rubocop/rubocop/pull/13817): Fix false positive for format specifier with non-numeric precision. ([@dvandersluis][])
+* [#12672](https://github.com/rubocop/rubocop/issues/12672): Fix false positives for `Lint/FormatParameterMismatch` when the width value is interpolated. ([@dvandersluis][])
+* [#12795](https://github.com/rubocop/rubocop/issues/12795): Fix `Layout/BlockAlignment` for blocks that are the body of an endless method. ([@dvandersluis][])
+* [#13822](https://github.com/rubocop/rubocop/pull/13822): Fix undefined method Logger when processing watched file notifications. ([@vinistock][])
+* [#13805](https://github.com/rubocop/rubocop/pull/13805): Make the language_server-protocol dependency version stricter. ([@koic][])
+
+## 1.71.2 (2025-02-04)
+
+### Bug fixes
+
+* [#13782](https://github.com/rubocop/rubocop/pull/13782): Fix an error `Layout/ElseAlignment` when `else` is part of a numblock. ([@earlopain][])
+* [#13395](https://github.com/rubocop/rubocop/issues/13395): Fix a false positive for `Lint/UselessAssignment` when assigning in branch and block. ([@pCosta99][])
+* [#13783](https://github.com/rubocop/rubocop/pull/13783): Fix a false positive for `Lint/Void` when `each` numblock with conditional expressions that has multiple statements. ([@earlopain][])
+* [#13787](https://github.com/rubocop/rubocop/issues/13787): Fix incorrect autocorrect for `Style/ExplicitBlockArgument` when using arguments of `zsuper` in method definition. ([@koic][])
+* [#13785](https://github.com/rubocop/rubocop/pull/13785): Fix `Style/EachWithObject` cop error in case of single block argument. ([@viralpraxis][])
+* [#13781](https://github.com/rubocop/rubocop/pull/13781): Fix a false positive for `Lint/UnmodifiedReduceAccumulator` when omitting the accumulator in a nested numblock. ([@earlopain][])
+
 ## 1.71.1 (2025-01-31)
 
 ### Bug fixes
@@ -8254,3 +8362,7 @@
 [@kyanagi]: https://github.com/kyanagi
 [@capncavedan]: https://github.com/capncavedan
 [@d4rky-pl]: https://github.com/d4rky-pl
+[@vinistock]: https://github.com/vinistock
+[@datpmt]: https://github.com/datpmt
+[@jtannas]: https://github.com/jtannas
+[@flavorjones]: https://github.com/flavorjones

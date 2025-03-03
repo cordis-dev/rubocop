@@ -33,13 +33,14 @@ module RuboCop
       attr_accessor :debug, :ignore_parent_exclusion, :disable_pending_cops, :enable_pending_cops,
                     :ignore_unrecognized_cops
       attr_writer :default_configuration
-      attr_reader :loaded_features
+      attr_reader :loaded_plugins, :loaded_features
 
       alias debug? debug
       alias ignore_parent_exclusion? ignore_parent_exclusion
 
       def clear_options
         @debug = nil
+        @loaded_plugins = Set.new
         @loaded_features = Set.new
         @disable_pending_cops = nil
         @enable_pending_cops = nil
@@ -48,10 +49,16 @@ module RuboCop
         FileFinder.root_level = nil
       end
 
+      # rubocop:disable Metrics/AbcSize
       def load_file(file, check: true)
         path = file_path(file)
 
         hash = load_yaml_configuration(path)
+
+        rubocop_config = Config.create(hash, path, check: false)
+        plugins = hash.delete('plugins')
+        loaded_plugins = resolver.resolve_plugins(rubocop_config, plugins)
+        add_loaded_plugins(loaded_plugins)
 
         loaded_features = resolver.resolve_requires(path, hash)
         add_loaded_features(loaded_features)
@@ -67,6 +74,7 @@ module RuboCop
 
         Config.create(hash, path, check: check)
       end
+      # rubocop:enable Metrics/AbcSize
 
       def load_yaml_configuration(absolute_path)
         file_contents = read_file(absolute_path)
@@ -155,14 +163,35 @@ module RuboCop
         end
       end
 
-      # @api private
-      def inject_defaults!(project_root)
-        path = File.join(project_root, 'config', 'default.yml')
-        config = load_file(path)
-        new_config = ConfigLoader.merge_with_default(config, path)
-        puts "configuration from #{path}" if debug?
-        @default_configuration = new_config
+      # This API is primarily intended for testing and documenting plugins.
+      # When testing a plugin using `rubocop/rspec/support`, the plugin is loaded automatically,
+      # so this API is usually not needed. It is intended to be used only when implementing tests
+      # that do not use `rubocop/rspec/support`.
+      # rubocop:disable Metrics/MethodLength
+      def inject_defaults!(config_yml_path)
+        if Pathname(config_yml_path).directory?
+          # TODO: Since the warning noise is expected to be high until some time after the release,
+          # warnings will only be issued when `RUBYOPT=-w` is specified.
+          # To proceed step by step, the next step is to remove `$VERBOSE` and always issue warning.
+          # Eventually, `project_root` will no longer be accepted.
+          if $VERBOSE
+            warn Rainbow(<<~MESSAGE).yellow, uplevel: 1
+              Use config YAML file path instead of project root directory.
+              e.g., `path/to/config/default.yml`
+            MESSAGE
+          end
+          # NOTE: For compatibility.
+          project_root = config_yml_path
+          path = File.join(project_root, 'config', 'default.yml')
+          config = load_file(path)
+        else
+          hash = ConfigLoader.load_yaml_configuration(config_yml_path.to_s)
+          config = Config.new(hash, config_yml_path).tap(&:make_excludes_absolute)
+        end
+
+        @default_configuration = ConfigLoader.merge_with_default(config, path)
       end
+      # rubocop:enable Metrics/MethodLength
 
       # Returns the path RuboCop inferred as the root of the project. No file
       # searches will go past this directory.
@@ -194,6 +223,13 @@ module RuboCop
       # Merges the given configuration with the default one.
       def merge_with_default(config, config_file, unset_nil: true)
         resolver.merge_with_default(config, config_file, unset_nil: unset_nil)
+      end
+
+      # @api private
+      # Used to add plugins that were required inside a config or from
+      # the CLI using `--plugin`.
+      def add_loaded_plugins(loaded_plugins)
+        @loaded_plugins.merge(Array(loaded_plugins))
       end
 
       # @api private

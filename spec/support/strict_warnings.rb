@@ -13,7 +13,6 @@ module StrictWarnings
   SUPPRESSED_WARNINGS = Regexp.union(
     %r{lib/parser/builders/default.*Unknown escape},
     %r{lib/parser/builders/default.*character class has duplicated range},
-    %r{lib/webmock/.*Net::HTTPSession}, # https://github.com/bblimke/webmock/pull/1081
     /Float.*out of range/, # also from the parser gem
     /`Process` does not respond to `fork` method/, # JRuby
     /File#readline accesses caller method's state and should not be aliased/, # JRuby, test stub
@@ -22,7 +21,8 @@ module StrictWarnings
     /`inspect_file` is deprecated\. Use `investigate` instead\./, # RuboCop's deprecated API in spec
     /`forces` is deprecated./, # RuboCop's deprecated API in spec
     /`support_autocorrect\?` is deprecated\./, # RuboCop's deprecated API in spec
-    /`Cop\.registry` is deprecated\./ # RuboCop's deprecated API in spec
+    /`Cop\.registry` is deprecated\./, # RuboCop's deprecated API in spec
+    /Specify `rubocop-internal_affairs` instead/ # RuboCop's obsolete internal plugin name
   )
 
   def warn(message, ...)

@@ -1,11 +1,12 @@
 # This is the configuration used to check the rubocop source code.
 
 inherit_from: .rubocop_todo.yml
-require:
-  - rubocop/cop/internal_affairs
+
+plugins:
+  - rubocop-internal_affairs
   - rubocop-performance
-  - rubocop-rspec
   - rubocop-rake
+  - rubocop-rspec
 
 AllCops:
   NewCops: enable
@@ -199,17 +200,7 @@ Performance/StartWith:
 RSpec/StubbedMock:
   Enabled: false
 
-InternalAffairs/ExampleDescription:
-  Include:
-    - 'spec/rubocop/cop/**/*.rb'
-
-InternalAffairs/ExampleHeredocDelimiter:
-  Include:
-    - 'spec/rubocop/cop/**/*.rb'
-
 InternalAffairs/UndefinedConfig:
-  Include:
-    - 'lib/rubocop/cop/**/*.rb'
   Exclude:
     - 'lib/rubocop/cop/correctors/**/*.rb'
     - 'lib/rubocop/cop/mixin/**/*.rb'
@@ -223,8 +214,6 @@ InternalAffairs/NumblockHandler:
     - 'lib/rubocop/cop/internal_affairs/*.rb'
 
 InternalAffairs/OnSendWithoutOnCSend:
-  Include:
-    - 'lib/rubocop/cop/**/*.rb'
   Exclude:
     - 'lib/rubocop/cop/bundler/**/*.rb'
     - 'lib/rubocop/cop/gemspec/**/*.rb'
@@ -305,6 +294,7 @@ InternalAffairs/OnSendWithoutOnCSend:
     - 'lib/rubocop/cop/style/nested_file_dirname.rb'
     - 'lib/rubocop/cop/style/random_with_offset.rb'
     - 'lib/rubocop/cop/style/redundant_array_constructor.rb'
+    - 'lib/rubocop/cop/style/redundant_format.rb'
     - 'lib/rubocop/cop/style/redundant_freeze.rb'
     - 'lib/rubocop/cop/style/redundant_interpolation_unfreeze.rb'
     - 'lib/rubocop/cop/style/redundant_regexp_constructor.rb'

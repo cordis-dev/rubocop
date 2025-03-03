@@ -514,6 +514,39 @@ NOTE: Requires Ruby version 2.7
 | 1.58
 |===
 
+In Ruby 2.7, arguments forwarding has been added.
+
+This cop identifies places where `do_something(*args, &block)`
+can be replaced by `do_something(...)`.
+
+In Ruby 3.1, anonymous block forwarding has been added.
+
+This cop identifies places where `do_something(&block)` can be replaced
+by `do_something(&)`; if desired, this functionality can be disabled
+by setting `UseAnonymousForwarding: false`.
+
+In Ruby 3.2, anonymous args/kwargs forwarding has been added.
+
+This cop also identifies places where `use_args(*args)`/`use_kwargs(**kwargs)` can be
+replaced by `use_args(*)`/`use_kwargs(**)`; if desired, this functionality can be disabled
+by setting `UseAnonymousForwarding: false`.
+
+And this cop has `RedundantRestArgumentNames`, `RedundantKeywordRestArgumentNames`,
+and `RedundantBlockArgumentNames` options. This configuration is a list of redundant names
+that are sufficient for anonymizing meaningless naming.
+
+Meaningless names that are commonly used can be anonymized by default:
+e.g., `*args`, `**options`, `&block`, and so on.
+
+Names not on this list are likely to be meaningful and are allowed by default.
+
+This cop handles not only method forwarding but also forwarding to `super`.
+
+[NOTE]
+====
+Because of a bug in Ruby 3.3.0, when a block is referenced inside of another block,
+no offense will be registered until Ruby 3.4:
+
 [source,ruby]
 ----
 def foo(&block)
@@ -521,7 +554,7 @@ def foo(&block)
   block_method { bar(&block) }
 end
 ----
---
+====
 
 [#examples-styleargumentsforwarding]
 === Examples
@@ -4588,8 +4621,11 @@ NOTE: Requires Ruby version 3.0
 
 Checks for endless methods.
 
-It can enforce either the use of endless methods definitions
-for single-lined method bodies, or disallow endless methods.
+It can enforce endless method definitions whenever possible or with single line methods.
+It can also disallow multiline endless method definitions or all endless definitions.
+
+`require_single_line` style enforces endless method definitions for single line methods.
+`require_always` style enforces endless method definitions for single statement methods.
 
 Other method definition types are not considered by this cop.
 
@@ -4598,6 +4634,8 @@ The supported styles are:
 * allow_single_line (default) - only single line endless method definitions are allowed.
 * allow_always - all endless method definitions are allowed.
 * disallow - all endless method definitions are disallowed.
+* require_single_line - endless method definitions are required for single line methods.
+* require_always - all endless method definitions are required.
 
 NOTE: Incorrect endless method definitions will always be
 corrected to a multi-line definition.
@@ -4610,13 +4648,25 @@ corrected to a multi-line definition.
 
 [source,ruby]
 ----
-# good
-def my_method() = x
-
 # bad, multi-line endless method
-def my_method() = x.foo
-                   .bar
-                   .baz
+def my_method = x.foo
+                 .bar
+                 .baz
+
+# good
+def my_method
+  x
+end
+
+# good
+def my_method = x
+
+# good
+def my_method
+  x.foo
+   .bar
+   .baz
+end
 ----
 
 [#enforcedstyle_-allow_always-styleendlessmethod]
@@ -4625,12 +4675,24 @@ def my_method() = x.foo
 [source,ruby]
 ----
 # good
-def my_method() = x
+def my_method
+  x
+end
 
 # good
-def my_method() = x.foo
-                   .bar
-                   .baz
+def my_method = x
+
+# good
+def my_method = x.foo
+                 .bar
+                 .baz
+
+# good
+def my_method
+  x.foo
+   .bar
+   .baz
+end
 ----
 
 [#enforcedstyle_-disallow-styleendlessmethod]
@@ -4639,12 +4701,76 @@ def my_method() = x.foo
 [source,ruby]
 ----
 # bad
-def my_method() = x
+def my_method = x
 
 # bad
-def my_method() = x.foo
-                   .bar
-                   .baz
+def my_method = x.foo
+                 .bar
+                 .baz
+
+# good
+def my_method
+  x
+end
+
+# good
+def my_method
+  x.foo
+   .bar
+   .baz
+end
+----
+
+[#enforcedstyle_-require_single_line-styleendlessmethod]
+==== EnforcedStyle: require_single_line
+
+[source,ruby]
+----
+# bad
+def my_method
+  x
+end
+
+# bad
+def my_method = x.foo
+                 .bar
+                 .baz
+
+# good
+def my_method = x
+
+# good
+def my_method
+  x.foo
+   .bar
+   .baz
+end
+----
+
+[#enforcedstyle_-require_always-styleendlessmethod]
+==== EnforcedStyle: require_always
+
+[source,ruby]
+----
+# bad
+def my_method
+  x
+end
+
+# bad
+def my_method
+  x.foo
+   .bar
+   .baz
+end
+
+# good
+def my_method = x
+
+# good
+def my_method = x.foo
+                 .bar
+                 .baz
 ----
 
 [#configurable-attributes-styleendlessmethod]
@@ -4655,7 +4781,7 @@ def my_method() = x.foo
 
 | EnforcedStyle
 | `allow_single_line`
-| `allow_single_line`, `allow_always`, `disallow`
+| `allow_single_line`, `allow_always`, `disallow`, `require_single_line`, `require_always`
 |===
 
 [#references-styleendlessmethod]
@@ -12712,7 +12838,7 @@ Checks for usage of the %W() syntax when %w() would do.
 | Yes
 | Always
 | 0.76
-| -
+| 1.73
 |===
 
 Checks for unnecessary conditional expressions.
@@ -12757,7 +12883,43 @@ if b
 elsif cond
   c
 end
+
+# bad
+a.nil? ? true : a
+
+# good
+a.nil? || a
+
+# bad
+if a.nil?
+  true
+else
+  a
+end
+
+# good
+a.nil? || a
 ----
+
+[#allowedmethods_-__nonzero___-_default_-styleredundantcondition]
+==== AllowedMethods: ['nonzero?'] (default)
+
+[source,ruby]
+----
+# good
+num.nonzero? ? true : false
+----
+
+[#configurable-attributes-styleredundantcondition]
+=== Configurable attributes
+
+|===
+| Name | Default value | Configurable values
+
+| AllowedMethods
+| `nonzero?`
+| Array
+|===
 
 [#styleredundantconditional]
 == Style/RedundantConditional
@@ -13200,6 +13362,66 @@ arr.select { |x| x > 1 }.present?
 
 # good
 arr.any? { |x| x > 1 }
+----
+
+[#styleredundantformat]
+== Style/RedundantFormat
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| Always (Unsafe)
+| 1.72
+| 1.72
+|===
+
+Checks for calls to `Kernel#format` or `Kernel#sprintf` that are redundant.
+
+Calling `format` with only a single string argument is redundant, as it can be
+replaced by the string itself.
+
+Also looks for `format` calls where the arguments are literals that can be
+inlined into a string easily. This applies to the `%s`, `%d`, `%i`, `%u`, and
+`%f` format specifiers.
+
+[#safety-styleredundantformat]
+=== Safety
+
+This cop's autocorrection is unsafe because string object returned by
+`format` and `sprintf` are never frozen. If `format('string')` is autocorrected to
+`'string'`, `FrozenError` may occur when calling a destructive method like `String#<<`.
+Consider using `'string'.dup` instead of `format('string')`.
+Additionally, since the necessity of `dup` cannot be determined automatically,
+this autocorrection is inherently unsafe.
+
+[source,ruby]
+----
+# frozen_string_literal: true
+
+format('template').frozen? # => false
+'template'.frozen?         # => true
+----
+
+[#examples-styleredundantformat]
+=== Examples
+
+[source,ruby]
+----
+# bad
+format('the quick brown fox jumps over the lazy dog.')
+sprintf('the quick brown fox jumps over the lazy dog.')
+
+# good
+'the quick brown fox jumps over the lazy dog.'
+
+# bad
+format('%s %s', 'foo', 'bar')
+sprintf('%s %s', 'foo', 'bar')
+
+# good
+'foo bar'
 ----
 
 [#styleredundantfreeze]
@@ -15625,9 +15847,9 @@ It will accept single-line methods with no body.
 
 Endless methods added in Ruby 3.0 are also accepted by this cop.
 
-If `Style/EndlessMethod` is enabled with `EnforcedStyle: allow_single_line` or
-`allow_always`, single-line methods will be autocorrected to endless
-methods if there is only one statement in the body.
+If `Style/EndlessMethod` is enabled with `EnforcedStyle: allow_single_line`, `allow_always`,
+`require_single_line`, or `require_always`, single-line methods will be autocorrected
+to endless methods if there is only one statement in the body.
 
 [#examples-stylesinglelinemethods]
 === Examples
@@ -17459,12 +17681,13 @@ method(
 Checks for trailing comma in array literals.
 The configuration options are:
 
-* `consistent_comma`: Requires a comma after the
-last item of all non-empty, multiline array literals.
-* `comma`: Requires a comma after last item in an array,
-but only when each item is on its own line.
-* `no_comma`: Does not require a comma after the
-last item in an array
+* `consistent_comma`: Requires a comma after the last item of all non-empty, multiline array
+literals.
+* `comma`: Requires a comma after the last item in an array, but only when each item is on
+its own line.
+* `diff_comma`: Requires a comma after the last item in an array, but only when that item is
+followed by an immediate newline.
+* `no_comma`: Does not require a comma after the last item in an array
 
 [#examples-styletrailingcommainarrayliteral]
 === Examples
@@ -17496,6 +17719,14 @@ a = [
   1,
   2,
 ]
+
+# bad
+a = [1, 2,
+     3, 4]
+
+# good
+a = [1, 2,
+     3, 4,]
 ----
 
 [#enforcedstyleformultiline_-comma-styletrailingcommainarrayliteral]
@@ -17538,6 +17769,43 @@ a = [
 ]
 ----
 
+[#enforcedstyleformultiline_-diff_comma-styletrailingcommainarrayliteral]
+==== EnforcedStyleForMultiline: diff_comma
+
+[source,ruby]
+----
+# bad
+a = [1, 2,]
+
+# good
+a = [1, 2]
+
+# good
+a = [
+  1, 2,
+  3,
+]
+
+# good
+a = [
+  1, 2, 3,
+]
+
+# good
+a = [
+  1,
+  2,
+]
+
+# bad
+a = [1, 2,
+     3, 4,]
+
+# good
+a = [1, 2,
+     3, 4]
+----
+
 [#enforcedstyleformultiline_-no_comma-_default_-styletrailingcommainarrayliteral]
 ==== EnforcedStyleForMultiline: no_comma (default)
 
@@ -17561,7 +17829,7 @@ a = [
 
 | EnforcedStyleForMultiline
 | `no_comma`
-| `comma`, `consistent_comma`, `no_comma`
+| `comma`, `consistent_comma`, `diff_comma`, `no_comma`
 |===
 
 [#references-styletrailingcommainarrayliteral]
@@ -17662,12 +17930,13 @@ end
 Checks for trailing comma in hash literals.
 The configuration options are:
 
-* `consistent_comma`: Requires a comma after the
-last item of all non-empty, multiline hash literals.
-* `comma`: Requires a comma after the last item in a hash,
-but only when each item is on its own line.
-* `no_comma`: Does not require a comma after the
-last item in a hash
+* `consistent_comma`: Requires a comma after the last item of all non-empty, multiline hash
+literals.
+* `comma`: Requires a comma after the last item in a hash, but only when each item is on its
+own line.
+* `diff_comma`: Requires a comma after the last item in a hash, but only when that item is
+followed by an immediate newline.
+* `no_comma`: Does not require a comma after the last item in a hash
 
 [#examples-styletrailingcommainhashliteral]
 === Examples
@@ -17699,6 +17968,14 @@ a = {
   foo: 1,
   bar: 2,
 }
+
+# bad
+a = { foo: 1, bar: 2,
+      baz: 3, qux: 4 }
+
+# good
+a = { foo: 1, bar: 2,
+      baz: 3, qux: 4, }
 ----
 
 [#enforcedstyleformultiline_-comma-styletrailingcommainhashliteral]
@@ -17741,6 +18018,43 @@ a = {
 }
 ----
 
+[#enforcedstyleformultiline_-diff_comma-styletrailingcommainhashliteral]
+==== EnforcedStyleForMultiline: diff_comma
+
+[source,ruby]
+----
+# bad
+a = { foo: 1, bar: 2, }
+
+# good
+a = { foo: 1, bar: 2 }
+
+# good
+a = {
+  foo: 1, bar: 2,
+  qux: 3,
+}
+
+# good
+a = {
+  foo: 1, bar: 2, qux: 3,
+}
+
+# good
+a = {
+  foo: 1,
+  bar: 2,
+}
+
+# bad
+a = { foo: 1, bar: 2,
+      baz: 3, qux: 4, }
+
+# good
+a = { foo: 1, bar: 2,
+      baz: 3, qux: 4 }
+----
+
 [#enforcedstyleformultiline_-no_comma-_default_-styletrailingcommainhashliteral]
 ==== EnforcedStyleForMultiline: no_comma (default)
 
@@ -17764,7 +18078,7 @@ a = {
 
 | EnforcedStyleForMultiline
 | `no_comma`
-| `comma`, `consistent_comma`, `no_comma`
+| `comma`, `consistent_comma`, `diff_comma`, `no_comma`
 |===
 
 [#styletrailingmethodendstatement]
@@ -18379,10 +18693,7 @@ end
 
 # good
 x += 1 until x > 10
-----
 
-[source,ruby]
-----
 # bad
 x += 100 while x < 500 # a long comment that makes code too long if it were a single line
 

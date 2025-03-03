@@ -13,14 +13,16 @@ module RuboCop
       #   # good
       #   x if y.z.nil?
       #
-      class RedundantParentheses < Base
+      class RedundantParentheses < Base # rubocop:disable Metrics/ClassLength
         include Parentheses
         extend AutoCorrector
 
         ALLOWED_NODE_TYPES = %i[and or send splat kwsplat].freeze
 
         # @!method square_brackets?(node)
-        def_node_matcher :square_brackets?, '(send {(send _recv _msg) str array hash} :[] ...)'
+        def_node_matcher :square_brackets?, <<~PATTERN
+          (send `{(send _recv _msg) str array hash const #variable?} :[] ...)
+        PATTERN
 
         # @!method method_node_and_args(node)
         def_node_matcher :method_node_and_args, '$(call _recv _msg $...)'
@@ -38,6 +40,10 @@ module RuboCop
         end
 
         private
+
+        def variable?(node)
+          node.respond_to?(:variable?) && node.variable?
+        end
 
         def parens_allowed?(node)
           empty_parentheses?(node) ||
@@ -128,6 +134,8 @@ module RuboCop
           node = begin_node.children.first
 
           if (message = find_offense_message(begin_node, node))
+            begin_node = begin_node.parent if node.range_type?
+
             return offense(begin_node, message)
           end
 
@@ -137,7 +145,7 @@ module RuboCop
         # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
         def find_offense_message(begin_node, node)
           return 'a keyword' if keyword_with_redundant_parentheses?(node)
-          return 'a literal' if disallowed_literal?(begin_node, node)
+          return 'a literal' if node.literal? && disallowed_literal?(begin_node, node)
           return 'a variable' if node.variable?
           return 'a constant' if node.const_type?
           if node.assignment? && (begin_node.parent.nil? || begin_node.parent.begin_type?)
@@ -207,7 +215,13 @@ module RuboCop
         end
 
         def disallowed_literal?(begin_node, node)
-          node.literal? && !node.range_type? && !raised_to_power_negative_numeric?(begin_node, node)
+          if node.range_type?
+            return false unless (parent = begin_node.parent)
+
+            parent.begin_type? && parent.children.one?
+          else
+            !raised_to_power_negative_numeric?(begin_node, node)
+          end
         end
 
         def raised_to_power_negative_numeric?(begin_node, node)

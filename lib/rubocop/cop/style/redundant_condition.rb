@@ -42,7 +42,28 @@ module RuboCop
       #     c
       #   end
       #
+      #   # bad
+      #   a.nil? ? true : a
+      #
+      #   # good
+      #   a.nil? || a
+      #
+      #   # bad
+      #   if a.nil?
+      #     true
+      #   else
+      #     a
+      #   end
+      #
+      #   # good
+      #   a.nil? || a
+      #
+      # @example AllowedMethods: ['nonzero?'] (default)
+      #   # good
+      #   num.nonzero? ? true : false
+      #
       class RedundantCondition < Base
+        include AllowedMethods
         include CommentsHelp
         include RangeHelp
         extend AutoCorrector
@@ -129,6 +150,16 @@ module RuboCop
           return true if condition == if_branch
 
           # e.g.
+          #   a.nil? ? true : a
+          # or
+          #   if a.nil?
+          #     true
+          #   else
+          #     a
+          #   end
+          return true if if_branch_is_true_type_and_else_is_not?(node)
+
+          # e.g.
           #   if foo
           #     @value = foo
           #   else
@@ -145,6 +176,19 @@ module RuboCop
           branches_have_method?(node) && condition == if_branch.first_argument &&
             !use_hash_key_access?(if_branch)
         end
+
+        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        def if_branch_is_true_type_and_else_is_not?(node)
+          return false unless node.ternary? || node.if?
+
+          cond = node.condition
+          if cond.call_type? && (!cond.predicate_method? || allowed_method?(cond.method_name))
+            return false
+          end
+
+          node.if_branch&.true_type? && node.else_branch && !node.else_branch.true_type?
+        end
+        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def branches_have_assignment?(node)
           _condition, if_branch, else_branch = *node # rubocop:disable InternalAffairs/NodeDestructuring
@@ -194,6 +238,8 @@ module RuboCop
             argument_source = if_branch.first_argument.source
 
             "#{if_branch.receiver.source} #{if_branch.method_name} (#{argument_source}"
+          elsif if_branch.true_type?
+            if_branch.parent.condition.source
           else
             if_branch.source
           end
