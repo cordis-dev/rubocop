@@ -20,10 +20,10 @@ module RuboCop
         Array(loaded_features).each do |feature|
           if Plugin.plugin_capable?(feature)
             # NOTE: Compatibility for before plugins style.
-            warn Rainbow(<<~MESSAGE).yellow
-              #{feature} extension supports plugin, specify `plugins: #{feature}` instead of `require: #{feature}` in #{path}.
-              For more information, see https://docs.rubocop.org/rubocop/plugin_migration_guide.html.
-            MESSAGE
+            #warn Rainbow(<<~MESSAGE).yellow
+            #  #{feature} extension supports plugin, specify `plugins: #{feature}` instead of `require: #{feature}` in #{path}.
+            #  For more information, see https://docs.rubocop.org/rubocop/plugin_migration_guide.html.
+            #MESSAGE
             rubocop_config = Config.create(hash, path, check: false)
 
             resolve_plugins(rubocop_config, feature)
