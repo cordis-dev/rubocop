@@ -3,16 +3,24 @@
 module RuboCop
   module Cop
     module Style
-      # Use a consistent style for named format string tokens.
+      # Use a consistent style for tokens within a format string.
       #
-      # NOTE: `unannotated` style cop only works for strings
-      # which are passed as arguments to those methods:
-      # `printf`, `sprintf`, `format`, `%`.
-      # The reason is that _unannotated_ format is very similar
-      # to encoded URLs or Date/Time formatting strings.
+      # By default, all strings are evaluated. In some cases, this may be undesirable,
+      # as they could be used as arguments to a method that does not consider
+      # them to be tokens, but rather other identifiers or just part of the string.
       #
-      # This cop's allowed methods can be customized with `AllowedMethods`.
-      # By default, there are no allowed methods.
+      # `AllowedMethods` or `AllowedPatterns` can be configured with in order to mark specific
+      # methods as always allowed, thereby avoiding an offense from the cop. By default, there
+      # are no allowed methods.
+      #
+      # Additionally, the cop can be made conservative by configuring it with
+      # `Mode: conservative` (default `aggressive`). In this mode, tokens (regardless
+      # of `EnforcedStyle`) are only considered if used in the format string argument to the
+      # methods `printf`, `sprintf`, `format` and `%`.
+      #
+      # NOTE: Tokens in the `unannotated` style (eg. `%s`) are always treated as if
+      # configured with `Conservative: true`. This is done in order to prevent false positives,
+      # because this format is very similar to encoded URLs or Date/Time formatting strings.
       #
       # @example EnforcedStyle: annotated (default)
       #
@@ -81,6 +89,20 @@ module RuboCop
       #
       #   # good
       #   redirect('foo/%{bar_id}')
+      #
+      # @example Mode: conservative, EnforcedStyle: annotated
+      #   # In `conservative` mode, offenses are only registered for strings
+      #   # given to a known formatting method.
+      #
+      #   # good
+      #   "%{greeting}"
+      #   foo("%{greeting}")
+      #
+      #   # bad
+      #   format("%{greeting}", greeting: 'Hello')
+      #   printf("%{greeting}", greeting: 'Hello')
+      #   sprintf("%{greeting}", greeting: 'Hello')
+      #   "%{greeting}" % { greeting: 'Hello' }
       #
       class FormatStringToken < Base
         include ConfigurableEnforcedStyle
@@ -153,8 +175,9 @@ module RuboCop
           corrector.replace(token_range, correction)
         end
 
-        def unannotated_format?(node, detected_style)
-          detected_style == :unannotated && !format_string_in_typical_context?(node)
+        def allowed_string?(node, detected_style)
+          (detected_style == :unannotated || conservative?) &&
+            !format_string_in_typical_context?(node)
         end
 
         def message(detected_style)
@@ -203,7 +226,7 @@ module RuboCop
         def collect_detections(node)
           detections = []
           tokens(node) do |detected_sequence, token_range|
-            unless unannotated_format?(node, detected_sequence.style)
+            unless allowed_string?(node, detected_sequence.style)
               detections << [detected_sequence, token_range]
             end
           end
@@ -221,6 +244,10 @@ module RuboCop
 
         def max_unannotated_placeholders_allowed
           cop_config['MaxUnannotatedPlaceholdersAllowed']
+        end
+
+        def conservative?
+          cop_config.fetch('Mode', :aggressive).to_sym == :conservative
         end
       end
     end

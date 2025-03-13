@@ -11,6 +11,51 @@
 
 ## master (unreleased)
 
+## 1.74.0 (2025-03-13)
+
+### New features
+
+* [#13936](https://github.com/rubocop/rubocop/pull/13936): Adds new cop `Style/ComparableBetween`. ([@lovro-bikic][])
+* [#13943](https://github.com/rubocop/rubocop/pull/13943): Allow writing steep annotation to method definition for `Style/CommentedKeyword`. ([@dak2][])
+
+### Bug fixes
+
+* [#13969](https://github.com/rubocop/rubocop/issues/13969): Fix a false positive for `Lint/SharedMutableDefault` when `capacity` keyword argument is used. ([@koic][])
+* [#13945](https://github.com/rubocop/rubocop/pull/13945): Fix a false positive for `Style/DoubleNegation` when calling `define_method`/`define_singleton_method` with a numblock. ([@earlopain][])
+* [#13971](https://github.com/rubocop/rubocop/pull/13971): Fix false alarm for config obsoletion. ([@koic][])
+* [#13960](https://github.com/rubocop/rubocop/pull/13960): Fix a false negative for `Lint/ReturnInVoidContext` when returning out of a block. ([@earlopain][])
+* [#13947](https://github.com/rubocop/rubocop/pull/13947): Fix a false negative for `Lint/UselessConstantScoping` for constants defined in `class << self`. ([@earlopain][])
+* [#13949](https://github.com/rubocop/rubocop/pull/13949): Fix a false negative for `Lint/NonLocalExitFromIterator` with numblocks. ([@earlopain][])
+* [#13975](https://github.com/rubocop/rubocop/issues/13975): Fix false positives for `Style/RedundantCurrentDirectoryInPath` when using a complex current directory path in `require_relative`. ([@koic][])
+* [#13963](https://github.com/rubocop/rubocop/issues/13963): Fix wrong autocorrect for `Lint/LiteralAsCondition` when the literal is followed by `return`, `break`, or `next`. ([@earlopain][])
+* [#13946](https://github.com/rubocop/rubocop/pull/13946): Fix some false positives for `Style/MethodCallWithArgsParentheses` with `EnforcedStyle: omit_parentheses` style and numblocks. ([@earlopain][])
+* [#13950](https://github.com/rubocop/rubocop/pull/13950): Fix sporadic errors about `rubocop-rails` or `rubocop-performance` extraction, even if they are already part of the Gemfile. ([@earlopain][])
+* [#13981](https://github.com/rubocop/rubocop/pull/13981): Prevent redundant plugin loading when a duplicate plugin is specified in an inherited config. ([@koic][])
+* [#13965](https://github.com/rubocop/rubocop/issues/13965): Update `Lint/RedundantCopDisableDirective` to register an offense when cop names are given with improper casing. ([@dvandersluis][])
+* [#13948](https://github.com/rubocop/rubocop/pull/13948): Fix wrong autocorrect for `Style/RescueModifier` when using parallel assignment and the right-hand-side is not a bracketed array. ([@earlopain][])
+
+### Changes
+
+* [#12851](https://github.com/rubocop/rubocop/issues/12851): Add `EnforcedStyleForClasses` and `EnforcedStyleForModules` configuration options to `Style/ClassAndModuleChildren`. ([@dvandersluis][])
+* [#13979](https://github.com/rubocop/rubocop/pull/13979): Add `Mode: conservative` configuration to `Style/FormatStringToken` to make the cop only register offenses for strings given to `printf`, `sprintf`, `format`, and `%`. ([@dvandersluis][])
+* [#13977](https://github.com/rubocop/rubocop/issues/13977): Allow `TLS1_1` and `TLS1_2` by default in `Naming/VariableNumber` to accommodate OpenSSL version parameter names. ([@koic][])
+* [#13967](https://github.com/rubocop/rubocop/pull/13967): Make `Lint/RedundantTypeConversion` aware of redundant `to_d`. ([@koic][])
+
+## 1.73.2 (2025-03-04)
+
+### Bug fixes
+
+* [#13942](https://github.com/rubocop/rubocop/pull/13942): Fix incorrect disabling of departments when inheriting configuration. ([@koic][])
+* [#13766](https://github.com/rubocop/rubocop/issues/13766): Fix false positives for `Style/InverseMethods` when using `any?` or `none?` with safe navigation operator. ([@koic][])
+* [#13938](https://github.com/rubocop/rubocop/pull/13938): Fix false positives for `Style/RedundantCondition` when a variable or a constant is used. ([@koic][])
+* [#13935](https://github.com/rubocop/rubocop/pull/13935): Fix a false negative for `Style/RedundantFreeze` when calling methods that produce frozen objects with numblocks. ([@earlopain][])
+* [#13928](https://github.com/rubocop/rubocop/issues/13928): Fix `end pattern with unmatched parenthesis: / (RegexpError)` on Ruby 3.2.0. ([@dvandersluis][])
+* [#13933](https://github.com/rubocop/rubocop/issues/13933): Fix wrong autocorrect for `Style/KeywordParametersOrder` when the arguments are on multiple lines and contain comments. ([@earlopain][])
+
+### Changes
+
+* [#12669](https://github.com/rubocop/rubocop/issues/12669): Update autocorrection for `Lint/EmptyConditionalBody` to be safe. ([@dvandersluis][])
+
 ## 1.73.1 (2025-02-27)
 
 ### Bug fixes
