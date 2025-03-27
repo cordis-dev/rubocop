@@ -16,6 +16,7 @@ RSpec.configure do |config|
   config.include_context 'lsp', :lsp
   config.include_context 'maintain registry', :restore_registry
   config.include_context 'maintain default configuration', :restore_configuration
+  config.include_context 'mock obsoletion', :mock_obsoletion
   config.include_context 'ruby 2.0', :ruby20
   config.include_context 'ruby 2.1', :ruby21
   config.include_context 'ruby 2.2', :ruby22
@@ -29,4 +30,5 @@ RSpec.configure do |config|
   config.include_context 'ruby 3.2', :ruby32
   config.include_context 'ruby 3.3', :ruby33
   config.include_context 'ruby 3.4', :ruby34
+  config.include_context 'ruby 3.5', :ruby35
 end

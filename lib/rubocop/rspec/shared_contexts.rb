@@ -178,6 +178,21 @@ RSpec.shared_context 'mock console output' do
   end
 end
 
+RSpec.shared_context 'mock obsoletion' do
+  include_context 'mock console output'
+
+  let(:obsoletion_configuration_path) { 'obsoletions.yml' }
+
+  before do
+    RuboCop::ConfigObsoletion.reset!
+    allow(RuboCop::ConfigObsoletion).to receive(:files).and_return([obsoletion_configuration_path])
+  end
+
+  after do
+    RuboCop::ConfigObsoletion.reset!
+  end
+end
+
 RSpec.shared_context 'lsp' do
   before do
     RuboCop::LSP.enable
@@ -249,4 +264,9 @@ end
 
 RSpec.shared_context 'ruby 3.4' do
   let(:ruby_version) { 3.4 }
+end
+
+RSpec.shared_context 'ruby 3.5' do
+  # Parser supports parsing Ruby <= 3.4.
+  let(:ruby_version) { ENV['PARSER_ENGINE'] == 'parser_prism' ? 3.5 : 3.4 }
 end

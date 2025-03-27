@@ -461,6 +461,17 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
         do_something { foo + _1 }
       RUBY
     end
+
+    it 'registers offenses for self assignment in itblock', :ruby34, unsupported_on: :parser do
+      expect_offense(<<~RUBY)
+        do_something { foo += it }
+                       ^^^ Useless assignment to variable - `foo`. Use `+` instead of `+=`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        do_something { foo + it }
+      RUBY
+    end
   end
 
   context 'when a variable is assigned in loop body and unreferenced' do
@@ -546,6 +557,45 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
           bar {
             foo = 3
           }
+        end
+      RUBY
+    end
+  end
+
+  context 'when a variable is reassigned in another branch before a block' do
+    it 'accepts' do
+      expect_no_offenses(<<~RUBY)
+        def some_method
+          if baz
+            foo = 1
+          else
+            foo = 2
+            bar {
+              foo = 3
+            }
+          end
+
+          foo
+        end
+      RUBY
+    end
+  end
+
+  context 'when a variable is reassigned in another case branch before a block' do
+    it 'accepts' do
+      expect_no_offenses(<<~RUBY)
+        def some_method
+          case baz
+          when 1
+            foo = 1
+          else
+            foo = 2
+            bar {
+              foo = 3
+            }
+          end
+
+          foo
         end
       RUBY
     end
@@ -2056,6 +2106,26 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
         var = nil
 
         do_something { var = _1 }
+
+        something_else(var)
+      RUBY
+    end
+  end
+
+  context 'using `it` block parameter', :ruby34, unsupported_on: :parser do
+    it 'does not register an offense when the variable is used' do
+      expect_no_offenses(<<~RUBY)
+        var = 42
+
+        do_something { it == var }
+      RUBY
+    end
+
+    it 'does not register an offense when the variable is assigned and later used' do
+      expect_no_offenses(<<~RUBY)
+        var = nil
+
+        do_something { var = it }
 
         something_else(var)
       RUBY

@@ -261,6 +261,20 @@ RSpec.describe RuboCop::Cop::Layout::LineLength, :config do
       RUBY
     end
 
+    context 'and SplitStrings option is enabled' do
+      let(:cop_config) do
+        super().merge('SplitStrings' => true)
+      end
+
+      it 'does not register an offense' do
+        expect_no_offenses(<<~'RUBY')
+          <<~MESSAGE
+            #{'hello' * 1} #{'world' * 2} #{'hello' * 1} #{'world' * 2} #{'hello' * 1} #{'world' * 2}
+          MESSAGE
+        RUBY
+      end
+    end
+
     context 'when the source has no AST' do
       it 'does not crash' do
         expect { expect_no_offenses('# this results in AST being nil') }.not_to raise_error
@@ -525,6 +539,28 @@ RSpec.describe RuboCop::Cop::Layout::LineLength, :config do
               'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
               'bbbbb'
             RUBY
+          end
+
+          context 'when AllowHeredoc: false' do
+            let(:cop_config) { super().merge('AllowHeredoc' => false) }
+
+            context 'with multiple string interpolations' do
+              it 'registers an offense and autocorrects' do
+                expect_offense(<<~'RUBY')
+                  <<~MESSAGE
+                    #{'hello' * 1} #{'world' * 2} #{'hello' * 1}
+                                                          ^^^^^^ Line is too long. [46/40]
+                  MESSAGE
+                RUBY
+
+                expect_correction(<<~'RUBY')
+                  <<~MESSAGE
+                    #{'hello' * 1} #{'world' * 2} #{'he' \
+                  'llo' * 1}
+                  MESSAGE
+                RUBY
+              end
+            end
           end
 
           context 'when the string straddles after the limit' do
@@ -1016,6 +1052,32 @@ RSpec.describe RuboCop::Cop::Layout::LineLength, :config do
           expect_correction(<<~RUBY)
             def foo(abc: "100000", def: "100000",#{trailing_whitespace}
             ghi: "100000", jkl: "100000", mno: "100000")
+            end
+          RUBY
+        end
+      end
+    end
+
+    context 'class method definition' do
+      context 'when under limit' do
+        it 'does not add any offenses' do
+          expect_no_offenses(<<~RUBY)
+            def self.foo(foo: 1, bar: "2"); end
+          RUBY
+        end
+      end
+
+      context 'when over limit' do
+        it 'adds an offense and autocorrects it' do
+          expect_offense(<<~RUBY)
+            def self.foo(abc: "100000", def: "100000", ghi: "100000", jkl: "100000", mno: "100000")
+                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Line is too long. [87/40]
+            end
+          RUBY
+
+          expect_correction(<<~RUBY)
+            def self.foo(abc: "100000",#{trailing_whitespace}
+            def: "100000", ghi: "100000", jkl: "100000", mno: "100000")
             end
           RUBY
         end
@@ -1764,28 +1826,28 @@ RSpec.describe RuboCop::Cop::Layout::LineLength, :config do
         end
       end
 
-      context 'Ruby 2.7', :ruby27 do
+      context 'Ruby 3.4', :ruby34, unsupported_on: :parser do
         it 'adds an offense for {} block does correct it' do
           expect_offense(<<~RUBY)
-            foo.select { _1 + 4444000039123123129993912312312999199291203123123 }
+            foo.select { it + 4444000039123123129993912312312999199291203123123 }
                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Line is too long. [69/40]
           RUBY
 
           expect_correction(<<~RUBY)
             foo.select {
-             _1 + 4444000039123123129993912312312999199291203123123 }
+             it + 4444000039123123129993912312312999199291203123123 }
           RUBY
         end
 
         it 'adds an offense for do-end block and does correct it' do
           expect_offense(<<~RUBY)
-            foo.select do _1 + 4444000039123123129993912312312999199291203123 end
+            foo.select do it + 4444000039123123129993912312312999199291203123 end
                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Line is too long. [69/40]
           RUBY
 
           expect_correction(<<~RUBY)
             foo.select do
-             _1 + 4444000039123123129993912312312999199291203123 end
+             it + 4444000039123123129993912312312999199291203123 end
           RUBY
         end
       end

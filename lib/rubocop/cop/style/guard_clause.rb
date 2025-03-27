@@ -135,6 +135,7 @@ module RuboCop
           on_def(node)
         end
         alias on_numblock on_block
+        alias on_itblock on_block
 
         def on_if(node)
           return if accepted_form?(node)
@@ -213,7 +214,7 @@ module RuboCop
           if_branch = node.if_branch
           else_branch = node.else_branch
 
-          corrector.replace(node.loc.begin, "\n") if node.loc.begin&.is?('then')
+          corrector.replace(node.loc.begin, "\n") if node.then?
 
           if if_branch&.send_type? && heredoc?(if_branch.last_argument)
             autocorrect_heredoc_argument(corrector, node, if_branch, else_branch, guard)

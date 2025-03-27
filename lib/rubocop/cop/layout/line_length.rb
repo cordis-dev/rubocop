@@ -75,6 +75,7 @@ module RuboCop
           check_for_breakable_block(node)
         end
         alias on_numblock on_block
+        alias on_itblock on_block
 
         def on_str(node)
           check_for_breakable_str(node)
@@ -92,6 +93,7 @@ module RuboCop
         alias on_send on_potential_breakable_node
         alias on_csend on_potential_breakable_node
         alias on_def on_potential_breakable_node
+        alias on_defs on_potential_breakable_node
 
         def on_new_investigation
           return unless processed_source.raw_source.include?(';')
@@ -370,7 +372,9 @@ module RuboCop
 
         def string_delimiter(node)
           delimiter = node.loc.begin
-          delimiter ||= node.parent.loc.begin if node.parent&.dstr_type?
+          if node.parent&.dstr_type? && node.parent.loc.respond_to?(:begin)
+            delimiter ||= node.parent.loc.begin
+          end
           delimiter = delimiter&.source
 
           delimiter if %w[' "].include?(delimiter)
