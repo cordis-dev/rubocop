@@ -1169,6 +1169,40 @@ RSpec.describe RuboCop::Cop::Style::SafeNavigation, :config do
           RUBY
         end
 
+        it 'registers an offense for a safe navigation method call followed by a method call' do
+          expect_offense(<<~RUBY, variable: variable)
+            %{variable}&.bar && %{variable}.bar.baz
+            ^{variable}^^^^^^^^^^{variable}^^^^^^^^ Use safe navigation (`&.`) instead [...]
+          RUBY
+
+          expect_correction(<<~RUBY)
+            #{variable}&.bar&.baz
+          RUBY
+        end
+
+        it 'registers an offense for multiple method calls with safe navigation on last call followed by a method call' do
+          expect_offense(<<~RUBY, variable: variable)
+            %{variable}.bar&.baz && %{variable}.bar.baz.quux
+            ^{variable}^^^^^^^^^^^^^^{variable}^^^^^^^^^^^^^ Use safe navigation (`&.`) instead [...]
+          RUBY
+
+          expect_correction(<<~RUBY)
+            #{variable}.bar&.baz&.quux
+          RUBY
+        end
+
+        it 'registers offenses for an object check followed by a method call followed again by another method call' do
+          expect_offense(<<~RUBY, variable: variable)
+            %{variable} && %{variable}.bar && %{variable}.bar.baz
+            _{variable}    ^{variable}^^^^^^^^^{variable}^^^^^^^^ Use safe navigation (`&.`) instead [...]
+            ^{variable}^^^^^{variable}^^^^ Use safe navigation (`&.`) instead [...]
+          RUBY
+
+          expect_correction(<<~RUBY)
+            #{variable}&.bar&.baz
+          RUBY
+        end
+
         it 'registers an offense for an object check followed by a method call with params' do
           expect_offense(<<~RUBY, variable: variable)
             %{variable} && %{variable}.bar(baz)
@@ -1430,6 +1464,16 @@ RSpec.describe RuboCop::Cop::Style::SafeNavigation, :config do
 
     expect_correction(<<~RUBY)
       (foo&.bar? && (foo.baz? || foo.quux?))
+    RUBY
+  end
+
+  it 'does not register an offense when the RHS of `&&` is a complex `||` expression composed of `&&` conditions' do
+    expect_no_offenses(<<~RUBY)
+      foo && (
+        (foo >= 1 && foo < 2) ||
+        (foo >= 3 && foo < 4) ||
+        (foo >= 5 && foo < 6)
+      )
     RUBY
   end
 

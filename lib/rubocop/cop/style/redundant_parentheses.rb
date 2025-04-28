@@ -78,7 +78,7 @@ module RuboCop
           ancestor = node.ancestors.first
           return false unless ancestor
 
-          !ancestor.type?(:begin, :def, :any_block)
+          !ancestor.type?(:begin, :any_def, :any_block)
         end
 
         def allowed_ternary?(node)
@@ -98,7 +98,7 @@ module RuboCop
           return false unless node.type?(:send, :super, :yield)
 
           node.arguments.one? && !node.parenthesized? &&
-            !node.arithmetic_operation? && node.first_argument.begin_type?
+            !node.operator_method? && node.first_argument.begin_type?
         end
 
         def multiline_control_flow_statements?(node)
@@ -134,7 +134,9 @@ module RuboCop
           node = begin_node.children.first
 
           if (message = find_offense_message(begin_node, node))
-            begin_node = begin_node.parent if node.range_type?
+            if node.range_type? && !argument_of_parenthesized_method_call?(begin_node)
+              begin_node = begin_node.parent
+            end
 
             return offense(begin_node, message)
           end
@@ -155,6 +157,7 @@ module RuboCop
             return 'an expression'
           end
           return 'an interpolated expression' if interpolation?(begin_node)
+          return 'a method argument' if argument_of_parenthesized_method_call?(begin_node)
 
           return if begin_node.chained?
 
@@ -176,6 +179,20 @@ module RuboCop
 
         # @!method interpolation?(node)
         def_node_matcher :interpolation?, '[^begin ^^dstr]'
+
+        def argument_of_parenthesized_method_call?(begin_node)
+          node = begin_node.children.first
+          return false if node.basic_conditional? || method_call_parentheses_required?(node)
+          return false unless (parent = begin_node.parent)
+
+          parent.call_type? && parent.parenthesized? && parent.receiver != begin_node
+        end
+
+        def method_call_parentheses_required?(node)
+          return false unless node.call_type?
+
+          (node.receiver.nil? || node.loc.dot) && node.arguments.any?
+        end
 
         def allow_in_multiline_conditions?
           !!config.for_enabled_cop('Style/ParenthesesAroundCondition')['AllowInMultilineConditions']

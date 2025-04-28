@@ -725,6 +725,66 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     end
   end
 
+  shared_examples 'with `dstr` node in branch' do
+    it 'registers an offense for heredoc inside branch' do
+      expect_offense(<<~RUBY)
+        value = if a
+        ^^^^^^^^^^^^ Assign variables inside of conditionals.
+          239
+        else
+          raise(ArgumentError, <<~ANSWER)
+            4
+
+            2
+          ANSWER
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        if a
+          value = 239
+        else
+          value = raise(ArgumentError, <<~ANSWER)
+            4
+
+            2
+          ANSWER
+        end
+      RUBY
+    end
+
+    it 'registers an offense for string interpolation inside branch' do
+      expect_offense(<<~'RUBY')
+        value = if a
+        ^^^^^^^^^^^^ Assign variables inside of conditionals.
+          239
+        else
+          "#{foo} \
+            #{bar} \
+          "
+        end
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        if a
+          value = 239
+        else
+          value = "#{foo} \
+            #{bar} \
+          "
+        end
+      RUBY
+    end
+  end
+
+  shared_examples 'with indexed assignment without arguments' do
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        foo.[]=()
+      RUBY
+    end
+  end
+
   context 'SingleLineConditionsOnly true' do
     let(:config) do
       RuboCop::Config.new('Style/ConditionalAssignment' => {
@@ -801,6 +861,9 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it_behaves_like('multiline all assignment types allow', '&&=')
     it_behaves_like('multiline all assignment types allow', '<<')
 
+    it_behaves_like('with `dstr` node in branch')
+    it_behaves_like('with indexed assignment without arguments')
+
     it 'allows a method call in the subject of a ternary operator' do
       expect_no_offenses('bar << foo? ? 1 : 2')
     end
@@ -847,6 +910,17 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
         if foo then bar = 1
         else bar = 2
         end
+      RUBY
+    end
+
+    it 'registers an offense for assignment to an one-line if then else' do
+      expect_offense(<<~RUBY)
+        bar = if foo then 1 else 2 end
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Assign variables inside of conditionals.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        if foo then bar = 1 else bar = 2 end
       RUBY
     end
 
@@ -1035,6 +1109,8 @@ RSpec.describe RuboCop::Cop::Style::ConditionalAssignment, :config do
     it_behaves_like('multiline all assignment types offense', '<<')
 
     it_behaves_like('single line condition autocorrect')
+    it_behaves_like('with `dstr` node in branch')
+    it_behaves_like('with indexed assignment without arguments')
 
     it 'corrects assignment to a multiline if else condition' do
       expect_offense(<<~RUBY)

@@ -225,15 +225,126 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
     RUBY
   end
 
-  it 'registers an offense for parens around method arguments of a method call with an argument' do
+  it 'registers an offense for parens around a method argument of a parenthesized method call' do
     expect_offense(<<~RUBY)
       x.y((z))
-          ^^^ Don't use parentheses around a method call.
+          ^^^ Don't use parentheses around a method argument.
     RUBY
 
     expect_correction(<<~RUBY)
       x.y(z)
     RUBY
+  end
+
+  it 'registers an offense for parens around a method argument of a parenthesized method call with safe navigation' do
+    expect_offense(<<~RUBY)
+      x&.y((z))
+           ^^^ Don't use parentheses around a method argument.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x&.y(z)
+    RUBY
+  end
+
+  it 'registers an offense for parens around a second method argument of a parenthesized method call' do
+    expect_offense(<<~RUBY)
+      x.y(z, (w))
+             ^^^ Don't use parentheses around a method argument.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x.y(z, w)
+    RUBY
+  end
+
+  it 'does not register an offense for parens around `if` as the second argument of a parenthesized method call' do
+    expect_no_offenses(<<~RUBY)
+      x(1, (2 if y?))
+    RUBY
+  end
+
+  it 'does not register an offense for parens around `unless` as the second argument of a parenthesized method call' do
+    expect_no_offenses(<<~RUBY)
+      x(1, (2 unless y?))
+    RUBY
+  end
+
+  it 'does not register an offense for parens around `while` as the second argument of a parenthesized method call' do
+    expect_no_offenses(<<~RUBY)
+      x(1, (2 while y?))
+    RUBY
+  end
+
+  it 'does not register an offense for parens around `until` as the second argument of a parenthesized method call' do
+    expect_no_offenses(<<~RUBY)
+      x(1, (2 until y?))
+    RUBY
+  end
+
+  it 'does not register an offense for parens around unparenthesized method call as the second argument of a parenthesized method call' do
+    expect_no_offenses(<<~RUBY)
+      x(1, (y arg))
+    RUBY
+  end
+
+  it 'does not register an offense for parens around unparenthesized safe navigation method call as the second argument of a parenthesized method call' do
+    expect_no_offenses(<<~RUBY)
+      x(1, (y&.z arg))
+    RUBY
+  end
+
+  it 'does not register an offense for parens around unparenthesized operator dot method call as the second argument of a parenthesized method call' do
+    expect_no_offenses(<<~RUBY)
+      x(1, (y.+ arg))
+    RUBY
+  end
+
+  it 'does not register an offense for parens around unparenthesized operator safe navigation method call as the second argument of a parenthesized method call' do
+    expect_no_offenses(<<~RUBY)
+      x(1, (y&.+ arg))
+    RUBY
+  end
+
+  it 'registers an offense for parens around an expression method argument of a parenthesized method call' do
+    expect_offense(<<~RUBY)
+      x.y((z + w))
+          ^^^^^^^ Don't use parentheses around a method argument.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x.y(z + w)
+    RUBY
+  end
+
+  it 'registers an offense for parens around a range method argument of a parenthesized method call' do
+    expect_offense(<<~RUBY)
+      x.y((a..b))
+          ^^^^^^ Don't use parentheses around a method argument.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x.y(a..b)
+    RUBY
+  end
+
+  it 'registers an offense for parens around a multiline method argument of a parenthesized method call' do
+    expect_offense(<<~RUBY)
+      x.y((foo &&
+          ^^^^^^^ Don't use parentheses around a method argument.
+        bar
+      ))
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x.y(foo &&
+        bar
+      )
+    RUBY
+  end
+
+  it 'does not register an offense for parens around an array destructuring argument in method definition' do
+    expect_no_offenses('def foo((bar, baz)); end')
   end
 
   it 'registers an offense for parens around parenthesized conditional assignment' do
@@ -578,6 +689,21 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
 
     expect_correction(<<~RUBY)
       def x
+        foo; bar
+      end
+    RUBY
+  end
+
+  it 'registers an offense for parens around singleton method body' do
+    expect_offense(<<~RUBY)
+      def self.x
+        (foo; bar)
+        ^^^^^^^^^^ Don't use parentheses around a method call.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def self.x
         foo; bar
       end
     RUBY
@@ -958,6 +1084,74 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
 
   it 'accepts parentheses when they touch the following keyword' do
     expect_no_offenses('if x; y else (1)end')
+  end
+
+  context 'when a parenthesized literal is used in a comparison' do
+    it 'registers an offense for `==`' do
+      expect_offense(<<~RUBY)
+        x == (42)
+             ^^^^ Don't use parentheses around a literal.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x == 42
+      RUBY
+    end
+
+    it 'registers an offense for `>`' do
+      expect_offense(<<~RUBY)
+        x > (42)
+            ^^^^ Don't use parentheses around a literal.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x > 42
+      RUBY
+    end
+
+    it 'registers an offense for `>=`' do
+      expect_offense(<<~RUBY)
+        x >= (42)
+             ^^^^ Don't use parentheses around a literal.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x >= 42
+      RUBY
+    end
+
+    it 'registers an offense for `<`' do
+      expect_offense(<<~RUBY)
+        x < (42)
+            ^^^^ Don't use parentheses around a literal.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x < 42
+      RUBY
+    end
+
+    it 'registers an offense for `<=`' do
+      expect_offense(<<~RUBY)
+        x <= (42)
+             ^^^^ Don't use parentheses around a literal.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x <= 42
+      RUBY
+    end
+  end
+
+  it 'registers an offense for a parenthesized literal in a `=~` comparison' do
+    expect_offense(<<~RUBY)
+      x =~ (/regexp/)
+           ^^^^^^^^^^ Don't use parentheses around a literal.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x =~ /regexp/
+    RUBY
   end
 
   context 'when the first argument in a method call begins with a hash literal' do

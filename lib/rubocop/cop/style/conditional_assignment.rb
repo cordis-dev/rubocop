@@ -314,6 +314,7 @@ module RuboCop
 
         def assignment_node(node)
           assignment = node.send_type? ? node.last_argument : node.expression
+          return unless assignment
 
           # ignore pseudo-assignments without rhs in for nodes
           return if node.parent&.for_type?
@@ -436,19 +437,28 @@ module RuboCop
       # Helper module to provide common methods to ConditionalAssignment
       # correctors
       module ConditionalCorrectorHelper
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
         def remove_whitespace_in_branches(corrector, branch, condition, column)
           branch.each_node do |child|
             next if child.source_range.nil?
+            next if child.parent.dstr_type?
 
             white_space = white_space_range(child, column)
             corrector.remove(white_space) if white_space.source.strip.empty?
           end
 
-          [condition.loc.else, condition.loc.end].each do |loc|
-            next unless loc
-
-            corrector.remove_preceding(loc, loc.column - column)
+          if condition.loc.else && !same_line?(condition.else_branch, condition)
+            corrector.remove_preceding(condition.loc.else, condition.loc.else.column - column)
           end
+
+          return unless condition.loc.end && !same_line?(condition.loc.end, condition)
+
+          corrector.remove_preceding(condition.loc.end, condition.loc.end.column - column)
+        end
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity
+
+        def same_line?(node1, node2)
+          RuboCop::Cop::Util.same_line?(node1, node2)
         end
 
         def white_space_range(node, column)
@@ -594,6 +604,8 @@ module RuboCop
             remove_whitespace_in_branches(corrector, branch, condition, column)
 
             return unless (branch_else = branch.parent.loc.else)
+
+            return if same_line?(branch_else, condition)
 
             corrector.remove_preceding(branch_else, branch_else.column - column)
           end
