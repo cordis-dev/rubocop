@@ -15,6 +15,61 @@ RSpec.describe RuboCop::Cop::Lint::LiteralAsCondition, :config do
       RUBY
     end
 
+    it "registers an offense for truthy literal #{lit} in if-else" do
+      expect_offense(<<~RUBY, lit: lit)
+        if %{lit}
+           ^{lit} Literal `#{lit}` appeared as a condition.
+          top
+        else
+          foo
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        top
+      RUBY
+    end
+
+    it "registers an offense for truthy literal #{lit} in if-elsif" do
+      expect_offense(<<~RUBY, lit: lit)
+        if condition
+          top
+        elsif %{lit}
+              ^{lit} Literal `#{lit}` appeared as a condition.
+          foo
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        if condition
+          top
+        else
+          foo
+        end
+      RUBY
+    end
+
+    it "registers an offense for truthy literal #{lit} in if-elsif-else" do
+      expect_offense(<<~RUBY, lit: lit)
+        if condition
+          top
+        elsif %{lit}
+              ^{lit} Literal `#{lit}` appeared as a condition.
+          foo
+        else
+          bar
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        if condition
+          top
+        else
+          foo
+        end
+      RUBY
+    end
+
     it "registers an offense for truthy literal #{lit} in modifier if" do
       expect_offense(<<~RUBY, lit: lit)
         top if %{lit}
@@ -432,6 +487,27 @@ RSpec.describe RuboCop::Cop::Lint::LiteralAsCondition, :config do
       RUBY
     end
 
+    it "registers an offense for falsey literal #{lit} in if-elsif-else" do
+      expect_offense(<<~RUBY, lit: lit)
+        if condition
+          top
+        elsif %{lit}
+              ^{lit} Literal `#{lit}` appeared as a condition.
+          foo
+        else
+          bar
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        if condition
+          top
+        else
+          bar
+        end
+      RUBY
+    end
+
     it "registers an offense for falsey literal #{lit} in modifier `if`" do
       expect_offense(<<~RUBY, lit: lit)
         top if %{lit}
@@ -597,6 +673,18 @@ RSpec.describe RuboCop::Cop::Lint::LiteralAsCondition, :config do
       RUBY
 
       expect_no_corrections
+    end
+
+    it 'registers an offense when there is no body for `if` node' do
+      expect_offense(<<~RUBY)
+        if 42
+           ^^ Literal `42` appeared as a condition.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+
+      RUBY
     end
   end
 end
