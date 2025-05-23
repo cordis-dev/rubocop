@@ -11,6 +11,41 @@
 
 ## master (unreleased)
 
+## 1.75.7 (2025-05-21)
+
+### Bug fixes
+
+* [#14185](https://github.com/rubocop/rubocop/pull/14185): Fix an error for `Style/IfUnlessModifierOfIfUnless` when using nested modifier. ([@koic][])
+* [#14192](https://github.com/rubocop/rubocop/pull/14192): Fix negatives for `Layout/SpaceBeforeBrackets` when using space between method argument parentheses and left bracket. ([@koic][])
+* [#14189](https://github.com/rubocop/rubocop/issues/14189): Fix incorrect autocorrect for `Layout/SpaceBeforeBrackets` when using space between receiver and left brackets, and a space inside left bracket. ([@koic][])
+* [#14170](https://github.com/rubocop/rubocop/pull/14170): Fix `Style/AccessModifierDeclarations` cop error on semicolon after modifier. ([@viralpraxis][])
+* [#14195](https://github.com/rubocop/rubocop/pull/14195): Fix `Style/AccessModifierDeclarations` cop error on symbol modifier without surrounding scope. ([@viralpraxis][])
+* [#14172](https://github.com/rubocop/rubocop/pull/14172): Fix `Style/AccessModifierDeclarations` cop false positives when there are no method definitions and style is `inline`. ([@viralpraxis][])
+* [#14193](https://github.com/rubocop/rubocop/issues/14193): Fix `Lint/UselessAssignment` cop error when using nested assignment with splat. ([@earlopain][])
+
+### Changes
+
+* [#14188](https://github.com/rubocop/rubocop/pull/14188): Enhance `Gemspec/DuplicatedAssignment` cop to detect duplicated indexed assignment. ([@viralpraxis][])
+* [#14183](https://github.com/rubocop/rubocop/pull/14183): Recognize `prefix` argument for `delegate` method in `Lint/DuplicateMethods`. ([@lovro-bikic][])
+
+## 1.75.6 (2025-05-15)
+
+### Bug fixes
+
+* [#14176](https://github.com/rubocop/rubocop/pull/14176): Fix an error for `Style/MultilineIfModifier` when using nested modifier. ([@koic][])
+* [#14077](https://github.com/rubocop/rubocop/issues/14077): Change `nil` representation in todo file comments. ([@jonas054][])
+* [#14164](https://github.com/rubocop/rubocop/pull/14164): Fix an error for `Lint/UselessAssignment` when variables are assigned using unary operator in chained assignment and remain unreferenced. ([@koic][])
+* [#14173](https://github.com/rubocop/rubocop/pull/14173): Fix an error for `Style/StringConcatenation` when using implicit concatenation with string interpolation. ([@koic][])
+* [#14177](https://github.com/rubocop/rubocop/issues/14177): Fix false positives for `Style/SoleNestedConditional` when using nested `if` and `not` in condition. ([@koic][])
+* [#14152](https://github.com/rubocop/rubocop/pull/14152): Fix `Layout/SpaceInsideArrayLiteralBrackets` cop error on array pattern without brackets. ([@viralpraxis][])
+* [#14153](https://github.com/rubocop/rubocop/pull/14153): Fix `Style/PercentQLiterals` cop error on Unicode escape sequence. ([@viralpraxis][])
+
+### Changes
+
+* [#14082](https://github.com/rubocop/rubocop/issues/14082): Mark `Style/ComparableBetween` as unsafe. ([@earlopain][])
+* [#14181](https://github.com/rubocop/rubocop/issues/14181): Make `Lint/DuplicateMethods` aware of Active Support's `delegate` method. ([@lovro-bikic][])
+* [#14156](https://github.com/rubocop/rubocop/issues/14156): Make `Style/IfUnlessModifier` allow endless method definition in the `if` body. ([@koic][])
+
 ## 1.75.5 (2025-05-05)
 
 ### Bug fixes

@@ -479,6 +479,211 @@ RSpec.describe RuboCop::Cop::Lint::DuplicateMethods, :config do
         end
       RUBY
     end
+
+    context 'when `AllCops/ActiveSupportExtensionsEnabled: true`' do
+      let(:config) do
+        RuboCop::Config.new('AllCops' => { 'ActiveSupportExtensionsEnabled' => true })
+      end
+
+      it "registers an offense for duplicate delegate with symbol method in #{type}" do
+        expect_offense(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+            delegate :some_method, to: :foo
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Method `A#some_method` is defined at both example.rb:2 and example.rb:5.
+          end
+        RUBY
+      end
+
+      it "registers an offense for duplicate delegate with string method in #{type}" do
+        expect_offense(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+            delegate 'some_method', to: :foo
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Method `A#some_method` is defined at both example.rb:2 and example.rb:5.
+          end
+        RUBY
+      end
+
+      it "registers an offense for duplicate delegate with string `to` argument in #{type}" do
+        expect_offense(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+            delegate :some_method, to: 'foo'
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Method `A#some_method` is defined at both example.rb:2 and example.rb:5.
+          end
+        RUBY
+      end
+
+      it "registers an offense for duplicate delegate with symbol prefix in #{type}" do
+        expect_offense(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+            delegate :method, to: :foo, prefix: :some
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Method `A#some_method` is defined at both example.rb:2 and example.rb:5.
+          end
+        RUBY
+      end
+
+      it "registers an offense for duplicate delegate with string prefix in #{type}" do
+        expect_offense(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+            delegate :method, to: :foo, prefix: 'some'
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Method `A#some_method` is defined at both example.rb:2 and example.rb:5.
+          end
+        RUBY
+      end
+
+      it "registers an offense for duplicate delegate with prefix true in #{type}" do
+        expect_offense(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+            delegate :method, to: :some, prefix: true
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Method `A#some_method` is defined at both example.rb:2 and example.rb:5.
+          end
+        RUBY
+      end
+
+      it "registers an offense with multiple delegates in #{type}" do
+        expect_offense(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+            delegate :other_method, :some_method, to: :foo
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Method `A#some_method` is defined at both example.rb:2 and example.rb:5.
+          end
+        RUBY
+      end
+
+      it "does not register an offense for non-duplicate delegate with prefix false in #{type}" do
+        expect_no_offenses(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+            delegate :method, prefix: false, to: :some
+          end
+        RUBY
+      end
+
+      it "does not register an offense for dynamically specified `to` option with enabled prefix in #{type}" do
+        expect_no_offenses(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+
+            %w[any none some].each do |type|
+              delegate :method, prefix: true, to: type
+            end
+          end
+        RUBY
+      end
+
+      it "does not register an offense for dynamically specified `prefix` in #{type}" do
+        expect_no_offenses(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+
+            delegate :method, prefix: some_condition, to: :some
+          end
+        RUBY
+      end
+
+      it "does not register an offense for non-duplicate delegate in #{type}" do
+        expect_no_offenses(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+            delegate :other_method, to: :foo
+          end
+        RUBY
+      end
+
+      it "does not register an offense for duplicate delegate inside a condition in #{type}" do
+        expect_no_offenses(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+
+            if cond
+              delegate :some_method, to: :foo
+            end
+          end
+        RUBY
+      end
+
+      it "does not register an offense for duplicate delegate with splat keyword arguments in #{type}" do
+        expect_no_offenses(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+
+            delegate :some_method, **options
+          end
+        RUBY
+      end
+
+      it "does not register an offense for duplicate delegate without keyword arguments in #{type}" do
+        expect_no_offenses(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+
+            delegate :some_method
+          end
+        RUBY
+      end
+
+      it 'does not register an offense for duplicate delegate without `to` argument' do
+        expect_no_offenses(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+
+            delegate :some_method, prefix: true
+          end
+        RUBY
+      end
+    end
+
+    context 'when `AllCops/ActiveSupportExtensionsEnabled: false`' do
+      let(:config) do
+        RuboCop::Config.new('AllCops' => { 'ActiveSupportExtensionsEnabled' => false })
+      end
+
+      it "does not register an offense for duplicate delegate in #{type}" do
+        expect_no_offenses(<<~RUBY, 'example.rb')
+          #{opening_line}
+            def some_method
+              implement 1
+            end
+            delegate :some_method, to: :foo
+          end
+        RUBY
+      end
+    end
   end
 
   include_examples('in scope', 'class', 'class A')

@@ -63,6 +63,12 @@ RSpec.describe RuboCop::Cop::Style::AccessModifierDeclarations, :config do
     context 'do not allow access modifiers on symbols' do
       let(:cop_config) { { 'AllowModifiersOnSymbols' => false } }
 
+      it "does not register an offense when argument to #{access_modifier} is a symbol and there is no surrounding scope" do
+        expect_no_offenses(<<~RUBY)
+          #{access_modifier} :foo
+        RUBY
+      end
+
       it "registers an offense when argument to #{access_modifier} is a symbol" do
         expect_offense(<<~RUBY, access_modifier: access_modifier)
           class Foo
@@ -633,11 +639,13 @@ RSpec.describe RuboCop::Cop::Style::AccessModifierDeclarations, :config do
           class Test
             %{access_modifier}
             ^{access_modifier} `#{access_modifier}` should be inlined in method definitions.
+            def foo; end
           end
         RUBY
 
         expect_correction(<<~RUBY)
           class Test
+            #{access_modifier} def foo; end
           end
         RUBY
       end
@@ -647,11 +655,13 @@ RSpec.describe RuboCop::Cop::Style::AccessModifierDeclarations, :config do
           class Test
             %{access_modifier} # hey
             ^{access_modifier} `#{access_modifier}` should be inlined in method definitions.
+            def foo; end
           end
         RUBY
 
         expect_correction(<<~RUBY)
           class Test
+            #{access_modifier} def foo; end
           end
         RUBY
       end
@@ -683,11 +693,7 @@ RSpec.describe RuboCop::Cop::Style::AccessModifierDeclarations, :config do
           class TestTwo
             #{access_modifier}
             ^{access_modifier} `#{access_modifier}` should be inlined in method definitions.
-          end
-
-          class TestThree
-            #{access_modifier}
-            ^{access_modifier} `#{access_modifier}` should be inlined in method definitions.
+            def foo; end
           end
         RUBY
 
@@ -697,10 +703,14 @@ RSpec.describe RuboCop::Cop::Style::AccessModifierDeclarations, :config do
           end
 
           class TestTwo
+            #{access_modifier} def foo; end
           end
+        RUBY
+      end
 
-          class TestThree
-          end
+      it "does not register an offense for #{access_modifier} without method definitions" do
+        expect_no_offenses(<<~RUBY)
+          #{access_modifier}
         RUBY
       end
 
@@ -719,11 +729,65 @@ RSpec.describe RuboCop::Cop::Style::AccessModifierDeclarations, :config do
 
           expect_correction(<<~RUBY)
             class Test
-
               #{access_modifier} def foo; end
 
               #{access_modifier} def bar; end
             end
+          RUBY
+        end
+      end
+
+      context 'with `begin` parent node' do
+        it 'registers an offense when modifier and method definition are on different lines' do
+          expect_offense(<<~RUBY, access_modifier: access_modifier)
+            %{access_modifier};
+            ^{access_modifier} `#{access_modifier}` should be inlined in method definitions.
+            def foo
+            end
+
+            def bar
+            end
+          RUBY
+
+          expect_correction(<<~RUBY)
+            #{access_modifier} def foo
+            end
+
+            #{access_modifier} def bar
+            end
+          RUBY
+        end
+
+        it 'registers an offense when modifier and method definition are on the same line' do
+          expect_offense(<<~RUBY, access_modifier: access_modifier)
+            %{access_modifier}; def foo; end
+            ^{access_modifier} `#{access_modifier}` should be inlined in method definitions.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            #{access_modifier} def foo; end
+          RUBY
+        end
+
+        it 'registers an offense when modifier and method definitions are on the same line' do
+          expect_offense(<<~RUBY, access_modifier: access_modifier)
+            %{access_modifier}; def foo; end; def bar; end
+            ^{access_modifier} `#{access_modifier}` should be inlined in method definitions.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            #{access_modifier} def foo; end; #{access_modifier} def bar; end
+          RUBY
+        end
+
+        it 'registers an offense when modifier and method definitions and some other node are on the same line' do
+          expect_offense(<<~RUBY, access_modifier: access_modifier)
+            %{access_modifier}; def foo; end; some_method; def bar; end
+            ^{access_modifier} `#{access_modifier}` should be inlined in method definitions.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            #{access_modifier} def foo; end; some_method; #{access_modifier} def bar; end
           RUBY
         end
       end

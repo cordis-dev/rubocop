@@ -195,15 +195,27 @@ module RuboCop
         def autocorrect(corrector, node)
           case style
           when :group
-            def_nodes = find_corresponding_def_nodes(node)
-            return unless def_nodes.any?
-
-            replace_defs(corrector, node, def_nodes)
+            autocorrect_group_style(corrector, node)
           when :inline
+            autocorrect_inline_style(corrector, node)
+          end
+        end
+
+        def autocorrect_group_style(corrector, node)
+          def_nodes = find_corresponding_def_nodes(node)
+          return unless def_nodes.any?
+
+          replace_defs(corrector, node, def_nodes)
+        end
+
+        def autocorrect_inline_style(corrector, node)
+          if node.parent&.begin_type?
+            remove_modifier_node_within_begin(corrector, node, node.parent)
+          else
             remove_nodes(corrector, node)
-            select_grouped_def_nodes(node).each do |grouped_def_node|
-              insert_inline_modifier(corrector, grouped_def_node, node.method_name)
-            end
+          end
+          select_grouped_def_nodes(node).each do |grouped_def_node|
+            insert_inline_modifier(corrector, grouped_def_node, node.method_name)
           end
         end
 
@@ -224,9 +236,13 @@ module RuboCop
         end
 
         def offense?(node)
-          (group_style? && access_modifier_is_inlined?(node) &&
-            !node.parent&.if_type? && !right_siblings_same_inline_method?(node)) ||
-            (inline_style? && access_modifier_is_not_inlined?(node))
+          if group_style?
+            return false if node.parent ? node.parent.if_type? : access_modifier_with_symbol?(node)
+
+            access_modifier_is_inlined?(node) && !right_siblings_same_inline_method?(node)
+          else
+            access_modifier_is_not_inlined?(node) && select_grouped_def_nodes(node).any?
+          end
         end
 
         def correctable_group_offense?(node)
@@ -329,6 +345,12 @@ module RuboCop
           nodes.each do |node|
             corrector.remove(range_with_comments_and_lines(node))
           end
+        end
+
+        def remove_modifier_node_within_begin(corrector, modifier_node, begin_node)
+          def_node = begin_node.children[1]
+          range = modifier_node.source_range.begin.join(def_node.source_range.begin)
+          corrector.remove(range)
         end
 
         def def_source(node, def_nodes)
