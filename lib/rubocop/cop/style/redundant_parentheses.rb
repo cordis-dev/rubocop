@@ -49,6 +49,7 @@ module RuboCop
           empty_parentheses?(node) ||
             first_arg_begins_with_hash_literal?(node) ||
             rescue?(node) ||
+            in_pattern_matching_in_method_argument?(node) ||
             allowed_pin_operator?(node) ||
             allowed_expression?(node)
         end
@@ -122,6 +123,13 @@ module RuboCop
           hash_literal && first_argument?(node) && !parentheses?(hash_literal) && !parenthesized
         end
 
+        def in_pattern_matching_in_method_argument?(begin_node)
+          return false unless begin_node.parent&.call_type?
+          return false unless (node = begin_node.children.first)
+
+          target_ruby_version <= 2.7 ? node.match_pattern_type? : node.match_pattern_p_type?
+        end
+
         def method_chain_begins_with_hash_literal(node)
           return if node.nil?
           return node if node.hash_type?
@@ -156,6 +164,8 @@ module RuboCop
           if node.lambda_or_proc? && (node.braces? || node.send_node.lambda_literal?)
             return 'an expression'
           end
+
+          return 'a one-line pattern matching' if node.type?(:match_pattern, :match_pattern_p)
           return 'an interpolated expression' if interpolation?(begin_node)
           return 'a method argument' if argument_of_parenthesized_method_call?(begin_node)
 

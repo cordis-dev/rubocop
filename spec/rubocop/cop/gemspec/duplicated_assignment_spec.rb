@@ -11,6 +11,26 @@ RSpec.describe RuboCop::Cop::Gemspec::DuplicatedAssignment, :config do
     RUBY
   end
 
+  it 'registers an offense when using `name=` twice and using `_1` as a specification variable' do
+    expect_offense(<<~RUBY)
+      Gem::Specification.new do
+        _1.name = 'rubocop'
+        _1.name = 'rubocop2'
+        ^^^^^^^^^^^^^^^^^^^^ `name=` method calls already given on line 2 of the gemspec.
+      end
+    RUBY
+  end
+
+  it 'registers an offense when using `name=` twice and using `it` as a specification variable', :ruby34 do
+    expect_offense(<<~RUBY)
+      Gem::Specification.new do
+        it.name = 'rubocop'
+        it.name = 'rubocop2'
+        ^^^^^^^^^^^^^^^^^^^^ `name=` method calls already given on line 2 of the gemspec.
+      end
+    RUBY
+  end
+
   it 'registers an offense when using `version=` twice' do
     expect_offense(<<~RUBY)
       require 'rubocop/version'
@@ -87,8 +107,8 @@ RSpec.describe RuboCop::Cop::Gemspec::DuplicatedAssignment, :config do
   it 'does not register an offense when using `#[]=` with different keys' do
     expect_no_offenses(<<~RUBY)
       Gem::Specification.new do |spec|
-        spec.metadata[:foo] = 1
-        spec.metadata[:bar] = 2
+        spec.metadata['foo'] = 1
+        spec.metadata['bar'] = 2
       end
     RUBY
   end
@@ -96,8 +116,8 @@ RSpec.describe RuboCop::Cop::Gemspec::DuplicatedAssignment, :config do
   it 'does not register an offense when using `#[]=` with same keys and different receivers' do
     expect_no_offenses(<<~RUBY)
       Gem::Specification.new do |spec|
-        spec.misc[:foo] = 1
-        spec.metadata[:foo] = 2
+        spec.misc['foo'] = 1
+        spec.metadata['foo'] = 2
       end
     RUBY
   end
@@ -105,8 +125,20 @@ RSpec.describe RuboCop::Cop::Gemspec::DuplicatedAssignment, :config do
   it 'does not register an offense when using both `metadata#[]=` and `metadata=`' do
     expect_no_offenses(<<~RUBY)
       Gem::Specification.new do |spec|
-        spec.metadata = { foo: 1 }
-        spec.metadata[:foo] = 1
+        spec.metadata = { 'foo' => 1 }
+        spec.metadata['foo'] = 1
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when using indexed array assignment' do
+    expect_no_offenses(<<~RUBY)
+      Gem::Specification.new do |spec|
+        spec.authors = []
+        spec.authors[0] = "author-1"
+        spec.authors[1] = "author-2"
+        spec.authors << "author-3"
+        spec.authors << "author-4"
       end
     RUBY
   end

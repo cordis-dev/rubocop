@@ -1923,7 +1923,7 @@ Lint/EmptyInterpolation:
   Enabled: true
   AutoCorrect: contextual
   VersionAdded: '0.20'
-  VersionChanged: '1.61'
+  VersionChanged: '<<next>>'
 
 Lint/EmptyWhen:
   Description: 'Checks for `when` branches with empty bodies.'
@@ -2423,8 +2423,9 @@ Lint/ShadowingOuterLocalVariable:
   Description: >-
                  Do not use the same name as outer local variable
                  for block arguments or block local variables.
-  Enabled: true
+  Enabled: false
   VersionAdded: '0.9'
+  VersionChanged: <<next>>
 
 Lint/SharedMutableDefault:
   Description: 'Checks for mutable literals used as default arguments during Hash initialization.'
@@ -2612,6 +2613,13 @@ Lint/UselessConstantScoping:
   Enabled: pending
   VersionAdded: '1.72'
 
+Lint/UselessDefaultValueArgument:
+  Description: 'Checks for usage of `fetch` or `Array.new` with default value argument and block.'
+  Enabled: pending
+  VersionAdded: '<<next>>'
+  Safe: false
+  AllowedReceivers: []
+
 Lint/UselessDefined:
   Description: 'Checks for calls to `defined?` with strings and symbols. The result of such a call will always be truthy.'
   Enabled: pending
@@ -2635,6 +2643,11 @@ Lint/UselessNumericOperation:
   Description: 'Checks for useless numeric operations.'
   Enabled: pending
   VersionAdded: '1.66'
+
+Lint/UselessOr:
+  Description: 'Checks for useless OR expressions.'
+  Enabled: pending
+  VersionAdded: '<<next>>'
 
 Lint/UselessRescue:
   Description: 'Checks for useless `rescue`s.'
@@ -3046,8 +3059,20 @@ Naming/MethodParameterName:
   # Forbidden names that will register an offense
   ForbiddenNames: []
 
-Naming/PredicateName:
-  Description: 'Check the names of predicate methods.'
+Naming/PredicateMethod:
+  Description: 'Checks that predicate methods end with `?` and non-predicate methods do not.'
+  Enabled: pending
+  VersionAdded: '<<next>>'
+  # In `aggressive` mode, the cop will register an offense for predicate methods that
+  #   may return a non-boolean value.
+  # In `conservative` mode, the cop will *not* register an offense for predicate methods
+  #   that may return a non-boolean value.
+  Mode: conservative
+  AllowedMethods:
+    - call
+
+Naming/PredicatePrefix:
+  Description: 'Predicate method names should not be prefixed and end with a `?`.'
   StyleGuide: '#bool-methods-qmark'
   Enabled: true
   VersionAdded: '0.50'
@@ -3939,6 +3964,16 @@ Style/EmptyMethod:
     - compact
     - expanded
 
+Style/EmptyStringInsideInterpolation:
+  Description: 'Checks for empty strings being assigned inside string interpolation.'
+  StyleGuide: '#empty-strings-in-interpolation'
+  Enabled: pending
+  EnforcedStyle: trailing_conditional
+  SupportedStyles:
+    - trailing_conditional
+    - ternary
+  VersionAdded: '<<next>>'
+
 Style/Encoding:
   Description: 'Use UTF-8 as the source file encoding.'
   StyleGuide: '#utf-8'
@@ -4433,12 +4468,14 @@ Style/ItAssignment:
 Style/ItBlockParameter:
   Description: 'Checks for blocks with one argument where `it` block parameter can be used.'
   Enabled: pending
-  EnforcedStyle: only_numbered_parameters
+  EnforcedStyle: allow_single_line
   SupportedStyles:
+    - allow_single_line
     - only_numbered_parameters
     - always
     - disallow
   VersionAdded: '1.75'
+  VersionChanged: '<<next>>'
 
 Style/KeywordArgumentsMerging:
   Description: >-
@@ -5150,6 +5187,12 @@ Style/RedundantArrayConstructor:
   Description: 'Checks for the instantiation of array using redundant `Array` constructor.'
   Enabled: pending
   VersionAdded: '1.52'
+
+Style/RedundantArrayFlatten:
+  Description: 'Checks for redundant calls of `Array#flatten`.'
+  Enabled: pending
+  Safe: false
+  VersionAdded: '<<next>>'
 
 Style/RedundantAssignment:
   Description: 'Checks for redundant assignment before returning.'
