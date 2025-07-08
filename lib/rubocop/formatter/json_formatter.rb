@@ -53,6 +53,7 @@ module RuboCop
           cop_name:    offense.cop_name,
           corrected:   offense.corrected?,
           correctable: offense.correctable?,
+          fixable: offense.uncorrected?,
           location:    hash_for_location(offense)
         }
       end
