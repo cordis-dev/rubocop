@@ -38,11 +38,11 @@ module RuboCop
       end
 
       def warn_on_pending_cops(pending_cops)
-        warn Rainbow(PENDING_BANNER).yellow
+        #warn Rainbow(PENDING_BANNER).yellow
 
-        pending_cops.each { |cop| warn_pending_cop cop }
+        #pending_cops.each { |cop| warn_pending_cop cop }
 
-        warn Rainbow('For more information: https://docs.rubocop.org/rubocop/versioning.html').yellow
+        #warn Rainbow('For more information: https://docs.rubocop.org/rubocop/versioning.html').yellow
       end
 
       def warn_pending_cop(cop)
