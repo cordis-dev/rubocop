@@ -94,6 +94,9 @@ module RuboCop
         MSG = 'Use %<style>s for method names.'
         MSG_FORBIDDEN = '`%<identifier>s` is forbidden, use another method name instead.'
 
+        OPERATOR_METHODS = %i[| ^ & <=> == === =~ > >= < <= << >> + - * /
+                              % ** ~ +@ -@ !@ ~@ [] []= ! != !~ `].to_set.freeze
+
         # @!method sym_name(node)
         def_node_matcher :sym_name, '(sym $_name)'
 
@@ -103,11 +106,16 @@ module RuboCop
         # @!method new_struct?(node)
         def_node_matcher :new_struct?, '(send (const {nil? cbase} :Struct) :new ...)'
 
+        # @!method define_data?(node)
+        def_node_matcher :define_data?, '(send (const {nil? cbase} :Data) :define ...)'
+
         def on_send(node)
           if node.method?(:define_method) || node.method?(:define_singleton_method)
             handle_define_method(node)
           elsif new_struct?(node)
             handle_new_struct(node)
+          elsif define_data?(node)
+            handle_define_data(node)
           else
             handle_attr_accessor(node)
           end
@@ -139,6 +147,12 @@ module RuboCop
           end
         end
 
+        def handle_define_data(node)
+          node.arguments.select { |argument| argument.type?(:sym, :str) }.each do |name|
+            handle_method_name(name, name.value)
+          end
+        end
+
         def handle_attr_accessor(node)
           return unless (attrs = node.attribute_accessor?)
 
@@ -159,7 +173,7 @@ module RuboCop
 
           if forbidden_name?(name.to_s)
             register_forbidden_name(node)
-          else
+          elsif !OPERATOR_METHODS.include?(name)
             check_name(node, name, range_position(node))
           end
         end

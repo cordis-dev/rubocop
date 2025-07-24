@@ -20,6 +20,15 @@ module RuboCop
       # In the example below, the safe navigation operator (`&.`) is unnecessary
       # because `NilClass` has methods like `respond_to?` and `is_a?`.
       #
+      # The `InferNonNilReceiver` option specifies whether to look into previous code
+      # paths to infer if the receiver can't be nil. This check is unsafe because the receiver
+      # can be redefined between the safe navigation call and previous regular method call.
+      # It does the inference only in the current scope, e.g. within the same method definition etc.
+      #
+      # The `AdditionalNilMethods` option specifies additional custom methods which are
+      # defined on `NilClass`. When `InferNonNilReceiver` is set, they are used to determine
+      # whether the receiver can be nil.
+      #
       # @safety
       #   This cop is unsafe, because autocorrection can change the return type of
       #   the expression. An offending expression that previously could return `nil`
@@ -31,6 +40,20 @@ module RuboCop
       #
       #   # good
       #   CamelCaseConst.do_something
+      #
+      #   # bad
+      #   foo.to_s&.strip
+      #   foo.to_i&.zero?
+      #   foo.to_f&.zero?
+      #   foo.to_a&.size
+      #   foo.to_h&.size
+      #
+      #   # good
+      #   foo.to_s.strip
+      #   foo.to_i.zero?
+      #   foo.to_f.zero?
+      #   foo.to_a.size
+      #   foo.to_h.size
       #
       #   # bad
       #   do_something if attrs&.respond_to?(:[])
@@ -81,16 +104,58 @@ module RuboCop
       #   do_something if attrs.nil_safe_method(:[])
       #   do_something if attrs&.not_nil_safe_method(:[])
       #
+      # @example InferNonNilReceiver: false (default)
+      #   # good
+      #   foo.bar
+      #   foo&.baz
+      #
+      # @example InferNonNilReceiver: true
+      #   # bad
+      #   foo.bar
+      #   foo&.baz # would raise on previous line if `foo` is nil
+      #
+      #   # good
+      #   foo.bar
+      #   foo.baz
+      #
+      #   # bad
+      #   if foo.condition?
+      #     foo&.bar
+      #   end
+      #
+      #   # good
+      #   if foo.condition?
+      #     foo.bar
+      #   end
+      #
+      #   # good (different scopes)
+      #   def method1
+      #     foo.bar
+      #   end
+      #
+      #   def method2
+      #     foo&.bar
+      #   end
+      #
+      # @example AdditionalNilMethods: [present?]
+      #   # good
+      #   foo.present?
+      #   foo&.bar
+      #
       class RedundantSafeNavigation < Base
         include AllowedMethods
         extend AutoCorrector
 
         MSG = 'Redundant safe navigation detected, use `.` instead.'
         MSG_LITERAL = 'Redundant safe navigation with default literal detected.'
+        MSG_NON_NIL = 'Redundant safe navigation on non-nil receiver (detected by analyzing ' \
+                      'previous code/method invocations).'
 
         NIL_SPECIFIC_METHODS = (nil.methods - Object.new.methods).to_set.freeze
 
         SNAKE_CASE = /\A[[:digit:][:upper:]_]+\z/.freeze
+
+        GUARANTEED_INSTANCE_METHODS = %i[to_s to_i to_f to_a to_h].freeze
 
         # @!method respond_to_nil_specific_method?(node)
         def_node_matcher :respond_to_nil_specific_method?, <<~PATTERN
@@ -111,15 +176,27 @@ module RuboCop
 
         # rubocop:disable Metrics/AbcSize
         def on_csend(node)
+          range = node.loc.dot
+
+          if infer_non_nil_receiver?
+            checker = Lint::Utils::NilReceiverChecker.new(node.receiver, additional_nil_methods)
+
+            if checker.cant_be_nil?
+              add_offense(range, message: MSG_NON_NIL) { |corrector| corrector.replace(range, '.') }
+              return
+            end
+          end
+
           unless assume_receiver_instance_exists?(node.receiver)
-            return unless check?(node) && allowed_method?(node.method_name)
+            return if !guaranteed_instance?(node.receiver) && !check?(node)
             return if respond_to_nil_specific_method?(node)
           end
 
-          range = node.loc.dot
           add_offense(range) { |corrector| corrector.replace(range, '.') }
         end
+        # rubocop:enable Metrics/AbcSize
 
+        # rubocop:disable Metrics/AbcSize
         def on_or(node)
           conversion_with_default?(node) do |send_node|
             range = send_node.loc.dot.begin.join(node.source_range.end)
@@ -142,7 +219,20 @@ module RuboCop
           receiver.self_type? || (receiver.literal? && !receiver.nil_type?)
         end
 
+        def guaranteed_instance?(node)
+          receiver = if node.any_block_type?
+                       node.send_node
+                     else
+                       node
+                     end
+          return false unless receiver.send_type?
+
+          GUARANTEED_INSTANCE_METHODS.include?(receiver.method_name)
+        end
+
         def check?(node)
+          return false unless allowed_method?(node.method_name)
+
           parent = node.parent
           return false unless parent
 
@@ -153,6 +243,15 @@ module RuboCop
 
         def condition?(parent, node)
           (parent.conditional? || parent.post_condition_loop?) && parent.condition == node
+        end
+
+        def infer_non_nil_receiver?
+          cop_config['InferNonNilReceiver']
+        end
+
+        def additional_nil_methods
+          @additional_nil_methods ||=
+            Array(cop_config.fetch('AdditionalNilMethods', []).map(&:to_sym))
         end
       end
     end

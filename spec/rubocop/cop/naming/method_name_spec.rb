@@ -139,6 +139,17 @@ RSpec.describe RuboCop::Cop::Naming::MethodName, :config do
       end
     end
 
+    %i[define_method define_singleton_method].each do |name|
+      %w[== >= <= > < =~ ! [] []= gärten].each do |method_name|
+        it "does not register an offense when `#{name}` is called with a `#{method_name}` method name" do
+          expect_no_offenses(<<~RUBY)
+            #{name} :#{method_name} do
+            end
+          RUBY
+        end
+      end
+    end
+
     context 'when specifying `AllowedPatterns`' do
       let(:cop_config) do
         {
@@ -293,6 +304,17 @@ RSpec.describe RuboCop::Cop::Naming::MethodName, :config do
           expect_no_corrections
         end
       end
+
+      context 'for `Data` members' do
+        it 'registers an offense when member with forbidden name is defined' do
+          expect_offense(<<~RUBY, identifier: identifier)
+            Data.define(:%{identifier})
+                        ^^{identifier} `%{identifier}` is forbidden, use another method name instead.
+          RUBY
+
+          expect_no_corrections
+        end
+      end
     end
   end
 
@@ -360,6 +382,17 @@ RSpec.describe RuboCop::Cop::Naming::MethodName, :config do
           expect_offense(<<~RUBY, identifier: identifier)
             Struct.new(:%{identifier})
                        ^^{identifier} `%{identifier}` is forbidden, use another method name instead.
+          RUBY
+
+          expect_no_corrections
+        end
+      end
+
+      context 'for `Data` members' do
+        it 'registers an offense when member with forbidden name is defined' do
+          expect_offense(<<~RUBY, identifier: identifier)
+            Data.define(:%{identifier})
+                        ^^{identifier} `%{identifier}` is forbidden, use another method name instead.
           RUBY
 
           expect_no_corrections
@@ -487,12 +520,31 @@ RSpec.describe RuboCop::Cop::Naming::MethodName, :config do
       RUBY
     end
 
+    it 'registers an offense for `Data` camelCase member' do
+      expect_offense(<<~RUBY)
+        Data.define(:snake_case, var, *args, :camelCase, :snake_case_2, "camelCase2")
+                                             ^^^^^^^^^^ Use snake_case for method names.
+                                                                        ^^^^^^^^^^^^ Use snake_case for method names.
+      RUBY
+    end
+
+    it 'registers an offense for `::Data` camelCase member' do
+      expect_offense(<<~RUBY)
+        ::Data.define(:snake_case, var, *args, :camelCase, :snake_case_2, "camelCase2")
+                                               ^^^^^^^^^^ Use snake_case for method names.
+                                                                          ^^^^^^^^^^^^ Use snake_case for method names.
+      RUBY
+    end
+
     include_examples 'never accepted',  'snake_case'
     include_examples 'always accepted', 'snake_case'
     include_examples 'multiple attr methods', 'snake_case'
     include_examples 'forbidden identifiers', 'super'
     include_examples 'forbidden patterns', '_v1\z', 'api_v1'
     include_examples 'define_method method call', 'snake_case', 'fooBar'
+    include_examples 'define_method method call', 'snake_case', 'fooBar?'
+    include_examples 'define_method method call', 'snake_case', 'fooBar!'
+    include_examples 'define_method method call', 'snake_case', 'fooBar='
   end
 
   context 'when configured for camelCase' do
@@ -582,12 +634,31 @@ RSpec.describe RuboCop::Cop::Naming::MethodName, :config do
       RUBY
     end
 
+    it 'registers an offense for `Data` camelCase member' do
+      expect_offense(<<~RUBY)
+        Data.define(var, *args, :snake_case, :camelCase, :snake_case_2, "camelCase2")
+                                ^^^^^^^^^^^ Use camelCase for method names.
+                                                         ^^^^^^^^^^^^^ Use camelCase for method names.
+      RUBY
+    end
+
+    it 'registers an offense for `::Data` camelCase member' do
+      expect_offense(<<~RUBY)
+        ::Data.define(var, *args, :snake_case, :camelCase, :snake_case_2, "camelCase2")
+                                  ^^^^^^^^^^^ Use camelCase for method names.
+                                                           ^^^^^^^^^^^^^ Use camelCase for method names.
+      RUBY
+    end
+
     include_examples 'always accepted', 'camelCase'
     include_examples 'never accepted',  'camelCase'
     include_examples 'multiple attr methods', 'camelCase'
     include_examples 'forbidden identifiers', 'super'
     include_examples 'forbidden patterns', '_gen\d+\z', 'user_gen1'
     include_examples 'define_method method call', 'camelCase', 'foo_bar'
+    include_examples 'define_method method call', 'camelCase', 'foo_bar?'
+    include_examples 'define_method method call', 'camelCase', 'foo_bar!'
+    include_examples 'define_method method call', 'camelCase', 'foo_bar='
   end
 
   it 'accepts for non-ascii characters' do

@@ -65,7 +65,7 @@ module RuboCop
           return false if target_ruby_version < 3.0
           return false if disallow_endless_method_style?
           return false unless body_node
-          return false if body_node.parent.assignment_method? ||
+          return false if body_node.basic_conditional? || body_node.parent.assignment_method? ||
                           NOT_SUPPORTED_ENDLESS_METHOD_BODY_TYPES.include?(body_node.type)
 
           !body_node.type?(:begin, :kwbegin)
@@ -86,10 +86,10 @@ module RuboCop
         end
 
         def correct_to_endless(corrector, node)
-          self_receiver = node.self_receiver? ? 'self.' : ''
+          receiver = "#{node.receiver.source}." if node.receiver
           arguments = node.arguments.any? ? node.arguments.source : '()'
           body_source = method_body_source(node.body)
-          replacement = "def #{self_receiver}#{node.method_name}#{arguments} = #{body_source}"
+          replacement = "def #{receiver}#{node.method_name}#{arguments} = #{body_source}"
 
           corrector.replace(node, replacement)
         end
