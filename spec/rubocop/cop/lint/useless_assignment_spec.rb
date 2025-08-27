@@ -270,6 +270,34 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
+  context 'when a variable is assigned before `for`' do
+    it 'registers an offense when it is not referenced' do
+      expect_offense(<<~RUBY)
+        node = foo
+        ^^^^ Useless assignment to variable - `node`.
+        for node in bar
+          return node if baz?
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo
+        for node in bar
+          return node if baz?
+        end
+      RUBY
+    end
+
+    it 'registers no offense when the variable is referenced in the collection' do
+      expect_no_offenses(<<~RUBY)
+        node = foo
+        for node in node.children
+          return node if bar?
+        end
+      RUBY
+    end
+  end
+
   context 'when a variable is assigned and unreferenced in `for` with multiple variables' do
     it 'registers an offense' do
       expect_offense(<<~RUBY)
@@ -1185,6 +1213,19 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
           foo = foo.map { |i| i + 1 }
           puts foo
         end
+      RUBY
+    end
+
+    it 'registers an offense when the reassignment is the last statement' do
+      expect_offense(<<~RUBY)
+        foo = [1, 2]
+        foo = foo.map { |i| i + 1 }
+        ^^^ Useless assignment to variable - `foo`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo = [1, 2]
+        foo.map { |i| i + 1 }
       RUBY
     end
   end
@@ -2362,6 +2403,97 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
           end
         RUBY
       end
+    end
+
+    context 'while loop with parenthesized body' do
+      it 'registers an offense' do
+        expect_offense(<<~RUBY)
+          while
+            (
+              foo = 1
+              ^^^ Useless assignment to variable - `foo`.
+              foo = 1
+            )
+            p foo
+          end
+        RUBY
+      end
+    end
+  end
+
+  context 'when duplicate assignments in `if` branch inside a loop' do
+    context 'while loop' do
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          while
+            if cond
+              var += 1
+            else
+              var -= 1
+            end
+          end
+        RUBY
+      end
+    end
+  end
+
+  context 'when duplicate assignments appear in `if` branch inside a loop and the variable is used outside `while` loop' do
+    context 'while loop' do
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          var = false
+          while loop_cond
+            if var
+              var = false
+              foo
+            else
+              var = true
+              bar
+            end
+          end
+        RUBY
+      end
+    end
+  end
+
+  context 'when duplicate assignments appear in nested `if` branches inside a loop and the variable is used outside `while` loop' do
+    context 'while loop' do
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          def parse_options
+            index = -1
+            while loop_cond
+              index += 1
+
+              if first_cond
+                index += 1
+              else
+                if second_cond
+                  index += 1
+                else
+                  if third_cond
+                    index += 1
+                  end
+                end
+              end
+            end
+          end
+        RUBY
+      end
+    end
+  end
+
+  context 'when duplicate assignments in `rescue` branch with `retry`' do
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        def testing
+        rescue Foo
+          attempts += 1
+          retry
+        rescue Bar
+          attempts += 1
+        end
+      RUBY
     end
   end
 

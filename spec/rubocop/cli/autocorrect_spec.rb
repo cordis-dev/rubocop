@@ -1627,7 +1627,8 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
 
       module A
         module B
-        end end
+        end
+      end
     RUBY
     uncorrected = $stdout.string.split($RS).select do |line|
       line.include?('example.rb:') && !line.include?('[Corrected]')
@@ -3973,5 +3974,35 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
       1 file inspected, no offenses detected
     RESULT
     expect($stderr.string).to eq('')
+  end
+
+  it 'registers an offense and corrects for `Style/RedundantRegexpEscape` when `NewCops: enable`' do
+    create_file('.rubocop.yml', <<~YAML)
+      AllCops:
+        NewCops: enable
+      Style/FrozenStringLiteralComment:
+        Enabled: false
+    YAML
+    source = <<~'RUBY'
+      /[\.-]/
+    RUBY
+    create_file('example.rb', source)
+    expect(cli.run(['--autocorrect-all'])).to eq(0)
+    expect($stdout.string).to eq(<<~'RESULT')
+      Inspecting 1 file
+      C
+
+      Offenses:
+
+      example.rb:1:3: C: [Corrected] Style/RedundantRegexpEscape: Redundant escape inside regexp literal
+      /[\.-]/
+        ^^
+
+      1 file inspected, 1 offense detected, 1 offense corrected
+    RESULT
+    expect($stderr.string).to eq('')
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      /[.-]/
+    RUBY
   end
 end

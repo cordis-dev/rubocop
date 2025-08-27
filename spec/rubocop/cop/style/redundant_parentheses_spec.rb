@@ -683,6 +683,46 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
     RUBY
   end
 
+  it 'registers an offense when braces block is wrapped in parentheses as a method argument' do
+    expect_offense(<<~RUBY)
+      foo (x.select { |item| item }).y
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^ Don't use parentheses around a method call.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      foo x.select { |item| item }.y
+    RUBY
+  end
+
+  it 'does not register an offense when `do`...`end` block is wrapped in parentheses as a method argument' do
+    expect_no_offenses(<<~RUBY)
+      foo (x.select do |item| item end).y
+    RUBY
+  end
+
+  it 'registers a multiline expression around block wrapped in parens with a chained method' do
+    expect_offense(<<~RUBY)
+      (
+      ^ Don't use parentheses around a method call.
+        x.select { |item| item.foo }
+      ).map(&:bar)
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x.select { |item| item.foo }.map(&:bar)
+    RUBY
+  end
+
+  it_behaves_like 'redundant', '(x.select { |item| item })', 'x.select { |item| item }', 'a method call'
+
+  context 'when Ruby 2.7', :ruby27 do
+    it_behaves_like 'redundant', '(x.select { _1 })', 'x.select { _1 }', 'a method call'
+  end
+
+  context 'when Ruby 3.4', :ruby34 do
+    it_behaves_like 'redundant', '(x.select { it })', 'x.select { it }', 'a method call'
+  end
+
   it_behaves_like 'plausible', '(-2)**2'
   it_behaves_like 'plausible', '(-2.1)**2'
 
@@ -1397,6 +1437,47 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
     expect_correction(<<~RUBY)
       foo rescue bar
       foo rescue bar
+    RUBY
+  end
+
+  it 'does not register an offense when parentheses are used around a one-line `rescue` expression inside an array literal' do
+    expect_no_offenses(<<~RUBY)
+      [
+        (foo rescue bar)
+      ]
+    RUBY
+  end
+
+  it 'does not register an offense when parentheses are used around a one-line `rescue` expression inside a hash literal' do
+    expect_no_offenses(<<~RUBY)
+      {
+        key: (foo rescue bar)
+      }
+    RUBY
+  end
+
+  it 'registers an offense when parentheses are used around a one-line `rescue` expression inside an `if` expression' do
+    expect_offense(<<~RUBY)
+      if cond
+        (foo rescue bar)
+        ^^^^^^^^^^^^^^^^ Don't use parentheses around a one-line rescue.
+      else
+        42
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      if cond
+        foo rescue bar
+      else
+        42
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when parentheses are used around a one-line `rescue` expression inside a ternary operator' do
+    expect_no_offenses(<<~RUBY)
+      cond ? (foo rescue bar) : 42
     RUBY
   end
 

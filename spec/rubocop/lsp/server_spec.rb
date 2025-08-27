@@ -40,7 +40,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
         id: 2,
         result: {
           capabilities: {
-            textDocumentSync: { openClose: true, change: 1 },
+            textDocumentSync: { openClose: true, change: 2 },
             documentFormattingProvider: true
           }
         }
@@ -1319,6 +1319,57 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
     end
   end
 
+  describe 'formatting via multiple entries of `contentChanges`' do
+    let(:requests) do
+      [
+        {
+          jsonrpc: '2.0',
+          method: 'textDocument/didOpen',
+          params: {
+            textDocument: {
+              languageId: 'ruby',
+              text: "puts 'hi'",
+              uri: 'file:///path/to/file.rb',
+              version: 0
+            }
+          }
+        }, {
+          jsonrpc: '2.0',
+          method: 'textDocument/didChange',
+          params: {
+            contentChanges: [{ text: "puts 'first'" }, { text: "puts 'last'" }],
+            textDocument: {
+              uri: 'file:///path/to/file.rb',
+              version: 10
+            }
+          }
+        }, {
+          jsonrpc: '2.0',
+          id: 20,
+          method: 'textDocument/formatting',
+          params: {
+            options: { insertSpaces: true, tabSize: 2 },
+            textDocument: { uri: 'file:///path/to/file.rb' }
+          }
+        }
+      ]
+    end
+
+    it 'handles requests' do
+      expect(messages.count).to eq(3)
+      expect(messages.last).to eq(
+        jsonrpc: '2.0', id: 20, result: [
+          {
+            newText: "puts 'last'\n",
+            range: {
+              end: { character: 0, line: 1 }, start: { character: 0, line: 0 }
+            }
+          }
+        ]
+      )
+    end
+  end
+
   describe 'formatting via formatting path on ignored path' do
     let(:requests) do
       [
@@ -1362,6 +1413,65 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
     end
   end
 
+  describe 'did change with multibyte character' do
+    let(:requests) do
+      [
+        {
+          jsonrpc: '2.0',
+          method: 'textDocument/didOpen',
+          params: {
+            textDocument: {
+              languageId: 'ruby',
+              text: "puts '🍣🍺'",
+              uri: 'file:///path/to/file.rb',
+              version: 0
+            }
+          }
+        }, {
+          jsonrpc: '2.0',
+          method: 'textDocument/didChange',
+          params: {
+            contentChanges: [
+              {
+                text: '💎',
+                range: {
+                  start: { line: 0, character: 6 },
+                  end: { line: 0, character: 10 }
+                }
+              }
+            ],
+            textDocument: {
+              uri: 'file:///path/to/file.rb',
+              version: 10
+            }
+          }
+        }, {
+          jsonrpc: '2.0',
+          id: 20,
+          method: 'textDocument/formatting',
+          params: {
+            options: { insertSpaces: true, tabSize: 2 },
+            textDocument: { uri: 'file:///path/to/file.rb' }
+          }
+        }
+      ]
+    end
+
+    it 'handles requests' do
+      expect(messages.count).to eq(3)
+      expect(messages.last).to eq(
+        jsonrpc: '2.0', id: 20, result: [
+          {
+            newText: "puts '💎'\n",
+            range: {
+              end: { character: 0, line: 1 }, start: { character: 0, line: 0 }
+            }
+          }
+        ]
+      )
+    end
+  end
+
   context 'when an internal error occurs' do
     before do
       allow_any_instance_of(RuboCop::LSP::Routes).to receive(:for).with('initialize').and_raise # rubocop:disable RSpec/AnyInstance
@@ -1379,6 +1489,35 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
     it 'logs an internal server error message' do
       expect(stderr).to start_with('[server] Error RuntimeError')
       expect(messages.count).to eq(0)
+    end
+  end
+
+  describe 'when URI includes spaces' do
+    let(:requests) do
+      [
+        {
+          jsonrpc: '2.0',
+          method: 'textDocument/didOpen',
+          params: {
+            textDocument: {
+              languageId: 'ruby',
+              text: "puts 'hi'",
+              uri: 'file:///path/with%20spaces/file.rb',
+              version: 0
+            }
+          }
+        }
+      ]
+    end
+
+    it 'decodes URI-encoded paths for file system operations' do
+      # rubocop:disable RSpec/AnyInstance
+      expect_any_instance_of(RuboCop::Runner).to receive(:run).with(
+        ['/path/with spaces/file.rb']
+      ).and_call_original
+      # rubocop:enable RSpec/AnyInstance
+
+      result
     end
   end
 end

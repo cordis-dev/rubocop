@@ -149,7 +149,7 @@ module RuboCop
             return offense(begin_node, message)
           end
 
-          check_send(begin_node, node) if node.call_type?
+          check_send(begin_node, node) if call_node?(node)
         end
 
         # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
@@ -169,7 +169,7 @@ module RuboCop
           end
           return 'an interpolated expression' if interpolation?(begin_node)
           return 'a method argument' if argument_of_parenthesized_method_call?(begin_node, node)
-          return 'a one-line rescue' if !begin_node.parent&.call_type? && node.rescue_type?
+          return 'a one-line rescue' if oneline_rescue_parentheses_required?(begin_node, node)
 
           return if begin_node.chained?
 
@@ -201,6 +201,14 @@ module RuboCop
           parent.call_type? && parent.parenthesized? && parent.receiver != begin_node
         end
 
+        def oneline_rescue_parentheses_required?(begin_node, node)
+          return false unless node.rescue_type?
+          return false unless (parent = begin_node.parent)
+          return false if parent.if_type? && parent.ternary?
+
+          !parent.type?(:call, :array, :pair)
+        end
+
         def method_call_parentheses_required?(node)
           return false unless node.call_type?
 
@@ -211,7 +219,13 @@ module RuboCop
           !!config.for_enabled_cop('Style/ParenthesesAroundCondition')['AllowInMultilineConditions']
         end
 
+        def call_node?(node)
+          node.call_type? || (node.any_block_type? && node.braces? && !node.lambda_or_proc?)
+        end
+
         def check_send(begin_node, node)
+          node = node.send_node if node.any_block_type?
+
           return check_unary(begin_node, node) if node.unary_operation?
 
           return unless method_call_with_redundant_parentheses?(node)

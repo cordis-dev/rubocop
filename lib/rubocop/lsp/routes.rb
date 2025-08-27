@@ -51,7 +51,7 @@ module RuboCop
             capabilities: LanguageServer::Protocol::Interface::ServerCapabilities.new(
               document_formatting_provider: true,
               text_document_sync: LanguageServer::Protocol::Interface::TextDocumentSyncOptions.new(
-                change: LanguageServer::Protocol::Constant::TextDocumentSyncKind::FULL,
+                change: LanguageServer::Protocol::Constant::TextDocumentSyncKind::INCREMENTAL,
                 open_close: true
               )
             )
@@ -76,7 +76,12 @@ module RuboCop
 
       handle 'textDocument/didChange' do |request|
         params = request[:params]
-        result = diagnostic(params[:textDocument][:uri], params[:contentChanges][0][:text])
+        file_uri = params[:textDocument][:uri]
+        text = @text_cache[file_uri]
+        params[:contentChanges].each do |content|
+          text = change_text(text, content[:text], content[:range])
+        end
+        result = diagnostic(file_uri, text)
         @server.write(result)
       end
 
@@ -194,7 +199,7 @@ module RuboCop
           return []
         end
 
-        new_text = @server.format(remove_file_protocol_from(file_uri), text, command: command)
+        new_text = @server.format(convert_file_uri_to_path(file_uri), text, command: command)
 
         return [] if new_text == text
 
@@ -214,13 +219,37 @@ module RuboCop
           method: 'textDocument/publishDiagnostics',
           params: {
             uri: file_uri,
-            diagnostics: @server.offenses(remove_file_protocol_from(file_uri), text)
+            diagnostics: @server.offenses(convert_file_uri_to_path(file_uri), text)
           }
         }
       end
 
-      def remove_file_protocol_from(uri)
-        uri.delete_prefix('file://')
+      def change_text(orig_text, text, range)
+        return text unless range
+
+        start_pos = text_pos(orig_text, range[:start])
+        end_pos = text_pos(orig_text, range[:end])
+        text_bin = orig_text.b
+        text_bin[start_pos...end_pos] = text.b
+        text_bin.force_encoding(orig_text.encoding)
+      end
+
+      def text_pos(text, range)
+        line = range[:line]
+        char = range[:character]
+        pos = 0
+        text.each_line.with_index do |l, i|
+          if i == line
+            pos += l.encode('utf-16be').b[0, char * 2].encode('utf-8', 'utf-16be').bytesize
+            return pos
+          end
+          pos += l.bytesize
+        end
+        pos
+      end
+
+      def convert_file_uri_to_path(uri)
+        URI.decode_www_form_component(uri.delete_prefix('file://'))
       end
     end
   end

@@ -71,6 +71,8 @@ module RuboCop
         end
       end
 
+      BRANCH_NODES = %i[if case case_match rescue].freeze
+
       def variable_table
         @variable_table ||= VariableTable.new(self)
       end
@@ -236,11 +238,16 @@ module RuboCop
       end
 
       def process_loop(node)
-        if POST_CONDITION_LOOP_TYPES.include?(node.type)
+        if node.post_condition_loop?
           # See the comment at the end of file for this behavior.
           condition_node, body_node = *node
           process_node(body_node)
           process_node(condition_node)
+        elsif node.for_type?
+          # In `for item in items` the rightmost expression is evaluated first.
+          process_node(node.collection)
+          process_node(node.variable)
+          process_node(node.body) if node.body
         else
           process_children(node)
         end
@@ -353,14 +360,15 @@ module RuboCop
         end
       end
 
-      def reference_assignments(loop_assignments, node)
-        # If inside a case statement, mark all as referenced.
+      def reference_assignments(loop_assignments, loop_node)
+        # If inside a branching statement, mark all as referenced.
         # Otherwise, mark only the last assignment as referenced.
-        if loop_assignments.first.node.each_ancestor(:case, :case_match).any?
-          loop_assignments.each { |assignment| assignment.reference!(node) }
-        else
-          loop_assignments.last&.reference!(node)
+        # Note that `rescue` must be considered as branching because of
+        # the `retry` keyword.
+        loop_assignments.each do |assignment|
+          assignment.reference!(loop_node) if assignment.node.each_ancestor(*BRANCH_NODES).any?
         end
+        loop_assignments.last&.reference!(loop_node)
       end
 
       def scanned_node?(node)

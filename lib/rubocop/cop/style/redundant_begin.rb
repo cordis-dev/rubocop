@@ -85,6 +85,29 @@ module RuboCop
         end
         alias on_defs on_def
 
+        def on_if(node)
+          return if node.modifier_form?
+
+          inspect_branches(node)
+        end
+
+        def on_case(node)
+          inspect_branches(node)
+        end
+        alias on_case_match on_case
+
+        def on_while(node)
+          return if node.modifier_form?
+
+          body = node.body
+
+          return unless body&.kwbegin_type?
+          return if body.rescue_node || body.ensure_node
+
+          register_offense(body)
+        end
+        alias on_until on_while
+
         def on_block(node)
           return if target_ruby_version < 2.5
           return if node.send_node.lambda_literal?
@@ -180,6 +203,8 @@ module RuboCop
         end
 
         def begin_block_has_multiline_statements?(node)
+          return false unless node.parent
+
           node.children.count >= 2
         end
 
@@ -198,6 +223,15 @@ module RuboCop
 
         def valid_begin_assignment?(node)
           node.parent&.assignment? && !node.children.one?
+        end
+
+        def inspect_branches(node)
+          node.branches.each do |branch|
+            next unless branch&.kwbegin_type?
+            next if branch.rescue_node || branch.ensure_node
+
+            register_offense(branch)
+          end
         end
       end
     end

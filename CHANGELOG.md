@@ -11,6 +11,78 @@
 
 ## master (unreleased)
 
+## 1.80.1 (2025-08-27)
+
+### Bug fixes
+
+* [#14479](https://github.com/rubocop/rubocop/issues/14479): Don't invalidate cache when `--display-time` option is used on the CLI. ([@lovro-bikic][])
+* [#14473](https://github.com/rubocop/rubocop/pull/14473): Fix a false negative for `Style/RedundantBegin` using `begin` with multiple statements without `rescue` or `ensure`. ([@koic][])
+* [#14475](https://github.com/rubocop/rubocop/issues/14475): Fix cop errors during autocorrect for the build in LSP when analyzing as Ruby 3.4. ([@earlopain][])
+
+### Changes
+
+* [#14474](https://github.com/rubocop/rubocop/pull/14474): Fix false negative for `Layout/EndAlignment` when `end` is not on a separate line. ([@lovro-bikic][])
+
+## 1.80.0 (2025-08-22)
+
+### Bug fixes
+
+* [#14469](https://github.com/rubocop/rubocop/issues/14469): Fix an incorrect autocorrect for `Style/BitwisePredicate` when using `&` with LHS flags in conjunction with `==` for comparisons. ([@koic][])
+* [#14459](https://github.com/rubocop/rubocop/pull/14459): Fix wrong autocorrect for `Style/For` with save navigation in the collection. ([@earlopain][])
+* [#14435](https://github.com/rubocop/rubocop/issues/14435): Fix false negatives for regexp cops when `Lint/DuplicateRegexpCharacterClassElement` is enabled. ([@earlopain][])
+* [#14419](https://github.com/rubocop/rubocop/issues/14419): Fix false positives for `Lint/UselessAssignment` when duplicate assignments appear in nested `if` branches inside a loop and the variable is used outside `while` loop. ([@koic][])
+* [#14468](https://github.com/rubocop/rubocop/issues/14468): Fix false positives for `Naming/MethodName` when an operator method is defined using a string. ([@koic][])
+* [#14427](https://github.com/rubocop/rubocop/pull/14427): Fix false positives for `Style/RedundantParentheses` when `do`...`end` block is wrapped in parentheses as a method argument. ([@koic][])
+* [#14441](https://github.com/rubocop/rubocop/issues/14441): Better hash access handling in `Style/SafeNavigation`. ([@issyl0][])
+* [#14443](https://github.com/rubocop/rubocop/issues/14443): Fix false positive in `Layout/EmptyLinesAfterModuleInclusion` when `include` does not have exactly one argument. ([@issyl0][])
+* [#14424](https://github.com/rubocop/rubocop/pull/14424): Fix `Style/SafeNavigation` cop to preserve existing safe navigation in fixed code. ([@martinemde][])
+* [#14455](https://github.com/rubocop/rubocop/pull/14455): Follow module inclusion with nonzero args with an empty line. ([@issyl0][])
+* [#14445](https://github.com/rubocop/rubocop/issues/14445): Fix false positives for `Lint/UselessAssignment` with `for` loops when the variable is referenced in the collection. ([@earlopain][])
+* [#14447](https://github.com/rubocop/rubocop/pull/14447): Fix wrong autocorrect for `Style/RedundantCondition` with a parenthesised method call in the condition. ([@earlopain][])
+
+### Changes
+
+* [#14428](https://github.com/rubocop/rubocop/pull/14428): Enhance `Lint/SelfAssignment` to handle indexed assignment with multiple arguments. ([@viralpraxis][])
+* [#14464](https://github.com/rubocop/rubocop/pull/14464): Exclude `AutoCorrect` and `Include` from configuration parameters. ([@r7kamura][])
+* [#14472](https://github.com/rubocop/rubocop/pull/14472): Make `Style/RedundantBegin` aware of `case` pattern matching. ([@koic][])
+* [#14448](https://github.com/rubocop/rubocop/pull/14448): Register array intersection size checks as offenses under `Style/ArrayIntersect`. ([@lovro-bikic][])
+* [#14431](https://github.com/rubocop/rubocop/pull/14431): Support LSP `TextDocumentSyncKind.Incremental`. ([@tmtm][])
+* [#14453](https://github.com/rubocop/rubocop/issues/14453): Update `Style/RedundantBegin` to register `begin` blocks inside `if`, `unless`, `case`, `while` and `until` as redundant. ([@dvandersluis][])
+
+## 1.79.2 (2025-08-05)
+
+### Bug fixes
+
+* [#11664](https://github.com/rubocop/rubocop/issues/11664): Cache wasn't getting used when using parallelization. ([@jvlara][])
+* [#14411](https://github.com/rubocop/rubocop/issues/14411): Fix false negatives for `Layout/EmptyLinesAroundClassBody` when a class body starts with a blank line and defines a multiline superclass. ([@koic][])
+* [#14413](https://github.com/rubocop/rubocop/issues/14413): Fix a false positive for `Layout/EmptyLinesAroundArguments` with multiline strings that contain only whitespace. ([@earlopain][])
+* [#14408](https://github.com/rubocop/rubocop/pull/14408): Fix false-positive for `Layout/EmptyLinesAfterModuleInclusion` when inclusion is called with modifier. ([@r7kamura][])
+* [#14402](https://github.com/rubocop/rubocop/issues/14402): Fix false positives for `Lint/UselessAssignment` when duplicate assignments appear in `if` branch inside a loop and the variable is used outside `while` loop. ([@koic][])
+* [#14416](https://github.com/rubocop/rubocop/issues/14416): Fix false positives for `Style/MapToHash` when using `to_h` with block argument. ([@koic][])
+* [#14418](https://github.com/rubocop/rubocop/pull/14418): Fix false positives for `Style/MapToSet` when using `to_set` with block argument. ([@koic][])
+* [#14420](https://github.com/rubocop/rubocop/issues/14420): Fix false positives for `Style/SafeNavigation` when ternary expression with operator method call with method chain. ([@koic][])
+
+### Changes
+
+* [#14407](https://github.com/rubocop/rubocop/pull/14407): Register offense for parentheses around method calls with blocks in `Style/RedundantParentheses`. ([@lovro-bikic][])
+
+## 1.79.1 (2025-07-31)
+
+### Bug fixes
+
+* [#14390](https://github.com/rubocop/rubocop/issues/14390): Fix wrong autocorrect for `Style/ArgumentsForwarding` when the method arguments contain `*`, `**` or `&`, and the method call contains `self` as the first argument. ([@earlopain][])
+* [#14399](https://github.com/rubocop/rubocop/issues/14399): Fix false positives for `Layout/EmptyLinesAfterModuleInclusion` when `prepend` is used with block methods. ([@koic][])
+* [#14396](https://github.com/rubocop/rubocop/pull/14396): Fix a false positive for `Style/RedundantParentheses` when parentheses are used around a one-line `rescue` expression inside a ternary operator. ([@koic][])
+* [#14383](https://github.com/rubocop/rubocop/issues/14383): Fix false positives for `Lint/UselessAssignment` when duplicate assignments in `if` branch inside a loop. ([@koic][])
+* [#14394](https://github.com/rubocop/rubocop/issues/14394): Fix false positive for `Lint/UselessAssignment` with `retry` in `rescue` branch. ([@earlopain][])
+* [#14386](https://github.com/rubocop/rubocop/issues/14386): Fix false positives for `Style/RedundantParentheses` when parentheses are used around a one-line `rescue` expression inside array or hash literals. ([@koic][])
+* [#14395](https://github.com/rubocop/rubocop/pull/14395): Fix LSP handling of URI-encoded paths with spaces. ([@hakanensari][])
+
+### Changes
+
+* [#14403](https://github.com/rubocop/rubocop/pull/14403): Enhance `Naming/MethodName` cop to detect offenses within `alias` and `alias_method` calls. ([@viralpraxis][])
+* [#14389](https://github.com/rubocop/rubocop/pull/14389): Add support for `||` to `Lint/LiteralAsCondition`. ([@zopolis4][])
+
 ## 1.79.0 (2025-07-24)
 
 ### New features
@@ -4254,3 +4326,7 @@
 [@Yuhi-Sato]: https://github.com/Yuhi-Sato
 [@5hun-s]: https://github.com/5hun-s
 [@girasquid]: https://github.com/girasquid
+[@hakanensari]: https://github.com/hakanensari
+[@jvlara]: https://github.com/jvlara
+[@tmtm]: https://github.com/tmtm
+[@martinemde]: https://github.com/martinemde

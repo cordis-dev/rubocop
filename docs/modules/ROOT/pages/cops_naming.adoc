@@ -1066,6 +1066,12 @@ Struct.new(:fooBar)
 
 # good
 Struct.new(:foo_bar)
+
+# bad
+alias_method :fooBar, :some_method
+
+# good
+alias_method :foo_bar, :some_method
 ----
 
 [#enforcedstyle_-camelcase-namingmethodname]
@@ -1092,6 +1098,12 @@ Struct.new(:foo_bar)
 
 # good
 Struct.new(:fooBar)
+
+# bad
+alias_method :foo_bar, :some_method
+
+# good
+alias_method :fooBar, :some_method
 ----
 
 [#forbiddenidentifiers_-__def__-_super__-namingmethodname]
