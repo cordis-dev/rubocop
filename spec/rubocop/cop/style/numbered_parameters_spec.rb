@@ -14,6 +14,13 @@ RSpec.describe RuboCop::Cop::Style::NumberedParameters, :config do
         RUBY
       end
 
+      it 'registers no offense when using numbered parameters with multi-line method chain' do
+        expect_no_offenses(<<~RUBY)
+          collection.each
+                    .foo { puts _1 }
+        RUBY
+      end
+
       it 'does not register an offense when using numbered parameters with single-line blocks' do
         expect_no_offenses(<<~RUBY)
           collection.each { puts _1 }

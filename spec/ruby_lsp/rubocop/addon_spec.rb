@@ -12,10 +12,10 @@ RuboCop::LSP.disable
 describe 'RubyLSP::RuboCop::Addon', :isolated_environment, :lsp do
   include FileHelper
 
-  let(:addon) do
-    RubyLsp::RuboCop::Addon.new
-  end
+  include_context 'mock console output'
 
+  let(:path) { 'example.rb' }
+  let(:uri) { path_to_uri(path) }
   let(:source) do
     <<~RUBY
       s = "hello"
@@ -23,34 +23,32 @@ describe 'RubyLSP::RuboCop::Addon', :isolated_environment, :lsp do
     RUBY
   end
 
-  before do
-    # Suppress Ruby LSP's add-on logging.
-    allow(RuboCop::LSP::Logger).to receive(:log)
+  let(:request_id) { (1..).to_enum }
+  let(:server) { create_server(source, uri) }
+
+  after do
+    RubyLsp::Addon.addons.each(&:deactivate)
+    RubyLsp::Addon.addons.clear
   end
 
-  describe 'Add-on name' do
-    it 'is RuboCop' do
+  context 'Add-on metadata' do
+    let(:addon) do
+      RubyLsp::RuboCop::Addon.new
+    end
+
+    it 'has a name' do
       expect(addon.name).to eq 'RuboCop'
+    end
+
+    it 'has a version' do
+      expect(addon.version).to match(/\A\d+\.\d+\.\d+\z/)
     end
   end
 
   describe 'textDocument/diagnostic' do
     subject(:result) do
-      do_with_fake_io do
-        with_server(source, 'example.rb') do |server, uri|
-          server.process_message(
-            id: 2,
-            method: 'textDocument/diagnostic',
-            params: {
-              textDocument: {
-                uri: uri
-              }
-            }
-          )
-
-          server.pop_response
-        end
-      end
+      process_message('textDocument/diagnostic', textDocument: { uri: uri })
+      server.pop_response
     end
 
     let(:first_item) { result.response.items.first }
@@ -86,24 +84,29 @@ describe 'RubyLSP::RuboCop::Addon', :isolated_environment, :lsp do
         Style/StringLiterals: Prefer single-quoted strings when you don't need string interpolation or special symbols.
       MESSAGE
     end
+
+    context 'when `.rubocop` points to a different config file' do
+      before do
+        create_file('.rubocop', '-c custom.yml')
+        create_file('custom.yml', <<~YML)
+          <%= warn "Hello from 'custom.yml'" %>
+        YML
+      end
+
+      it 'uses the config file' do
+        expect { result }.to output(/Hello from 'custom\.yml'/).to_stderr
+      end
+    end
   end
 
   describe 'textDocument/formatting' do
     subject(:result) do
-      do_with_fake_io do
-        with_server(source, 'example.rb') do |server, uri|
-          server.process_message(
-            id: 2,
-            method: 'textDocument/formatting',
-            params: {
-              textDocument: { uri: uri },
-              position: { line: 0, character: 0 }
-            }
-          )
-
-          server.pop_response
-        end
-      end
+      process_message(
+        'textDocument/formatting',
+        textDocument: { uri: uri },
+        position: { line: 0, character: 0 }
+      )
+      server.pop_response
     end
 
     it 'has basic result information' do
@@ -148,52 +151,193 @@ describe 'RubyLSP::RuboCop::Addon', :isolated_environment, :lsp do
         end
       end
     end
+
+    context 'when an error occurs' do
+      context 'when `.rubocop.yml` is invalid' do
+        it 'handles it gracefully' do
+          create_file('.rubocop.yml', 'Not valid YAML!')
+          server.global_state.index.index_all(uris: [])
+
+          init_response = server.pop_response
+          expect(init_response).to be_an_instance_of(RubyLsp::Notification)
+          expect(init_response.params.attributes[:message]).to match(
+            /RuboCop configuration error: Malformed configuration/
+          )
+
+          process_message(
+            'textDocument/formatting',
+            textDocument: { uri: uri },
+            position: { line: 0, character: 0 }
+          )
+          formatting_response = server.pop_response
+
+          expect(formatting_response).to be_an_instance_of(RubyLsp::Result)
+          expect(formatting_response.response).to be_nil
+
+          create_empty_file('.rubocop.yml')
+          expect do
+            process_message(
+              'workspace/didChangeWatchedFiles',
+              changes: [{
+                uri: path_to_uri('.rubocop.yml').to_s,
+                type: RubyLsp::Constant::FileChangeType::CHANGED
+              }]
+            )
+          end.to output.to_stderr
+
+          process_message(
+            'textDocument/formatting',
+            textDocument: { uri: uri },
+            position: { line: 0, character: 0 }
+          )
+          formatting_response = server.pop_response
+
+          expect(formatting_response).to be_an_instance_of(RubyLsp::Result)
+          expect(formatting_response.response).not_to be_nil
+        end
+      end
+
+      context 'runtime error' do
+        before do
+          allow_any_instance_of(RuboCop::Cop::Style::StringLiterals) # rubocop:disable RSpec/AnyInstance
+            .to receive(:on_str)
+            .and_raise(RuntimeError, 'oops')
+        end
+
+        let(:source) { '""' }
+
+        it 'handles infinite loop errors' do
+          expect { result }.to output.to_stderr
+          expect(result).to be_an_instance_of(RubyLsp::Notification)
+          expect(result.params.attributes[:message]).to match(<<~MSG)
+            Formatting error: An internal error occurred for the Style/StringLiterals cop.
+          MSG
+        end
+      end
+
+      context 'infinite loop error' do
+        before do
+          allow(RuboCop::Cop::Registry).to receive(:all).and_return([cop])
+        end
+
+        let(:cop) { RuboCop::Cop::Test::InfiniteLoopDuringAutocorrectWithChangeCop }
+
+        let(:source) do
+          <<~RUBY
+            class Test
+            end
+          RUBY
+        end
+
+        it 'handles infinite loop errors' do
+          expect { result }.to output.to_stderr
+          expect(result).to be_an_instance_of(RubyLsp::Notification)
+          expect(result.params.attributes[:message]).to match(<<~MSG)
+            Formatting error: An internal error occurred - Infinite loop detected in #{uri} and caused by #{cop.badge}.
+          MSG
+        end
+      end
+    end
   end
 
   describe 'workspace/didChangeWatchedFiles' do
-    it 'creates new runtime adapter' do
-      with_server(source, '.rubocop.yml') do |server, uri|
-        # Ensure initial indexing is complete before trying to process did change watched file
-        # notifications
-        server.global_state.index.index_all(uris: [])
+    before do
+      # Ensure initial indexing is complete before trying to process did change watched file
+      # notifications.
+      server.global_state.index.index_all(uris: [])
+    end
 
-        addon = RubyLsp::Addon.addons.find { |a| a.name == 'RuboCop' }
-        expect(addon).to be_an_instance_of(RubyLsp::RuboCop::Addon)
-        original_runtime_adapter = addon.instance_variable_get(:@runtime_adapter)
+    context 'when `.rubocop.yml` changes' do
+      let(:source) do
+        <<~RUBY
+          # frozen_string_literal: true
 
-        server.process_message(
-          method: 'workspace/didChangeWatchedFiles',
-          params: {
+          ""
+        RUBY
+      end
+
+      it 'reloads the addon and uses the updated config' do
+        create_file('.rubocop.yml', <<~YML)
+          Style/StringLiterals:
+            EnforcedStyle: single_quotes
+        YML
+        process_message('textDocument/diagnostic', textDocument: { uri: uri })
+        diagnostics_result = server.pop_response
+        expect(diagnostics_result).to be_an_instance_of(RubyLsp::Result)
+        rubocop_diagnostics = diagnostics_result.response.items.select do |diag|
+          diag.source == 'RuboCop'
+        end
+        expect(rubocop_diagnostics.size).to eq(1)
+        expect(rubocop_diagnostics[0].code).to eq('Style/StringLiterals')
+
+        create_file('.rubocop.yml', <<~YML)
+          Style/StringLiterals:
+            EnforcedStyle: double_quotes
+        YML
+        expect do
+          process_message(
+            'workspace/didChangeWatchedFiles',
+            changes: [{
+              uri: path_to_uri('.rubocop.yml').to_s,
+              type: RubyLsp::Constant::FileChangeType::CHANGED
+            }]
+          )
+        end.to output.to_stderr
+
+        process_message('textDocument/diagnostic', textDocument: { uri: uri })
+        diagnostics_result = server.pop_response
+        expect(diagnostics_result).to be_an_instance_of(RubyLsp::Result)
+        rubocop_diagnostics = diagnostics_result.response.items.select do |diag|
+          diag.source == 'RuboCop'
+        end
+        expect(rubocop_diagnostics).to be_empty
+      end
+    end
+
+    %w[.rubocop.yml .rubocop_todo.yml .rubocop].each do |path|
+      context "when `#{path}` changes" do
+        it 'logs a message that the add-on got re-initialized' do
+          expect do
+            process_message(
+              'workspace/didChangeWatchedFiles',
+              changes: [{
+                uri: path_to_uri(path).to_s,
+                type: RubyLsp::Constant::FileChangeType::CHANGED
+              }]
+            )
+          end.to output(/Re-initialized RuboCop LSP addon/).to_stderr
+        end
+      end
+    end
+
+    context 'when `test.rb` file changes' do
+      let(:path) { 'test.rb' }
+
+      it "doesn't log a message about re-initializing the addon" do
+        expect do
+          process_message(
+            'workspace/didChangeWatchedFiles',
             changes: [{
               uri: uri.to_s,
               type: RubyLsp::Constant::FileChangeType::CHANGED
             }]
-          }
-        )
-
-        new_runtime_adapter = addon.instance_variable_get(:@runtime_adapter)
-        expect(new_runtime_adapter).not_to eq original_runtime_adapter
+          )
+        end.not_to output.to_stderr
       end
     end
   end
 
   private
 
-  # Lifted from here, because we need to override the formatter to RuboCop in the spec helper:
-  # https://github.com/Shopify/ruby-lsp/blob/4c1906172add4d5c39c35d3396aa29c768bfb898/lib/ruby_lsp/test_helper.rb#L20
-  #
-  # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
-  def with_server(
-    source = nil, path = 'fake.rb', stub_no_typechecker: false, load_addons: true
-  )
+  # rubocop:disable Metrics/MethodLength
+  def create_server(source, uri)
     server = RubyLsp::Server.new(test_mode: true)
-    uri = URI(File.join(server.global_state.workspace_path, path))
     server.global_state.formatter = 'rubocop'
     server.global_state.instance_variable_set(:@linters, ['rubocop'])
-    server.global_state.stubs(:typechecker).returns(false) if stub_no_typechecker
 
     if source
       server.process_message(
+        id: request_id.next,
         method: 'textDocument/didOpen',
         params: {
           textDocument: {
@@ -208,18 +352,16 @@ describe 'RubyLSP::RuboCop::Addon', :isolated_environment, :lsp do
     server.global_state.index.index_single(
       URI::Generic.from_path(path: uri.to_standardized_path), source
     )
-    server.load_addons if load_addons
-
-    yield server, uri
-  ensure
-    if load_addons
-      RubyLsp::Addon.addons.each(&:deactivate)
-      RubyLsp::Addon.addons.clear
-    end
+    server.load_addons
+    server
   end
-  # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+  # rubocop:enable Metrics/MethodLength
 
-  def do_with_fake_io(&block)
-    RuboCop::Server::Helper.redirect(stdout: StringIO.new, stderr: StringIO.new, &block)
+  def process_message(method, **params)
+    server.process_message(id: request_id.next, method: method, params: params)
+  end
+
+  def path_to_uri(path)
+    URI(File.absolute_path(path))
   end
 end

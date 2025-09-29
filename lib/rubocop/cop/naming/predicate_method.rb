@@ -14,7 +14,7 @@ module RuboCop
       # method calls are assumed to return boolean values. The cop does not make an assessment
       # if the return type is unknown (non-predicate method calls, variables, etc.).
       #
-      # NOTE: Operator methods (`def ==`, etc.) are ignored.
+      # NOTE: The `initialize` method and operator methods (`def ==`, etc.) are ignored.
       #
       # By default, the cop runs in `conservative` mode, which allows a method to be named
       # with a question mark as long as at least one return value is boolean. In `aggressive`
@@ -113,6 +113,18 @@ module RuboCop
       #     true
       #   end
       #
+      # @example AllowedMethods: [call] (default)
+      #   # good
+      #   def call
+      #     foo == bar
+      #   end
+      #
+      # @example AllowedPatterns: [\Afoo]
+      #   # good
+      #   def foo?
+      #     'foo'
+      #   end
+      #
       # @example AllowBangMethods: false (default)
       #   # bad
       #   def save!
@@ -149,7 +161,8 @@ module RuboCop
         private
 
         def allowed?(node)
-          allowed_method?(node.method_name) ||
+          node.method?(:initialize) ||
+            allowed_method?(node.method_name) ||
             matches_allowed_pattern?(node.method_name) ||
             allowed_bang_method?(node) ||
             node.operator_method? ||

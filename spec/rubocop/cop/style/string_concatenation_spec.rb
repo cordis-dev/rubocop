@@ -42,7 +42,29 @@ RSpec.describe RuboCop::Cop::Style::StringConcatenation, :config do
     RUBY
 
     expect_correction(<<~RUBY)
-      "\#{(user.vip? ? "\#{greeting}, " : '')}\#{user.name} <\#{user.email}>"
+      "\#{user.vip? ? "\#{greeting}, " : ''}\#{user.name} <\#{user.email}>"
+    RUBY
+  end
+
+  it 'correctly handles nested concatenatable parts and escaped double-quotes' do
+    expect_offense(<<~'RUBY')
+      "foo" + "\"#{bar}\"" + 'baz'
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Prefer string interpolation to string concatenation.
+    RUBY
+
+    expect_correction(<<~'RUBY')
+      "foo\"#{bar}\"baz"
+    RUBY
+  end
+
+  it 'correctly handles nested concatenatable parts and escaped single-quotes' do
+    expect_offense(<<~'RUBY')
+      "foo" + "\'#{bar}\'" + 'baz'
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Prefer string interpolation to string concatenation.
+    RUBY
+
+    expect_correction(<<~'RUBY')
+      "foo'#{bar}'baz"
     RUBY
   end
 
@@ -267,6 +289,52 @@ RSpec.describe RuboCop::Cop::Style::StringConcatenation, :config do
 
       expect_correction(<<~'RUBY')
         "\"bar\"#{foo}"
+      RUBY
+    end
+  end
+
+  context 'characters for interpolation inside single quotes' do
+    it 'registers an offense for `#{}`' do
+      expect_offense(<<~'RUBY')
+        "foo" + '#{bar}'
+        ^^^^^^^^^^^^^^^^ Prefer string interpolation to string concatenation.
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        "foo\#{bar}"
+      RUBY
+    end
+
+    it 'registers an offense for `#@`' do
+      expect_offense(<<~'RUBY')
+        "foo" + '#@bar'
+        ^^^^^^^^^^^^^^^ Prefer string interpolation to string concatenation.
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        "foo\#@bar"
+      RUBY
+    end
+
+    it 'registers an offense for `#@@`' do
+      expect_offense(<<~'RUBY')
+        "foo" + '#@@bar'
+        ^^^^^^^^^^^^^^^^ Prefer string interpolation to string concatenation.
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        "foo\#@@bar"
+      RUBY
+    end
+
+    it 'registers an offense for `#$`' do
+      expect_offense(<<~'RUBY')
+        "foo" + '#$bar'
+        ^^^^^^^^^^^^^^^ Prefer string interpolation to string concatenation.
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        "foo\#$bar"
       RUBY
     end
   end
