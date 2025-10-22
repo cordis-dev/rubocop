@@ -231,6 +231,26 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
         RUBY
       end
 
+      it 'does not register an offense when heredoc is used only in regular method definition' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            <<~HEREDOC
+              hello
+            HEREDOC
+          end
+        RUBY
+      end
+
+      it 'does not register an offense for heredoc is used in regular method definition' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            puts <<~HEREDOC
+              hello
+            HEREDOC
+          end
+        RUBY
+      end
+
       it 'registers an offense and corrects for a single line method' do
         expect_offense(<<~RUBY)
           def my_method
@@ -241,6 +261,19 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
 
         expect_correction(<<~RUBY)
           def my_method = x
+        RUBY
+      end
+
+      it 'registers an offense and corrects for a single line method with access modifier' do
+        expect_offense(<<~RUBY)
+          private def my_method
+                  ^^^^^^^^^^^^^ Use endless method definitions for single line methods.
+            x
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          private def my_method = x
         RUBY
       end
 
@@ -260,6 +293,14 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
         RUBY
       end
 
+      it 'does not register an offense when the endless with access modifier version excess Metrics/MaxLineLength[Max]' do
+        expect_no_offenses(<<~RUBY)
+          private def my_method
+            'this_string_ends_at_column_75_________________________________'
+          end
+        RUBY
+      end
+
       context 'when Metrics/MaxLineLength is disabled' do
         let(:line_length_enabled) { false }
 
@@ -273,6 +314,19 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
 
           expect_correction(<<~RUBY)
             def my_method = 'this_string_ends_at_column_75_________________________________________'
+          RUBY
+        end
+
+        it 'registers an offense and corrects for a long single line method with access modifier that is long' do
+          expect_offense(<<~RUBY)
+            private def my_method
+                    ^^^^^^^^^^^^^ Use endless method definitions for single line methods.
+              'this_string_ends_at_column_75_________________________________'
+            end
+          RUBY
+
+          expect_correction(<<~RUBY)
+            private def my_method = 'this_string_ends_at_column_75_________________________________'
           RUBY
         end
       end
@@ -353,6 +407,26 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
             begin
               foo && bar
             end
+          end
+        RUBY
+      end
+
+      it 'does not register an offense when heredoc is used only in regular method definition' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            <<~HEREDOC
+              hello
+            HEREDOC
+          end
+        RUBY
+      end
+
+      it 'does not register an offense for heredoc is used in regular method definition' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            puts <<~HEREDOC
+              hello
+            HEREDOC
           end
         RUBY
       end

@@ -188,8 +188,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
                 "if it's surely a splat operator, or add a whitespace to the " \
                 'right of the `*` if it should be a multiplication.',
                 "#{abs('example.rb')}:4:1: C: [Correctable] Style/OneLineConditional: " \
-                'Favor the ternary operator (`?:`) or multi-line constructs over ' \
-                'single-line `if/then/else/end` constructs.',
+                'Favor the ternary operator (`?:`) over single-line `if/then/else/end` constructs.',
                 ''].join("\n"))
     end
   end
@@ -1659,7 +1658,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
 
     # Being immune to bad configuration files in excluded directories has
     # become important due to a bug in rubygems
-    # (https://github.com/rubygems/rubygems/issues/680) that makes
+    # (https://github.com/ruby/rubygems/issues/680) that makes
     # installations of, for example, RuboCop lack their .rubocop.yml in the
     # root directory.
     it 'can exclude a vendor directory with an erroneous config file' do

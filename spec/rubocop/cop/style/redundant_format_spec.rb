@@ -84,6 +84,17 @@ RSpec.describe RuboCop::Cop::Style::RedundantFormat, :config do
             'foo'
           RUBY
         end
+
+        it 'registers an offense when the argument is a control character' do
+          expect_offense(<<~'RUBY', method: method)
+            %{method}("\n")
+            ^{method}^^^^^^ Use `"\n"` directly instead of `%{method}`.
+          RUBY
+
+          expect_correction(<<~'RUBY')
+            "\n"
+          RUBY
+        end
       end
 
       context 'with literal arguments' do
@@ -194,6 +205,10 @@ RSpec.describe RuboCop::Cop::Style::RedundantFormat, :config do
         it_behaves_like 'offending format specifier', '%.2f', '5', "'5.00'"
         it_behaves_like 'offending format specifier', '%10.2f', '5', "'      5.00'"
         it_behaves_like 'offending format specifier', '%-10.2f', '5', "'5.00      '"
+
+        # Width or precision with interpolation
+        it_behaves_like 'non-offending format specifier', '%10s', '"#{foo}"'
+        it_behaves_like 'non-offending format specifier', '%.1s', '"#{foo}"'
 
         it 'is able to handle `%%` specifiers' do
           expect_no_offenses(<<~RUBY)
@@ -450,6 +465,19 @@ RSpec.describe RuboCop::Cop::Style::RedundantFormat, :config do
         it 'does not register an offense when only argument is a splatted constant' do
           expect_no_offenses(<<~RUBY)
             #{method}(*FORMAT)
+          RUBY
+        end
+      end
+
+      context 'when the string contains control characters' do
+        it 'registers an offense with the correct message' do
+          expect_offense(<<~'RUBY', method: method)
+            %{method}("%s\a\b\t\n\v\f\r\e", 'foo')
+            ^{method}^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `"foo\a\b\t\n\v\f\r\e"` directly instead of `%{method}`.
+          RUBY
+
+          expect_correction(<<~'RUBY')
+            "foo\a\b\t\n\v\f\r\e"
           RUBY
         end
       end

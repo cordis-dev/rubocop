@@ -89,7 +89,7 @@ module RuboCop
 
         def on_send(node)
           format_without_additional_args?(node) do |value|
-            replacement = value.source
+            replacement = escape_control_chars(value.source)
 
             add_offense(node, message: message(node, replacement)) do |corrector|
               corrector.replace(node, replacement)
@@ -134,7 +134,7 @@ module RuboCop
           end
         end
 
-        # rubocop:disable Metrics/CyclomaticComplexity
+        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def all_fields_literal?(string, arguments)
           count = 0
           sequences = RuboCop::Cop::Utils::FormatString.new(string).format_sequences
@@ -147,13 +147,14 @@ module RuboCop
             hash = arguments.detect(&:hash_type?)
             next unless (argument = find_argument(sequence, arguments, hash))
             next unless matching_argument?(sequence, argument)
+            next if (sequence.width || sequence.precision) && argument.dstr_type?
 
             count += 1
           end
 
           sequences.size == count
         end
-        # rubocop:enable Metrics/CyclomaticComplexity
+        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         # If the sequence has a variable (`*`) width, it cannot be autocorrected
         # if the width is not given as a numeric literal argument
@@ -229,7 +230,12 @@ module RuboCop
             end
           end
 
-          "#{start_delimiter}#{string}#{end_delimiter}"
+          "#{start_delimiter}#{escape_control_chars(string)}#{end_delimiter}"
+        end
+
+        # Escape any control characters in the string (eg. `\t` or `\n` become `\\t` or `\\n`)
+        def escape_control_chars(string)
+          string.gsub(/\p{Cc}/) { |s| s.dump[1..-2] }
         end
 
         def argument_values(arguments)

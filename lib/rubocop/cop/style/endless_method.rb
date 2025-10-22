@@ -144,7 +144,7 @@ module RuboCop
         MSG_REQUIRE_ALWAYS = 'Use endless method definitions.'
 
         def on_def(node)
-          return if node.assignment_method?
+          return if node.assignment_method? || use_heredoc?(node)
 
           case style
           when :allow_single_line, :allow_always
@@ -198,6 +198,13 @@ module RuboCop
           add_offense(node) { |corrector| correct_to_multiline(corrector, node) }
         end
 
+        def use_heredoc?(node)
+          return false unless (body = node.body)
+          return true if body.str_type? && body.heredoc?
+
+          body.each_descendant(:str).any?(&:heredoc?)
+        end
+
         def correct_to_multiline(corrector, node)
           replacement = <<~RUBY.strip
             def #{node.method_name}#{arguments(node)}
@@ -225,7 +232,13 @@ module RuboCop
         def too_long_when_made_endless?(node)
           return false unless config.cop_enabled?('Layout/LineLength')
 
-          endless_replacement(node).length > config.for_cop('Layout/LineLength')['Max']
+          offset = modifier_offset(node)
+
+          endless_replacement(node).length + offset > config.for_cop('Layout/LineLength')['Max']
+        end
+
+        def modifier_offset(node)
+          same_line?(node.parent, node) ? node.loc.column - node.parent.loc.column : 0
         end
       end
     end

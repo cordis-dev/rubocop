@@ -275,7 +275,7 @@ Gemspec/AddRuntimeDependency:
   Description: 'Prefer `add_dependency` over `add_runtime_dependency`.'
   StyleGuide: '#add_dependency_vs_add_runtime_dependency'
   References:
-    - https://github.com/rubygems/rubygems/issues/7799#issuecomment-2192720316
+    - https://github.com/ruby/rubygems/issues/7799#issuecomment-2192720316
   Enabled: pending
   VersionAdded: '1.65'
   Include:
@@ -3207,6 +3207,7 @@ Security/JSONLoad:
                  security issues. See reference for more information.
   References:
     - 'https://ruby-doc.org/stdlib-2.7.0/libdoc/json/rdoc/JSON.html#method-i-load'
+    - 'https://bugs.ruby-lang.org/issues/19528'
   Enabled: true
   VersionAdded: '0.43'
   VersionChanged: '1.22'

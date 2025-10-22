@@ -193,7 +193,6 @@ module RuboCop
         SEPARATOR_ALIGNMENT_STYLES = %w[EnforcedColonStyle EnforcedHashRocketStyle].freeze
 
         def on_send(node)
-          return if double_splat?(node)
           return unless node.arguments?
 
           last_argument = node.last_argument
@@ -233,16 +232,14 @@ module RuboCop
         end
 
         def argument_before_hash(hash_node)
+          return hash_node.children.first.children.first if hash_node.children.first.kwsplat_type?
+
           hash_node.left_sibling.respond_to?(:loc) ? hash_node.left_sibling : nil
         end
 
         def reset!
           self.offenses_by = {}
           self.column_deltas = Hash.new { |hash, key| hash[key] = {} }
-        end
-
-        def double_splat?(node)
-          node.children.last.is_a?(Symbol)
         end
 
         def check_pairs(node)
