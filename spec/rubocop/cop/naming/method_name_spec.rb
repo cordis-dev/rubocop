@@ -621,6 +621,12 @@ RSpec.describe RuboCop::Cop::Naming::MethodName, :config do
       RUBY
     end
 
+    it 'accepts `alias` with interpolated symbol argument' do
+      expect_no_offenses(<<~'RUBY')
+        alias :"foo#{bar}" :baz
+      RUBY
+    end
+
     it 'registers an offense for `alias_method` snake_case string argument' do
       expect_offense(<<~RUBY)
         alias_method "fooBar", "foo"
@@ -628,15 +634,21 @@ RSpec.describe RuboCop::Cop::Naming::MethodName, :config do
       RUBY
     end
 
-    include_examples 'never accepted',  'snake_case'
-    include_examples 'always accepted', 'snake_case'
-    include_examples 'multiple attr methods', 'snake_case'
-    include_examples 'forbidden identifiers', 'super'
-    include_examples 'forbidden patterns', '_v1\z', 'api_v1'
-    include_examples 'define_method method call', 'snake_case', 'fooBar'
-    include_examples 'define_method method call', 'snake_case', 'fooBar?'
-    include_examples 'define_method method call', 'snake_case', 'fooBar!'
-    include_examples 'define_method method call', 'snake_case', 'fooBar='
+    it 'accepts `alias_method` with interpolated string argument' do
+      expect_no_offenses(<<~'RUBY')
+        alias_method "foo#{bar}", "baz"
+      RUBY
+    end
+
+    it_behaves_like 'never accepted',  'snake_case'
+    it_behaves_like 'always accepted', 'snake_case'
+    it_behaves_like 'multiple attr methods', 'snake_case'
+    it_behaves_like 'forbidden identifiers', 'super'
+    it_behaves_like 'forbidden patterns', '_v1\z', 'api_v1'
+    it_behaves_like 'define_method method call', 'snake_case', 'fooBar'
+    it_behaves_like 'define_method method call', 'snake_case', 'fooBar?'
+    it_behaves_like 'define_method method call', 'snake_case', 'fooBar!'
+    it_behaves_like 'define_method method call', 'snake_case', 'fooBar='
   end
 
   context 'when configured for camelCase' do
@@ -763,15 +775,15 @@ RSpec.describe RuboCop::Cop::Naming::MethodName, :config do
       RUBY
     end
 
-    include_examples 'always accepted', 'camelCase'
-    include_examples 'never accepted',  'camelCase'
-    include_examples 'multiple attr methods', 'camelCase'
-    include_examples 'forbidden identifiers', 'super'
-    include_examples 'forbidden patterns', '_gen\d+\z', 'user_gen1'
-    include_examples 'define_method method call', 'camelCase', 'foo_bar'
-    include_examples 'define_method method call', 'camelCase', 'foo_bar?'
-    include_examples 'define_method method call', 'camelCase', 'foo_bar!'
-    include_examples 'define_method method call', 'camelCase', 'foo_bar='
+    it_behaves_like 'always accepted', 'camelCase'
+    it_behaves_like 'never accepted',  'camelCase'
+    it_behaves_like 'multiple attr methods', 'camelCase'
+    it_behaves_like 'forbidden identifiers', 'super'
+    it_behaves_like 'forbidden patterns', '_gen\d+\z', 'user_gen1'
+    it_behaves_like 'define_method method call', 'camelCase', 'foo_bar'
+    it_behaves_like 'define_method method call', 'camelCase', 'foo_bar?'
+    it_behaves_like 'define_method method call', 'camelCase', 'foo_bar!'
+    it_behaves_like 'define_method method call', 'camelCase', 'foo_bar='
   end
 
   it 'accepts for non-ascii characters' do

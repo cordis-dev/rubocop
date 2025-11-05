@@ -1000,10 +1000,10 @@ RSpec.describe RuboCop::ConfigLoader do
         end
       end
 
-      include_examples 'resolves enabled/disabled for all cops', false, false, 'Foo/Bar'
-      include_examples 'resolves enabled/disabled for all cops', false, true, 'Foo/Bar'
-      include_examples 'resolves enabled/disabled for all cops', true, false, 'Foo/Bar'
-      include_examples 'resolves enabled/disabled for all cops', false, false, 'Foo'
+      it_behaves_like 'resolves enabled/disabled for all cops', false, false, 'Foo/Bar'
+      it_behaves_like 'resolves enabled/disabled for all cops', false, true, 'Foo/Bar'
+      it_behaves_like 'resolves enabled/disabled for all cops', true, false, 'Foo/Bar'
+      it_behaves_like 'resolves enabled/disabled for all cops', false, false, 'Foo'
     end
 
     context 'when a third party require defines a new gem', :restore_registry do
@@ -1351,6 +1351,18 @@ RSpec.describe RuboCop::ConfigLoader do
               expect { configuration_from_file }.not_to raise_error
             end
           end
+
+          context 'when the gemfile fails to load' do
+            before do
+              create_file('Gemfile', <<~GEMFILE)
+                eval_gemfile 'file_that_does_not_exist'
+              GEMFILE
+            end
+
+            it 'loads' do
+              expect { configuration_from_file }.not_to raise_error
+            end
+          end
         end
       end
 
@@ -1422,9 +1434,11 @@ RSpec.describe RuboCop::ConfigLoader do
 
     context 'when a file inherits from a url' do
       let(:file_path) { '.rubocop.yml' }
-      let(:cache_file) { '.rubocop-http---example-com-rubocop-yml' }
+      let(:cache_file) { '.rubocop-remote-e32e465e27910f2bc7262515eebe6b63.yml' }
 
       before do
+        described_class.cache_root = Dir.pwd
+
         stub_request(:get, /example.com/)
           .to_return(status: 200, body: <<~YAML)
             Style/Encoding:
@@ -1444,7 +1458,7 @@ RSpec.describe RuboCop::ConfigLoader do
         FileUtils.rm_rf cache_file
       end
 
-      it 'creates the cached file alongside the owning file' do
+      it 'creates the cached file at the cache root' do
         expect { configuration_from_file }.not_to output.to_stderr
         expect(File).to exist(cache_file)
       end
@@ -1452,10 +1466,12 @@ RSpec.describe RuboCop::ConfigLoader do
 
     context 'when a file inherits from a url inheriting from another file' do
       let(:file_path) { '.rubocop.yml' }
-      let(:cache_file) { '.rubocop-http---example-com-rubocop-yml' }
-      let(:cache_file2) { '.rubocop-http---example-com-inherit-yml' }
+      let(:cache_file) { '.rubocop-remote-1e2eaf67d5bc989f4bc3c5a900039224.yml' }
+      let(:cache_file2) { '.rubocop-remote-e32e465e27910f2bc7262515eebe6b63.yml' }
 
       before do
+        described_class.cache_root = Dir.pwd
+
         stub_request(:get, %r{example.com/rubocop})
           .to_return(status: 200, body: "inherit_from:\n    - inherit.yml")
 
