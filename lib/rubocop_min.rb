@@ -19,6 +19,7 @@ require_relative 'rubocop/version.rb'
 require 'rubocop-ast'
 
 require_relative 'concatenated_rubocop.rb'
+require_relative 'rubocop/cop/lint/todo_comment.rb'
 
 unless File.exist?("#{__dir__}/../rubocop.gemspec") # Check if we are a gem
   RuboCop::ResultCache.rubocop_required_features = $LOADED_FEATURES - before_us
