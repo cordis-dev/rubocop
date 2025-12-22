@@ -90,6 +90,8 @@ module RuboCop
       end
 
       def line_with_eol_comment_too_long?(range)
+        return false unless max_line_length
+
         (range.source_line + eol_comment).length > max_line_length
       end
 
@@ -133,6 +135,8 @@ module RuboCop
       end
 
       def max_line_length
+        return unless config.cop_enabled?('Layout/LineLength')
+
         config.for_cop('Layout/LineLength')['Max'] || 120
       end
 

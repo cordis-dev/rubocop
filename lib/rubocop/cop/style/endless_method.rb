@@ -200,7 +200,7 @@ module RuboCop
 
         def use_heredoc?(node)
           return false unless (body = node.body)
-          return true if body.str_type? && body.heredoc?
+          return true if body.any_str_type? && body.heredoc?
 
           body.each_descendant(:str).any?(&:heredoc?)
         end
@@ -234,7 +234,7 @@ module RuboCop
 
           offset = modifier_offset(node)
 
-          endless_replacement(node).length + offset > config.for_cop('Layout/LineLength')['Max']
+          endless_replacement(node).length + offset > max_line_length
         end
 
         def modifier_offset(node)

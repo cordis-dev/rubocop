@@ -19,6 +19,11 @@ RSpec.describe 'rubocop --server', :isolated_environment do # rubocop:disable RS
   if RuboCop::Server.support_server?
     context 'when using `--server` option after updating RuboCop' do
       it 'displays a restart information message' do
+        create_file('.rubocop.yml', <<~YAML)
+          AllCops:
+            NewCops: disable
+        YAML
+
         create_file('example.rb', <<~RUBY)
           # frozen_string_literal: true
 
@@ -47,13 +52,13 @@ RSpec.describe 'rubocop --server', :isolated_environment do # rubocop:disable RS
 
     context 'when using --config option after update specified config file' do
       it 'displays a restart information message' do
-        create_file('.rubocop_todo.yml', <<~RUBY)
+        create_file('.rubocop_todo.yml', <<~YAML)
           AllCops:
             NewCops: enable
             SuggestExtensions: false
           Layout/LineLength:
             Max: 100
-        RUBY
+        YAML
 
         create_file('example.rb', <<~RUBY)
           # frozen_string_literal: true
@@ -66,13 +71,13 @@ RSpec.describe 'rubocop --server', :isolated_environment do # rubocop:disable RS
         `ruby -I . \"#{rubocop}\" #{options}`
 
         # Update .rubocop_todo.yml
-        create_file('.rubocop_todo.yml', <<~RUBY)
+        create_file('.rubocop_todo.yml', <<~YAML)
           AllCops:
             NewCops: enable
             SuggestExtensions: false
           Layout/LineLength:
             Max: 101
-        RUBY
+        YAML
 
         _stdout, stderr, _status = Open3.capture3("ruby -I . \"#{rubocop}\" #{options}")
         expect(stderr).to start_with(
@@ -203,13 +208,13 @@ RSpec.describe 'rubocop --server', :isolated_environment do # rubocop:disable RS
         RUBY
 
         # Disable `Style/FrozenStringLiteralComment` cop.
-        create_file('.rubocop.yml', <<~RUBY)
+        create_file('.rubocop.yml', <<~YAML)
           AllCops:
             NewCops: enable
             SuggestExtensions: false
           Style/FrozenStringLiteralComment:
             Enabled: false
-        RUBY
+        YAML
 
         message = expect(`ruby -I . "#{rubocop}" --server`)
         message.to start_with('RuboCop server starting on ')
@@ -233,13 +238,13 @@ RSpec.describe 'rubocop --server', :isolated_environment do # rubocop:disable RS
         )
 
         # Enable `Style/FrozenStringLiteralComment` cop.
-        create_file('.rubocop.yml', <<~RUBY)
+        create_file('.rubocop.yml', <<~YAML)
           AllCops:
             NewCops: enable
             SuggestExtensions: false
           Style/FrozenStringLiteralComment:
             Enabled: true
-        RUBY
+        YAML
 
         debug_output += [
           'After create file',

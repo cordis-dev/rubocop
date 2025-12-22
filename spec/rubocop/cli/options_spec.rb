@@ -717,6 +717,30 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
         end
       end
 
+      context 'when specifying disabled `Layout/LineLength` cop' do
+        let(:line) { "Object::#{'A' * 100}".inspect }
+
+        it 'enables the given cop' do
+          create_file('example.rb', [line])
+
+          create_file('.rubocop.yml', <<~YAML)
+            Layout/LineLength:
+              Enabled: false
+              Max: 80
+          YAML
+
+          expect(cli.run(['--format', 'simple',
+                          '--only', 'Layout/LineLength',
+                          'example.rb'])).to be_zero
+          expect($stderr.string).to eq('')
+          expect($stdout.string)
+            .to eq(<<~RESULT)
+
+              1 file inspected, no offenses detected
+            RESULT
+        end
+      end
+
       context 'without using namespace' do
         it 'runs just one cop' do
           create_file('example.rb', ['if x== 0 ', "\ty", 'end'])
@@ -2436,6 +2460,54 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
       expect(cli.run([invalid_option])).to eq(2)
       expect($stderr.string).to eq(<<~RESULT)
         invalid option: #{invalid_option}
+        For usage information, use --help
+      RESULT
+    end
+  end
+
+  describe 'option is ambiguous' do
+    it 'suggests to use the --help flag' do
+      ambiguous_option = '--no'
+
+      expect(cli.run([ambiguous_option])).to eq(2)
+      expect($stderr.string).to eq(<<~RESULT)
+        ambiguous option: #{ambiguous_option}
+        For usage information, use --help
+      RESULT
+    end
+  end
+
+  describe 'argument is needless' do
+    it 'suggests to use the --help flag' do
+      option = '--help=yes'
+
+      expect(cli.run([option])).to eq(2)
+      expect($stderr.string).to eq(<<~RESULT)
+        needless argument: #{option}
+        For usage information, use --help
+      RESULT
+    end
+  end
+
+  describe 'argument is missing' do
+    it 'suggests to use the --help flag' do
+      option = '--exclude-limit'
+
+      expect(cli.run([option])).to eq(2)
+      expect($stderr.string).to eq(<<~RESULT)
+        missing argument: #{option}
+        For usage information, use --help
+      RESULT
+    end
+  end
+
+  describe 'argument is invalid' do
+    it 'suggests to use the --help flag' do
+      option = '--fail-level=Z'
+
+      expect(cli.run([option])).to eq(2)
+      expect($stderr.string).to eq(<<~RESULT)
+        invalid argument: #{option}
         For usage information, use --help
       RESULT
     end

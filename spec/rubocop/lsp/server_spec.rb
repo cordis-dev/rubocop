@@ -41,8 +41,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
         result: {
           capabilities: {
             textDocumentSync: { openClose: true, change: 2 },
-            documentFormattingProvider: true,
-            positionEncoding: 'utf-16'
+            documentFormattingProvider: true
           }
         }
       )
@@ -178,6 +177,75 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
               source: 'RuboCop'
             }
           ], uri: 'file:///path/to/file.rb'
+        }
+      )
+    end
+  end
+
+  describe 'did open with multibyte character(utf-16)' do
+    let(:requests) do
+      [
+        jsonrpc: '2.0',
+        method: 'textDocument/didOpen',
+        params: {
+          textDocument: {
+            languageId: 'ruby',
+            text: "'☃🍣🍺' x",
+            uri: 'file:///path/to/file.rb',
+            version: 0
+          }
+        }
+      ]
+    end
+
+    it 'handles requests' do
+      expect(stderr).to eq('')
+      expect(messages.count).to eq(1)
+      expect(messages.first).to eq(
+        jsonrpc: '2.0',
+        method: 'textDocument/publishDiagnostics',
+        params: {
+          diagnostics: [
+            {
+              code: 'Lint/Syntax',
+              codeDescription: {
+                href: 'https://docs.rubocop.org/rubocop/cops_lint.html#lintsyntax'
+              },
+              data: {
+                code_actions: [
+                  {
+                    edit: {
+                      documentChanges: [
+                        {
+                          edits: [
+                            {
+                              newText: ' # rubocop:disable Lint/Syntax',
+                              range: {
+                                start: { character: 9, line: 0 },
+                                end: { character: 9, line: 0 }
+                              }
+                            }
+                          ],
+                          textDocument: { uri: 'file:///path/to/file.rb', version: nil }
+                        }
+                      ]
+                    },
+                    kind: 'quickfix',
+                    title: 'Disable Lint/Syntax for this line'
+                  }
+                ],
+                correctable: false
+              },
+              message: "Lint/Syntax: unexpected token tIDENTIFIER\n\nThis offense is not autocorrectable.\n", # rubocop:disable Layout/LineLength
+              range: {
+                start: { character: 8, line: 0 },
+                end: { character: 9, line: 0 }
+              },
+              severity: 1,
+              source: 'RuboCop'
+            }
+          ],
+          uri: 'file:///path/to/file.rb'
         }
       )
     end
@@ -1414,7 +1482,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
     end
   end
 
-  describe 'did change with multibyte character (default)' do
+  describe 'did change with multibyte character' do
     let(:requests) do
       [
         {
@@ -1460,249 +1528,6 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
 
     it 'handles requests' do
       expect(messages.count).to eq(3)
-      expect(messages.last).to eq(
-        jsonrpc: '2.0', id: 20, result: [
-          {
-            newText: "puts '💎'\n",
-            range: {
-              end: { character: 0, line: 1 }, start: { character: 0, line: 0 }
-            }
-          }
-        ]
-      )
-    end
-  end
-
-  describe 'did change with multibyte character (utf-32)' do
-    let(:requests) do
-      [
-        {
-          jsonrpc: '2.0',
-          id: 10,
-          method: 'initialize',
-          params: {
-            capabilities: {
-              general: {
-                positionEncodings: ['utf-32']
-              }
-            }
-          }
-        }, {
-          jsonrpc: '2.0',
-          method: 'textDocument/didOpen',
-          params: {
-            textDocument: {
-              languageId: 'ruby',
-              text: "puts '🍣🍺'",
-              uri: 'file:///path/to/file.rb',
-              version: 0
-            }
-          }
-        }, {
-          jsonrpc: '2.0',
-          method: 'textDocument/didChange',
-          params: {
-            contentChanges: [
-              {
-                text: '💎',
-                range: {
-                  start: { line: 0, character: 6 },
-                  end: { line: 0, character: 8 }
-                }
-              }
-            ],
-            textDocument: {
-              uri: 'file:///path/to/file.rb',
-              version: 10
-            }
-          }
-        }, {
-          jsonrpc: '2.0',
-          id: 20,
-          method: 'textDocument/formatting',
-          params: {
-            options: { insertSpaces: true, tabSize: 2 },
-            textDocument: { uri: 'file:///path/to/file.rb' }
-          }
-        }
-      ]
-    end
-
-    it 'handles requests' do
-      expect(messages.count).to eq(4)
-      expect(messages.first).to eq(
-        jsonrpc: '2.0',
-        id: 10,
-        result: {
-          capabilities: {
-            textDocumentSync: { openClose: true, change: 2 },
-            documentFormattingProvider: true,
-            positionEncoding: 'utf-32'
-          }
-        }
-      )
-      expect(messages.last).to eq(
-        jsonrpc: '2.0', id: 20, result: [
-          {
-            newText: "puts '💎'\n",
-            range: {
-              end: { character: 0, line: 1 }, start: { character: 0, line: 0 }
-            }
-          }
-        ]
-      )
-    end
-  end
-
-  describe 'did change with multibyte character (utf-16)' do
-    let(:requests) do
-      [
-        {
-          jsonrpc: '2.0',
-          id: 10,
-          method: 'initialize',
-          params: {
-            capabilities: {
-              general: {
-                positionEncodings: ['utf-16']
-              }
-            }
-          }
-        }, {
-          jsonrpc: '2.0',
-          method: 'textDocument/didOpen',
-          params: {
-            textDocument: {
-              languageId: 'ruby',
-              text: "puts '🍣🍺'",
-              uri: 'file:///path/to/file.rb',
-              version: 0
-            }
-          }
-        }, {
-          jsonrpc: '2.0',
-          method: 'textDocument/didChange',
-          params: {
-            contentChanges: [
-              {
-                text: '💎',
-                range: {
-                  start: { line: 0, character: 6 },
-                  end: { line: 0, character: 10 }
-                }
-              }
-            ],
-            textDocument: {
-              uri: 'file:///path/to/file.rb',
-              version: 10
-            }
-          }
-        }, {
-          jsonrpc: '2.0',
-          id: 20,
-          method: 'textDocument/formatting',
-          params: {
-            options: { insertSpaces: true, tabSize: 2 },
-            textDocument: { uri: 'file:///path/to/file.rb' }
-          }
-        }
-      ]
-    end
-
-    it 'handles requests' do
-      expect(messages.count).to eq(4)
-      expect(messages.first).to eq(
-        jsonrpc: '2.0',
-        id: 10,
-        result: {
-          capabilities: {
-            textDocumentSync: { openClose: true, change: 2 },
-            documentFormattingProvider: true,
-            positionEncoding: 'utf-16'
-          }
-        }
-      )
-      expect(messages.last).to eq(
-        jsonrpc: '2.0', id: 20, result: [
-          {
-            newText: "puts '💎'\n",
-            range: {
-              end: { character: 0, line: 1 }, start: { character: 0, line: 0 }
-            }
-          }
-        ]
-      )
-    end
-  end
-
-  describe 'did change with multibyte character (utf-8)' do
-    let(:requests) do
-      [
-        {
-          jsonrpc: '2.0',
-          id: 10,
-          method: 'initialize',
-          params: {
-            capabilities: {
-              general: {
-                positionEncodings: ['utf-8']
-              }
-            }
-          }
-        }, {
-          jsonrpc: '2.0',
-          method: 'textDocument/didOpen',
-          params: {
-            textDocument: {
-              languageId: 'ruby',
-              text: "puts '🍣🍺'",
-              uri: 'file:///path/to/file.rb',
-              version: 0
-            }
-          }
-        }, {
-          jsonrpc: '2.0',
-          method: 'textDocument/didChange',
-          params: {
-            contentChanges: [
-              {
-                text: '💎',
-                range: {
-                  start: { line: 0, character: 6 },
-                  end: { line: 0, character: 14 }
-                }
-              }
-            ],
-            textDocument: {
-              uri: 'file:///path/to/file.rb',
-              version: 10
-            }
-          }
-        }, {
-          jsonrpc: '2.0',
-          id: 20,
-          method: 'textDocument/formatting',
-          params: {
-            options: { insertSpaces: true, tabSize: 2 },
-            textDocument: { uri: 'file:///path/to/file.rb' }
-          }
-        }
-      ]
-    end
-
-    it 'handles requests' do
-      expect(messages.count).to eq(4)
-      expect(messages.first).to eq(
-        jsonrpc: '2.0',
-        id: 10,
-        result: {
-          capabilities: {
-            textDocumentSync: { openClose: true, change: 2 },
-            documentFormattingProvider: true,
-            positionEncoding: 'utf-8'
-          }
-        }
-      )
       expect(messages.last).to eq(
         jsonrpc: '2.0', id: 20, result: [
           {

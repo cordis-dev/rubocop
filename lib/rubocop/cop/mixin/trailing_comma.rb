@@ -96,11 +96,10 @@ module RuboCop
       end
 
       def method_name_and_arguments_on_same_line?(node)
-        return false unless node.call_type?
+        return false if !node.call_type? || node.last_line != node.last_argument.last_line
+        return true if node.last_argument.hash_type? && node.last_argument.braces?
 
-        line = node.loc.selector.nil? ? node.loc.line : node.loc.selector.line
-
-        line == node.last_argument.last_line && node.last_line == node.last_argument.last_line
+        node.loc.selector.line == node.last_argument.last_line
       end
 
       # A single argument with the closing bracket on the same line as the end
@@ -185,7 +184,7 @@ module RuboCop
 
       def heredoc?(node)
         return false unless node.is_a?(RuboCop::AST::Node)
-        return true if node.loc.respond_to?(:heredoc_body)
+        return true if node.loc?(:heredoc_body)
 
         return heredoc_send?(node) if node.send_type?
 

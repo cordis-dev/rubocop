@@ -413,6 +413,36 @@ RSpec.describe RuboCop::Cop::Layout::EndAlignment, :config do
       RUBY
     end
 
+    it 'registers an offense when using `+` operator method with `if` inside `begin` and `end` is not aligned' do
+      expect_offense(<<~RUBY)
+        variable + (if bar
+                      baz
+                    end)
+                    ^^^ `end` at 3, 12 is not aligned with `variable + (if` at 1, 0.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        variable + (if bar
+                      baz
+        end)
+      RUBY
+    end
+
+    it 'registers an offense when using `+` operator method with `if` inside multiple `begin`s and `end` is not aligned' do
+      expect_offense(<<~RUBY)
+        variable + ((if bar
+                      baz
+                    end))
+                    ^^^ `end` at 3, 12 is not aligned with `variable + ((if` at 1, 0.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        variable + ((if bar
+                      baz
+        end))
+      RUBY
+    end
+
     it 'registers an offense when using a conditional statement in a method argument and `end` is not aligned' do
       expect_offense(<<~RUBY)
         format(
@@ -435,6 +465,22 @@ RSpec.describe RuboCop::Cop::Layout::EndAlignment, :config do
             baz
           end, qux
         )
+      RUBY
+    end
+
+    it 'does not register an offense when using a conditional assignment on the same line and `end` with method call is aligned' do
+      expect_no_offenses(<<~RUBY)
+        value = if condition
+          do_something
+        end.method_call
+      RUBY
+    end
+
+    it 'does not register an offense when using a conditional assignment in a method argument on the same line and `end` with safe navigation method call is aligned' do
+      expect_no_offenses(<<~RUBY)
+        value = if condition
+          do_something
+        end&.method_call
       RUBY
     end
 
@@ -662,6 +708,11 @@ RSpec.describe RuboCop::Cop::Layout::EndAlignment, :config do
       it_behaves_like 'aligned', 'var = until',  'test',     'end'
       it_behaves_like 'aligned', 'var = until',  'test',     'end.ab.join("")'
       it_behaves_like 'aligned', 'var = until',  'test',     'end.ab.tap {}'
+      it_behaves_like 'aligned', 'var = until', 'test', 'end.ab.tap { _1 }'
+      context 'Ruby >= 3.4', :ruby34 do
+        it_behaves_like 'aligned', 'var = until', 'test', 'end.ab.tap { it }'
+      end
+
       it_behaves_like 'aligned', 'var = case',   'a when b', 'end'
       it_behaves_like 'aligned', "var =\n  if",  'test', '  end'
       context 'Ruby >= 2.7', :ruby27 do

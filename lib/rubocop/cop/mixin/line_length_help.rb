@@ -8,8 +8,27 @@ module RuboCop
 
       private
 
-      def ignore_cop_directives?
-        config.for_cop('Layout/LineLength')['IgnoreCopDirectives']
+      def allow_rbs_inline_annotation?
+        config.for_cop('Layout/LineLength')['AllowRBSInlineAnnotation']
+      end
+
+      def rbs_inline_annotation_on_source_line?(line_index)
+        source_line_number = line_index + processed_source.buffer.first_line
+        comment = processed_source.comment_at_line(source_line_number)
+
+        return false unless comment
+
+        comment.text.start_with?(/#:|#\[.+\]|#\|/)
+      end
+
+      def allow_cop_directives?
+        # TODO: This logic for backward compatibility with deprecated `IgnoreCopDirectives` option.
+        # The following three lines will be removed in RuboCop 2.0.
+        ignore_cop_directives = config.for_cop('Layout/LineLength')['IgnoreCopDirectives']
+        return true if ignore_cop_directives
+        return false if ignore_cop_directives == false
+
+        config.for_cop('Layout/LineLength')['AllowCopDirectives']
       end
 
       def directive_on_source_line?(line_index)

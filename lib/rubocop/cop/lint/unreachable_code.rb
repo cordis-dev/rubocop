@@ -78,6 +78,7 @@ module RuboCop
           }
         PATTERN
 
+        # rubocop:disable Metrics/MethodLength
         def flow_expression?(node)
           return report_on_flow_command?(node) if flow_command?(node)
 
@@ -89,12 +90,14 @@ module RuboCop
             check_if(node)
           when :case, :case_match
             check_case(node)
-          when :def
+          when :def, :defs
             register_redefinition(node)
+            false
           else
             false
           end
         end
+        # rubocop:enable Metrics/MethodLength
 
         def check_if(node)
           if_branch = node.if_branch
@@ -113,8 +116,7 @@ module RuboCop
         end
 
         def register_redefinition(node)
-          @redefined << node.method_name if redefinable_flow_method? node.method_name
-          false
+          @redefined << node.method_name if redefinable_flow_method?(node.method_name)
         end
 
         def instance_eval_block?(node)

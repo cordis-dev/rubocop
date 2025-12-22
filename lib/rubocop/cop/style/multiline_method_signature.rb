@@ -75,6 +75,8 @@ module RuboCop
         end
 
         def correction_exceeds_max_line_length?(node)
+          return false unless max_line_length
+
           indentation_width(node) + definition_width(node) > max_line_length
         end
 
@@ -84,10 +86,6 @@ module RuboCop
 
         def definition_width(node)
           node.source_range.begin.join(node.arguments.source_range.end).length
-        end
-
-        def max_line_length
-          config.for_cop('Layout/LineLength')['Max'] || 120
         end
       end
     end

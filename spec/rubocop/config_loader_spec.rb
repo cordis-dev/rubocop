@@ -1102,7 +1102,8 @@ RSpec.describe RuboCop::ConfigLoader do
               'AllowHeredoc' => true,
               'AllowURI' => true,
               'URISchemes' => %w[http https],
-              'IgnoreCopDirectives' => true,
+              'AllowRBSInlineAnnotation' => false,
+              'AllowCopDirectives' => true,
               'AllowedPatterns' => [],
               'AllowQualifiedName' => true,
               'SplitStrings' => false
@@ -1207,7 +1208,8 @@ RSpec.describe RuboCop::ConfigLoader do
               'AllowHeredoc' => false,  # overridden in rubocop.yml
               'AllowURI' => true,
               'URISchemes' => %w[http https],
-              'IgnoreCopDirectives' => true,
+              'AllowRBSInlineAnnotation' => false,
+              'AllowCopDirectives' => true,
               'AllowedPatterns' => [],
               'AllowQualifiedName' => true,
               'SplitStrings' => false

@@ -89,6 +89,7 @@ module RuboCop
         end
 
         def line_too_long?(node)
+          return false unless max_line_length
           return false if unlimited_heredoc_length?
 
           body = heredoc_body(node)
@@ -106,10 +107,6 @@ module RuboCop
 
         def unlimited_heredoc_length?
           config.for_cop('Layout/LineLength')['AllowHeredoc']
-        end
-
-        def max_line_length
-          config.for_cop('Layout/LineLength')['Max']
         end
 
         def adjust_squiggly(corrector, node)

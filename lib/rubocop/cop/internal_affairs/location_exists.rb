@@ -9,6 +9,12 @@ module RuboCop
       #
       # @example
       #   # bad
+      #   node.loc.respond_to?(:begin)
+      #
+      #   # good
+      #   node.loc?(:begin)
+      #
+      #   # bad
       #   node.loc.respond_to?(:begin) && node.loc.begin
       #
       #   # good
@@ -29,7 +35,16 @@ module RuboCop
       class LocationExists < Base
         extend AutoCorrector
 
-        MSG = 'Use `%<replacement>s` instead of `%<source>s`.'
+        MSG = 'Use `node.loc?` instead of `loc.respond_to?`.'
+        MSG_CORRECTABLE = 'Use `%<replacement>s` instead of `%<source>s`.'
+        RESTRICT_ON_SEND = %i[respond_to?].freeze
+
+        # @!method loc_respond_to?(node)
+        def_node_matcher :loc_respond_to?, <<~PATTERN
+          (call
+            (call $_receiver :loc) :respond_to?
+            $(sym _location))
+        PATTERN
 
         # @!method replaceable_with_loc_is(node)
         def_node_matcher :replaceable_with_loc_is, <<~PATTERN
@@ -64,6 +79,15 @@ module RuboCop
           replace_with_loc(node) || replace_with_loc_is(node)
         end
 
+        def on_send(node)
+          return if ignored_node?(node.parent)
+
+          loc_respond_to?(node) do |receiver, location|
+            register_offense(node, replacement(receiver, "loc?(#{location.source})"))
+          end
+        end
+        alias on_csend on_send
+
         private
 
         def replace_with_loc(node)
@@ -84,11 +108,13 @@ module RuboCop
         end
 
         def register_offense(node, replacement)
-          message = format(MSG, replacement: replacement, source: node.source)
+          message = format(MSG_CORRECTABLE, replacement: replacement, source: node.source)
 
           add_offense(node, message: message) do |corrector|
             corrector.replace(node, replacement)
           end
+
+          ignore_node(node)
         end
 
         def replacement(receiver, rest)
