@@ -106,6 +106,12 @@ class RubocopConcatenator
             "File.realpath(File.join(File.dirname(__FILE__), '..', '..'))",
             "File.realpath(File.join(File.dirname(__FILE__), '..'))"
           )
+		  
+		  # Replace rubocop_extra_features lib path
+		  line = line.gsub(
+		    "lib_root = File.join(File.dirname(__FILE__), '..')",
+			"lib_root = File.dirname(__FILE__)"
+		  )
           
           # Check if this line contains a require_relative
           if line.strip.start_with?('require_relative') && (match = line.match(/require_relative\s+['"]([^'"]+)['"]/))
