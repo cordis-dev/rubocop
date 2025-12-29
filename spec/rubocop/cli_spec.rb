@@ -952,7 +952,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
       end
 
       %w[class module].each do |parent|
-        it "registers offense for normal indentation in #{parent}" do
+        it "registers an offense for normal indentation in #{parent}" do
           create_file('.rubocop.yml', <<~YAML)
             Layout/IndentationConsistency:
               EnforcedStyle: indented_internal_methods
@@ -1111,6 +1111,18 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
         let(:args) { %w[--format simple --force-default-config -c .rubocop.yml] }
 
         it_behaves_like 'ignores config file'
+      end
+
+      context 'when config file has invalid inherit_from' do
+        it 'ignores config file with invalid inherit_from' do
+          create_file('example.rb', ['# frozen_string_literal: true', '', 'x = 0', 'puts x'])
+          create_file('.rubocop.yml', <<~YAML)
+            inherit_from: config/nonexistent.yml
+          YAML
+
+          expect(cli.run(%w[--format simple --force-default-config])).to eq(0)
+          expect($stdout.string).to include('1 file inspected, no offenses detected')
+        end
       end
     end
 
@@ -2032,7 +2044,12 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
           'Error: RuboCop found unknown Ruby version 5.0 in `TargetRubyVersion`'
         )
         expect($stderr.string.strip).to match(
-          /Supported versions: 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 3.0, 3.1, 3.2, 3.3, 3.4, 4.0/
+          Regexp.new(<<~MESSAGE.chomp.tr("\n", ' '))
+            Supported versions:
+            2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7,
+            3.0, 3.1, 3.2, 3.3, 3.4,
+            4.0, 4.1
+          MESSAGE
         )
       end
     end

@@ -31,11 +31,6 @@ Naming/PredicatePrefix:
     - def_node_matcher
     - def_node_search
 
-Style/AccessorGrouping:
-  Exclude:
-    - lib/rubocop/formatter/base_formatter.rb
-    - lib/rubocop/cop/offense.rb
-
 Style/FormatStringToken:
   # Because we parse a lot of source codes from strings. Percent arrays
   # look like unannotated format string tokens to this cop.
@@ -119,6 +114,10 @@ Naming/InclusiveLanguage:
     ' and offense':
       Suggestions:
         - ' an offense'
+    accept:
+      Regex: !ruby/regexp /\Aaccept /
+      Suggestions:
+        - 'accepts '
     auto-correct:
       Suggestions:
         - autocorrect
@@ -137,10 +136,18 @@ Naming/InclusiveLanguage:
     'register no offense':
       Suggestions:
         - registers no offense
+    'register an offense':
+      Regex: !ruby/regexp /\Aregister an offense/
+      Suggestions:
+        - registers an offense
     'register an error':
       Suggestions:
         - register an offense
     'registers an error':
+      Suggestions:
+        - registers an offense
+    'registers offense':
+      Regex: !ruby/regexp /registers offense(?!\(|s)/
       Suggestions:
         - registers an offense
     'does not register and corrects':
