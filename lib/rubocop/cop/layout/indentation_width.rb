@@ -5,6 +5,8 @@ module RuboCop
     module Layout
       # Checks for indentation that doesn't use the specified number of spaces.
       # The indentation width can be configured using the `Width` setting. The default width is 2.
+      # The block body indentation for method chain blocks can be configured using the
+      # `EnforcedStyleAlignWith` setting.
       #
       # See also the `Layout/IndentationConsistency` cop which is the companion to this one.
       #
@@ -41,7 +43,22 @@ module RuboCop
       #     end
       #   end
       #   end
+      #
+      # @example EnforcedStyleAlignWith: start_of_line (default)
+      #   # good
+      #   records.uniq { |el| el[:profile_id] }
+      #          .map do |message|
+      #     SomeJob.perform_later(message[:id])
+      #   end
+      #
+      # @example EnforcedStyleAlignWith: relative_to_receiver
+      #   # good
+      #   records.uniq { |el| el[:profile_id] }
+      #          .map do |message|
+      #            SomeJob.perform_later(message[:id])
+      #          end
       class IndentationWidth < Base # rubocop:disable Metrics/ClassLength
+        include ConfigurableEnforcedStyle
         include EndKeywordAlignment
         include Alignment
         include CheckAssignment
@@ -50,7 +67,7 @@ module RuboCop
         extend AutoCorrector
 
         MSG = 'Use %<configured_indentation_width>d (not %<indentation>d) ' \
-              'spaces for%<name>s indentation.'
+              '%<indentation_type>s for%<name>s indentation.'
 
         # @!method access_modifier?(node)
         def_node_matcher :access_modifier?, <<~PATTERN
@@ -83,12 +100,11 @@ module RuboCop
 
           return unless begins_its_line?(end_loc)
 
-          # For blocks where the dot is on a new line, use the dot position as the base.
-          # Otherwise, use the end keyword position as the base.
-          base_loc = dot_on_new_line?(node) ? node.send_node.loc.dot : end_loc
+          base_loc = block_body_indentation_base(node, end_loc)
           check_indentation(base_loc, node.body)
 
           return unless indented_internal_methods_style?
+          return unless contains_access_modifier?(node.body)
 
           check_members(end_loc, [node.body])
         end
@@ -148,7 +164,7 @@ module RuboCop
         end
 
         def on_case_match(case_match)
-          case_match.each_in_pattern do |in_pattern_node|
+          case_match.in_pattern_branches.each do |in_pattern_node|
             check_indentation(in_pattern_node.loc.keyword, in_pattern_node.body)
           end
 
@@ -167,6 +183,8 @@ module RuboCop
         private
 
         def autocorrect(corrector, node)
+          return unless node
+
           AlignmentCorrector.correct(corrector, processed_source, node, @column_delta)
         end
 
@@ -175,7 +193,7 @@ module RuboCop
 
           return unless members.any? && members.first.begin_type?
 
-          if indentation_consistency_style == 'indented_internal_methods'
+          if indented_internal_methods_style?
             check_members_for_indented_internal_methods_style(members)
           else
             check_members_for_normal_style(base, members)
@@ -304,10 +322,32 @@ module RuboCop
         end
 
         def message(configured_indentation_width, indentation, name)
+          if using_tabs?
+            message_for_tabs(configured_indentation_width, indentation, name)
+          else
+            message_for_spaces(configured_indentation_width, indentation, name)
+          end
+        end
+
+        def message_for_tabs(configured_indentation_width, indentation, name)
+          configured_tabs = 1
+          actual_tabs = indentation / configured_indentation_width
+
+          format(
+            MSG,
+            configured_indentation_width: configured_tabs,
+            indentation: actual_tabs,
+            indentation_type: 'tabs',
+            name: name
+          )
+        end
+
+        def message_for_spaces(configured_indentation_width, indentation, name)
           format(
             MSG,
             configured_indentation_width: configured_indentation_width,
             indentation: indentation,
+            indentation_type: 'spaces',
             name: name
           )
         end
@@ -363,7 +403,13 @@ module RuboCop
         def offending_range(body_node, indentation)
           expr = body_node.source_range
           begin_pos = expr.begin_pos
-          ind = expr.begin_pos - indentation
+
+          ind = if using_tabs?
+                  begin_pos - line_indentation(expr).length
+                else
+                  begin_pos - indentation
+                end
+
           pos = indentation >= 0 ? ind..begin_pos : begin_pos..ind
           range_between(pos.begin, pos.end)
         end
@@ -377,14 +423,61 @@ module RuboCop
           starting_node.send_type? && starting_node.bare_access_modifier?
         end
 
-        def configured_indentation_width
-          cop_config['Width']
+        def contains_access_modifier?(body_node)
+          return false unless body_node&.begin_type?
+
+          body_node.children.any? { |child| child.send_type? && child.bare_access_modifier? }
+        end
+
+        def indentation_style
+          config.for_cop('Layout/IndentationStyle')['EnforcedStyle'] || 'spaces'
+        end
+
+        def using_tabs?
+          indentation_style == 'tabs'
+        end
+
+        def column_offset_between(base_range, range)
+          return super unless using_tabs?
+
+          base_uses_tabs = line_uses_tabs?(base_range)
+          range_uses_tabs = line_uses_tabs?(range)
+
+          return super unless base_uses_tabs || range_uses_tabs
+
+          visual_column(base_range) - visual_column(range)
+        end
+
+        def line_indentation(range)
+          line = processed_source.lines[range.line - 1]
+          line[0...range.column]
+        end
+
+        def line_uses_tabs?(range)
+          line_indentation(range).include?("\t")
+        end
+
+        def visual_column(range)
+          indentation = line_indentation(range)
+
+          tab_count = indentation.count("\t")
+          space_count = indentation.count(' ')
+
+          (tab_count * configured_indentation_width) + space_count
         end
 
         def leftmost_modifier_of(node)
           return node unless node.parent&.send_type?
 
           leftmost_modifier_of(node.parent)
+        end
+
+        def block_body_indentation_base(node, end_loc)
+          if style != :relative_to_receiver || !dot_on_new_line?(node)
+            end_loc
+          else
+            node.send_node.loc.dot
+          end
         end
 
         def dot_on_new_line?(node)

@@ -3780,6 +3780,111 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'does not cause an infinite loop between `Layout/IndentationConsistency` and `Layout/IndentationWidth`' do
+    create_file('.rubocop.yml', <<~YAML)
+      Layout/IndentationConsistency:
+        EnforcedStyle: indented_internal_methods
+
+      Layout/IndentationWidth:
+        Width: 2
+        EnforcedStyleAlignWith: start_of_line
+    YAML
+
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      class Test
+        def foo
+        end
+
+        private
+
+        def example
+          Model
+            .some_scope
+            .find_each do |record|
+            record.do_something
+            record.do_something_else
+          end
+        end
+      end
+    RUBY
+
+    status = cli.run(%w[--autocorrect-all])
+    expect(status).to eq(1)
+    expect($stderr.string).to eq('')
+    expect(source_file.read).to eq(<<~RUBY)
+      # frozen_string_literal: true
+
+      class Test
+        def foo; end
+
+        private
+
+          def example
+            Model
+              .some_scope
+              .find_each do |record|
+              record.do_something
+              record.do_something_else
+            end
+          end
+      end
+    RUBY
+  end
+
+  it 'does not cause an infinite loop between `Layout/IndentationConsistency` and `Layout/IndentationWidth` ' \
+     'with EnforcedStyleAlignWith: relative_to_receiver' do
+    create_file('.rubocop.yml', <<~YAML)
+      Layout/IndentationConsistency:
+        EnforcedStyle: indented_internal_methods
+
+      Layout/IndentationWidth:
+        Width: 2
+        EnforcedStyleAlignWith: relative_to_receiver
+    YAML
+
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      class Test
+        def foo
+        end
+
+        private
+
+        def example
+          Model
+            .some_scope
+            .find_each do |record|
+            record.do_something
+            record.do_something_else
+          end
+        end
+      end
+    RUBY
+
+    status = cli.run(%w[--autocorrect-all])
+    expect(status).to eq(1)
+    expect($stderr.string).to eq('')
+    expect(source_file.read).to eq(<<~RUBY)
+      # frozen_string_literal: true
+
+      class Test
+        def foo; end
+
+        private
+
+          def example
+            Model
+              .some_scope
+              .find_each do |record|
+                record.do_something
+                record.do_something_else
+            end
+          end
+      end
+    RUBY
+  end
+
   it 'does not trigger `Style/SingleArgumentDig` when `Style/DigChain` is enabled and will correct' do
     source_file = Pathname('example.rb')
     create_file(source_file, <<~RUBY)
@@ -4013,6 +4118,90 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     expect($stderr.string).to eq('')
     expect(File.read('example.rb')).to eq(<<~RUBY)
       /[.-]/
+    RUBY
+  end
+
+  it 'does not cause infinite loop with Layout/IndentationWidth when autocorrecting mixed tabs and spaces in blocks' do
+    create_file('.rubocop.yml', <<~YAML)
+      Layout/IndentationStyle:
+        EnforcedStyle: tabs
+    YAML
+
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<-RUBY.gsub(/^    /, ''))
+    class SomeClient
+    \t conversation_request.get_messages(session_id, time_before).map do |message|
+     \t\t\t\tConversationMessagesResponse.new message
+          end
+    end
+    RUBY
+
+    status = cli.run(['--autocorrect-all'])
+    expect(status).to eq(1)
+    expect($stderr.string).to eq('')
+    expect(source_file.read).to eq(<<-RUBY.gsub(/^    /, ''))
+    # frozen_string_literal: true
+
+    class SomeClient
+    \tconversation_request.get_messages(session_id, time_before).map do |message|
+    \t\t\t\tConversationMessagesResponse.new message
+    \tend
+    end
+    RUBY
+  end
+
+  it 'does not cause infinite loop with Layout/DefEndAlignment when autocorrecting mixed tabs and spaces' do
+    create_file('.rubocop.yml', <<~YAML)
+      Layout/IndentationStyle:
+        EnforcedStyle: tabs
+    YAML
+
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<-RUBY.gsub(/^    /, ''))
+    class MyClass
+    \tdef my_method
+    \t\tdo_something
+    end
+    end
+    RUBY
+
+    status = cli.run(['--autocorrect-all'])
+    expect(status).to eq(1)
+    expect($stderr.string).to eq('')
+    expect(source_file.read).to eq(<<-RUBY.gsub(/^    /, ''))
+    # frozen_string_literal: true
+
+    class MyClass
+    \tdef my_method
+    \t\tdo_something
+    \tend
+    end
+    RUBY
+  end
+
+  it 'does not cause an infinite loop for Layout/LineLength with SplitStrings' do
+    create_file('.rubocop.yml', <<~YAML)
+      Layout/LineLength:
+        Enabled: true
+        Max: 30
+        SplitStrings: true
+    YAML
+
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      _const = '000000000000000 0000000000000000000000000000 000000000000000000000000000'
+    RUBY
+
+    status = cli.run(['--autocorrect-all'])
+    expect(status).to eq(0)
+    expect($stderr.string).to eq('')
+    expect(source_file.read).to eq(<<~RUBY)
+      # frozen_string_literal: true
+
+      _const = '000000000000000 ' \\
+      '00000000000000000000000000' \\
+      '00 ' \\
+      '000000000000000000000000000'
     RUBY
   end
 end

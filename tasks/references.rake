@@ -13,7 +13,9 @@ namespace :references do
     references.to_set.each do |reference|
       failure = begin
         response = Net::HTTP.get_response(reference)
-        response.code if response.code != '200'
+        unless response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPRedirection)
+          response.code
+        end
       rescue StandardError => e
         e
       end

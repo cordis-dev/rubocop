@@ -835,6 +835,7 @@ Layout/FirstArrayElementLineBreak:
                  multi-line array.
   Enabled: false
   VersionAdded: '0.49'
+  AllowImplicitArrayLiterals: false
   AllowMultilineFinalElement: false
 
 Layout/FirstHashElementIndentation:
@@ -1037,6 +1038,15 @@ Layout/IndentationWidth:
   VersionAdded: '0.49'
   # Number of spaces for each indentation level.
   Width: 2
+  # Block body indentation for method chain blocks.
+  # The value `start_of_line` means that block bodies are indented
+  # relative to the start of the line where the block starts.
+  # The value `relative_to_receiver` means that block bodies are indented
+  # relative to the method call position in the chain.
+  EnforcedStyleAlignWith: start_of_line
+  SupportedStylesAlignWith:
+    - start_of_line
+    - relative_to_receiver
   AllowedPatterns: []
 
 Layout/InitialIndentation:
@@ -3967,6 +3977,15 @@ Style/EmptyCaseCondition:
   Enabled: true
   VersionAdded: '0.40'
 
+Style/EmptyClassDefinition:
+  Description: 'Enforces consistent style for empty class definitions.'
+  Enabled: pending
+  VersionAdded: '1.83'
+  EnforcedStyle: class_definition
+  SupportedStyles:
+    - class_definition
+    - class_new
+
 Style/EmptyElse:
   Description: 'Avoid empty else-clauses.'
   Enabled: true
@@ -4317,6 +4336,16 @@ Style/HashLikeCase:
   # `MinBranchesCount` defines the number of branches `case` needs to have
   # to trigger this cop
   MinBranchesCount: 3
+
+Style/HashLookupMethod:
+  Description: 'Enforces the use of either `Hash#[]` or `Hash#fetch` for hash lookup.'
+  Enabled: false
+  Safe: false
+  VersionAdded: '1.83'
+  EnforcedStyle: brackets
+  SupportedStyles:
+    - brackets
+    - fetch
 
 Style/HashSlice:
   Description: >-
@@ -4748,6 +4777,7 @@ Style/ModuleMemberExistenceCheck:
   Description: 'Checks for usage of `Module` methods returning arrays that can be replaced with equivalent predicates.'
   Enabled: pending
   VersionAdded: '1.82'
+  AllowedMethods: []
 
 Style/MultilineBlockChain:
   Description: 'Avoid multi-line chains of blocks.'
@@ -4875,6 +4905,14 @@ Style/NegatedWhile:
   StyleGuide: '#until-for-negatives'
   Enabled: true
   VersionAdded: '0.20'
+
+Style/NegativeArrayIndex:
+  Description: >-
+    Use negative array indices instead of calculating array length minus a value.
+    Also handles range patterns with length calculations. Recognizes preserving methods
+    and their combinations, allowing safe replacement when the receiver matches.
+  Enabled: pending
+  VersionAdded: '1.83'
 
 Style/NestedFileDirname:
   Description: 'Checks for nested `File.dirname`.'
@@ -5526,6 +5564,12 @@ Style/ReturnNilInPredicateMethodDefinition:
   AllowedPatterns: []
   VersionAdded: '1.53'
   VersionChanged: '1.67'
+
+Style/ReverseFind:
+  Description: 'Use `array.rfind` instead of `array.reverse.find`.'
+  Enabled: pending
+  Safe: false
+  VersionAdded: '1.83'
 
 Style/SafeNavigation:
   Description: >-
