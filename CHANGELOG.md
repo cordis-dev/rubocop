@@ -11,6 +11,44 @@
 
 ## master (unreleased)
 
+## 1.84.2 (2026-02-12)
+
+### Bug fixes
+
+* [#14854](https://github.com/rubocop/rubocop/issues/14854): Fix a clobbering error in `Style/BlockDelimiters` when autocorrecting nested multi-line blocks with adjacent curly braces. ([@koic][])
+* [#14837](https://github.com/rubocop/rubocop/issues/14837): Fix an error for `Style/IfUnlessModifier` when the first value uses a normal `if` and the others use modifier `if`. ([@koic][])
+* [#14858](https://github.com/rubocop/rubocop/issues/14858): Fix an infinite loop error in `Layout/FirstArgumentIndentation` when first arguments are over-indented in nested method calls. ([@koic][])
+* [#14843](https://github.com/rubocop/rubocop/issues/14843): Fix an error in `Layout/MultilineMethodCallIndentation` when a multiline method call follows a hash access. ([@koic][])
+* [#14859](https://github.com/rubocop/rubocop/issues/14859): Fix an error in `Layout/MultilineMethodCallIndentation` when a multiline method call includes a keyword argument whose value is a method call with a block. ([@koic][])
+* [#14839](https://github.com/rubocop/rubocop/pull/14839): Fix a false positive for `Layout/EmptyLinesAfterModuleInclusion` when `include` is nested inside an array. ([@eugeneius][])
+* [#7436](https://github.com/rubocop/rubocop/issues/7436): Fix `Style/FormatStringToken` to not autocorrect strings outside of format method context in aggressive mode. ([@ydakuka][])
+* [#14841](https://github.com/rubocop/rubocop/issues/14841): Fix false negatives in `Style/HashAsLastArrayItem` when an array contains only a single hash element. ([@koic][])
+* [#14865](https://github.com/rubocop/rubocop/issues/14865): Fix false negatives in `Style/MethodDefParentheses` when using splat or forwarding arguments without parentheses. ([@koic][])
+* [#14833](https://github.com/rubocop/rubocop/issues/14833): Fix false positive for `Layout/MultilineMethodCallIndentation` when a multi-dot method chain is inside a hash pair value. ([@ydakuka][])
+* [#14847](https://github.com/rubocop/rubocop/issues/14847): Fix false positive for `Layout/MultilineMethodCallIndentation` when a method is chained after a single-line block. ([@ydakuka][])
+* [#14867](https://github.com/rubocop/rubocop/pull/14867): Fix `Offense#highlighted_area` for `PseudoSourceRange` locations. ([@rafaelfranca][])
+* [#14861](https://github.com/rubocop/rubocop/issues/14861): Fix an error in `Style/IfUnlessModifier` when the first value uses a normal `if` and the others use ternary operator. ([@koic][])
+* [#14816](https://github.com/rubocop/rubocop/issues/14816): Use toplevel cache configs for remote configuration files. ([@nekketsuuu][])
+
+## 1.84.1 (2026-02-02)
+
+### Bug fixes
+
+* [#14803](https://github.com/rubocop/rubocop/pull/14803): Fix an error for `Layout/IndentationWidth` cop. ([@viralpraxis][])
+* [#14806](https://github.com/rubocop/rubocop/issues/14806): Fix an error in `Style/NegativeArrayIndex` when using `self` as array with implicit `self` receiver. ([@koic][])
+* [#14813](https://github.com/rubocop/rubocop/pull/14813): Fix opt-in cop comments taking precedence over configuration file exclude patterns. ([@afrase][])
+* [#14819](https://github.com/rubocop/rubocop/pull/14819): Fix incorrect autocorrect for `Style/GuardClause` when using heredoc as an argument of method call in raise in `else` branch. ([@koic][])
+* [#14805](https://github.com/rubocop/rubocop/issues/14805): Bring back the original indentation from before version 1.84.0. ([@Magikdidi24][])
+* [#12754](https://github.com/rubocop/rubocop/issues/12754): Fix an infinite loop for `Style/IfUnlessModifier` when multiple `if`/`unless` statements share the same line in arrays, method arguments, or hash values. ([@ydakuka][])
+* [#14817](https://github.com/rubocop/rubocop/issues/14817): Fix an infinite loop between `Layout/FirstArgumentIndentation` and `Layout/LineLength` when correcting method chains. ([@ydakuka][])
+* [#11513](https://github.com/rubocop/rubocop/issues/11513): Fix `Layout/MultilineMethodCallIndentation` to properly handle method chains inside hash pair values. ([@ydakuka][])
+* [#14814](https://github.com/rubocop/rubocop/pull/14814): Fix push/pop directives to properly handle nested scopes and state restoration. ([@Magikdidi24][])
+
+### Changes
+
+* [#14823](https://github.com/rubocop/rubocop/issues/14823): Add the built-in `infinite?` method to the allowlists for `Naming/PredicateMethod`, `Style/IfWithBooleanLiteralBranches`, and `Style/RedundantCondition`, in addition to the existing `nonzero?`. ([@koic][])
+* [#14735](https://github.com/rubocop/rubocop/pull/14735): Remove deprecated InjectDefaults handling. ([@afurm][])
+
 ## 1.84.0 (2026-01-27)
 
 ### New features
@@ -4531,3 +4569,5 @@
 [@HariprasanthMSH]: https://github.com/HariprasanthMSH
 [@wktk]: https://github.com/wktk
 [@Magikdidi24]: https://github.com/Magikdidi24
+[@afurm]: https://github.com/afurm
+[@afrase]: https://github.com/afrase

@@ -24,12 +24,12 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
 
   describe 'server initializes and responds with proper capabilities' do
     let(:requests) do
-      [
+      [{
         jsonrpc: '2.0',
         id: 2,
         method: 'initialize',
         params: { probably: "Don't need real params for this test?" }
-      ]
+      }]
     end
 
     it 'handles requests' do
@@ -50,7 +50,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
 
   describe 'did open' do
     let(:requests) do
-      [
+      [{
         jsonrpc: '2.0',
         method: 'textDocument/didOpen',
         params: {
@@ -61,7 +61,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
             version: 0
           }
         }
-      ]
+      }]
     end
 
     it 'handles requests' do
@@ -81,7 +81,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
                 code_actions: [
                   {
                     edit: {
-                      documentChanges: [
+                      documentChanges: [{
                         edits: [
                           {
                             newText: "# frozen_string_literal: true\n",
@@ -92,14 +92,14 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
                           }
                         ],
                         textDocument: { uri: 'file:///path/to/file.rb', version: nil }
-                      ]
+                      }]
                     },
                     kind: 'quickfix',
                     title: 'Autocorrect Style/FrozenStringLiteralComment',
                     isPreferred: true
                   }, {
                     edit: {
-                      documentChanges: [
+                      documentChanges: [{
                         edits: [
                           {
                             newText: ' # rubocop:disable Style/FrozenStringLiteralComment',
@@ -110,7 +110,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
                           }
                         ],
                         textDocument: { uri: 'file:///path/to/file.rb', version: nil }
-                      ]
+                      }]
                     },
                     kind: 'quickfix',
                     title: 'Disable Style/FrozenStringLiteralComment for this line'
@@ -134,23 +134,23 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
                 code_actions: [
                   {
                     edit: {
-                      documentChanges: [
-                        edits: [
+                      documentChanges: [{
+                        edits: [{
                           newText: '', range: {
                             end: { character: 6, line: 2 },
                             start: { character: 4, line: 2 }
                           }
-                        ],
+                        }],
                         textDocument: { uri: 'file:///path/to/file.rb', version: nil }
-                      ]
+                      }]
                     },
                     kind: 'quickfix',
                     title: 'Autocorrect Layout/SpaceInsideArrayLiteralBrackets',
                     isPreferred: true
                   }, {
                     edit: {
-                      documentChanges: [
-                        edits: [
+                      documentChanges: [{
+                        edits: [{
                           newText: ' # rubocop:disable Layout/SpaceInsideArrayLiteralBrackets',
                           range: {
                             end: { character: 7, line: 2 },
@@ -158,9 +158,9 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
                               character: 7, line: 2
                             }
                           }
-                        ],
+                        }],
                         textDocument: { uri: 'file:///path/to/file.rb', version: nil }
-                      ]
+                      }]
                     },
                     kind: 'quickfix',
                     title: 'Disable Layout/SpaceInsideArrayLiteralBrackets for this line'
@@ -182,9 +182,68 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
     end
   end
 
+  describe 'did open with multiline literal offense' do
+    let(:long_line) { 'a' * 130 }
+    let(:requests) do
+      [{
+        jsonrpc: '2.0',
+        method: 'textDocument/didOpen',
+        params: {
+          textDocument: {
+            languageId: 'ruby',
+            text: [
+              '# frozen_string_literal: true',
+              '',
+              'values = %w[',
+              "  #{long_line}",
+              ']',
+              'puts values',
+              ''
+            ].join(eol),
+            uri: 'file:///path/to/file.rb',
+            version: 0
+          }
+        }
+      }]
+    end
+
+    it 'uses block comments for disable quickfix inside multiline literals' do
+      expect(stderr).to eq('')
+      diagnostics = messages.first.dig(:params, :diagnostics)
+      diagnostic = diagnostics.find { |diag| diag[:code] == 'Layout/LineLength' }
+      expect(diagnostic).not_to be_nil
+
+      code_actions = diagnostic[:data][:code_actions]
+      disable_action = code_actions.find do |action|
+        action[:title] == 'Disable Layout/LineLength for this line'
+      end
+      expect(disable_action).not_to be_nil
+
+      edits = disable_action[:edit][:documentChanges].first[:edits]
+      expect(edits).to eq(
+        [
+          {
+            newText: "# rubocop:disable Layout/LineLength\n",
+            range: {
+              start: { line: 2, character: 0 },
+              end: { line: 2, character: 0 }
+            }
+          },
+          {
+            newText: "\n# rubocop:enable Layout/LineLength",
+            range: {
+              start: { line: 4, character: 1 },
+              end: { line: 4, character: 1 }
+            }
+          }
+        ]
+      )
+    end
+  end
+
   describe 'did open with multibyte character(utf-16)' do
     let(:requests) do
-      [
+      [{
         jsonrpc: '2.0',
         method: 'textDocument/didOpen',
         params: {
@@ -195,7 +254,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
             version: 0
           }
         }
-      ]
+      }]
     end
 
     it 'handles requests' do
@@ -293,12 +352,12 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
       expect(format_result).to eq(
         jsonrpc: '2.0',
         id: 20,
-        result: [
+        result: [{
           newText: "puts 'bye'\n",
           range: {
             start: { line: 0, character: 0 }, end: { line: 1, character: 0 }
           }
-        ]
+        }]
       )
     end
   end
@@ -401,12 +460,12 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
       expect(format_result).to eq(
         jsonrpc: '2.0',
         id: 20,
-        result: [
+        result: [{
           newText: "puts 'bye'\n",
           range: {
             start: { line: 0, character: 0 }, end: { line: 1, character: 0 }
           }
-        ]
+        }]
       )
     end
   end
@@ -464,12 +523,12 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
       expect(format_result).to eq(
         jsonrpc: '2.0',
         id: 20,
-        result: [
+        result: [{
           newText: "# frozen_string_literal: true\n\nputs 'bye'\n",
           range: {
             start: { line: 0, character: 0 }, end: { line: 1, character: 0 }
           }
-        ]
+        }]
       )
     end
   end
@@ -534,7 +593,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
       expect(format_result).to eq(
         jsonrpc: '2.0',
         id: 20,
-        result: [
+        result: [{
           newText: <<~RUBY,
             puts foo.equal?(bar)
             puts 'hi'
@@ -542,7 +601,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           range: {
             start: { line: 0, character: 0 }, end: { line: 3, character: 0 }
           }
-        ]
+        }]
       )
     end
   end
@@ -610,7 +669,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
       expect(format_result).to eq(
         jsonrpc: '2.0',
         id: 20,
-        result: [
+        result: [{
           newText: <<~RUBY,
             puts foo.equal?(bar)
               puts "hi"
@@ -618,7 +677,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           range: {
             start: { line: 0, character: 0 }, end: { line: 3, character: 0 }
           }
-        ]
+        }]
       )
     end
   end
@@ -686,7 +745,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
       expect(format_result).to eq(
         jsonrpc: '2.0',
         id: 20,
-        result: [
+        result: [{
           newText: <<~RUBY,
             puts foo.equal?(bar)
             puts 'hi'
@@ -694,7 +753,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           range: {
             start: { line: 0, character: 0 }, end: { line: 3, character: 0 }
           }
-        ]
+        }]
       )
     end
   end
@@ -759,7 +818,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
       expect(format_result).to eq(
         jsonrpc: '2.0',
         id: 20,
-        result: [
+        result: [{
           newText: <<~RUBY,
             puts 'hi'
             puts 'bye'
@@ -767,7 +826,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           range: {
             start: { line: 0, character: 0 }, end: { line: 3, character: 0 }
           }
-        ]
+        }]
       )
     end
   end
@@ -835,7 +894,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
       expect(format_result).to eq(
         jsonrpc: '2.0',
         id: 20,
-        result: [
+        result: [{
           newText: <<~RUBY,
             puts "hi"
             puts 'bye'
@@ -843,7 +902,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           range: {
             start: { line: 0, character: 0 }, end: { line: 3, character: 0 }
           }
-        ]
+        }]
       )
     end
   end
@@ -911,7 +970,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
       expect(format_result).to eq(
         jsonrpc: '2.0',
         id: 20,
-        result: [
+        result: [{
           newText: <<~RUBY,
             puts 'hi'
             puts 'bye'
@@ -919,7 +978,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           range: {
             start: { line: 0, character: 0 }, end: { line: 3, character: 0 }
           }
-        ]
+        }]
       )
     end
   end
@@ -988,7 +1047,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
       expect(format_result).to eq(
         jsonrpc: '2.0',
         id: 20,
-        result: [
+        result: [{
           newText: <<~RUBY,
             puts foo.equal?(bar)
             puts "hi"
@@ -996,7 +1055,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           range: {
             start: { line: 0, character: 0 }, end: { line: 3, character: 0 }
           }
-        ]
+        }]
       )
     end
   end
@@ -1026,7 +1085,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
   describe 'initialized' do
     let(:requests) do
       [
-        jsonrpc: '2.0', id: 1, method: 'initialized', params: {}
+        { jsonrpc: '2.0', id: 1, method: 'initialized', params: {} }
       ]
     end
 
@@ -1083,7 +1142,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
 
   describe 'unknown commands' do
     let(:requests) do
-      [
+      [{
         id: 18,
         jsonrpc: '2.0',
         method: 'textDocument/didMassage',
@@ -1095,7 +1154,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
             version: 0
           }
         }
-      ]
+      }]
     end
 
     it 'handles requests' do
@@ -1114,7 +1173,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
   describe 'methodless requests are acked' do
     let(:requests) do
       [
-        jsonrpc: '2.0', id: 1, result: {}
+        { jsonrpc: '2.0', id: 1, result: {} }
       ]
     end
 
@@ -1127,7 +1186,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
   describe 'methodless and idless requests are dropped' do
     let(:requests) do
       [
-        jsonrpc: '2.0', result: {}
+        { jsonrpc: '2.0', result: {} }
       ]
     end
 
@@ -1157,7 +1216,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           method: 'workspace/executeCommand',
           params: {
             command: 'rubocop.formatAutocorrects',
-            arguments: [uri: 'file:///path/to/file.rb']
+            arguments: [{ uri: 'file:///path/to/file.rb' }]
           }
         }
       ]
@@ -1173,12 +1232,12 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           label: 'Format with RuboCop autocorrects',
           edit: {
             changes: {
-              'file:///path/to/file.rb': [
+              'file:///path/to/file.rb': [{
                 newText: "puts 'hi'\n",
                 range: {
                   start: { line: 0, character: 0 }, end: { line: 1, character: 0 }
                 }
-              ]
+              }]
             }
           }
         }
@@ -1206,7 +1265,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           method: 'workspace/executeCommand',
           params: {
             command: 'rubocop.formatAutocorrects',
-            arguments: [uri: 'file:///path/to/file.rb']
+            arguments: [{ uri: 'file:///path/to/file.rb' }]
           }
         }
       ]
@@ -1222,12 +1281,12 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           label: 'Format with RuboCop autocorrects',
           edit: {
             changes: {
-              'file:///path/to/file.rb': [
+              'file:///path/to/file.rb': [{
                 newText: "foo { |_unused_variable| 42 }\n",
                 range: {
                   start: { line: 0, character: 0 }, end: { line: 1, character: 0 }
                 }
-              ]
+              }]
             }
           }
         }
@@ -1255,7 +1314,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           method: 'workspace/executeCommand',
           params: {
             command: 'rubocop.formatAutocorrectsAll',
-            arguments: [uri: 'file:///path/to/file.rb']
+            arguments: [{ uri: 'file:///path/to/file.rb' }]
           }
         }
       ]
@@ -1271,7 +1330,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           label: 'Format all with RuboCop autocorrects',
           edit: {
             changes: {
-              'file:///path/to/file.rb': [
+              'file:///path/to/file.rb': [{
                 newText: <<~RUBY,
                   # frozen_string_literal: true
 
@@ -1280,7 +1339,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
                 range: {
                   start: { line: 0, character: 0 }, end: { line: 1, character: 0 }
                 }
-              ]
+              }]
             }
           }
         }
@@ -1290,15 +1349,15 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
 
   describe 'execute command with unsupported command' do
     let(:requests) do
-      [
+      [{
         jsonrpc: '2.0',
         id: 99,
         method: 'workspace/executeCommand',
         params: {
           command: 'rubocop.somethingElse',
-          arguments: [uri: 'file:///path/to/file.rb']
+          arguments: [{ uri: 'file:///path/to/file.rb' }]
         }
-      ]
+      }]
     end
 
     it 'handles requests' do
@@ -1316,7 +1375,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
 
   describe 'did open on ignored path' do
     let(:requests) do
-      [
+      [{
         jsonrpc: '2.0',
         method: 'textDocument/didOpen',
         params: {
@@ -1328,7 +1387,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
             version: 0
           }
         }
-      ]
+      }]
     end
 
     it 'handles requests' do
@@ -1547,12 +1606,12 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
     end
 
     let(:requests) do
-      [
+      [{
         jsonrpc: '2.0',
         id: 2,
         method: 'initialize',
         params: { probably: "Don't need real params for this test?" }
-      ]
+      }]
     end
 
     it 'logs an internal server error message' do

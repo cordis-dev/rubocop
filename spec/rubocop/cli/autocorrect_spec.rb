@@ -3824,8 +3824,8 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
             Model
               .some_scope
               .find_each do |record|
-              record.do_something
-              record.do_something_else
+                record.do_something
+                record.do_something_else
             end
           end
       end
@@ -4203,5 +4203,23 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
       '00 ' \\
       '000000000000000000000000000'
     RUBY
+  end
+
+  it 'does not cause an infinite loop between `Style/IfUnlessModifier` and `Layout/EndAlignment`, `Layout/IndentationWidth`' do
+    create_file('.rubocop.yml', <<~YAML)
+      Layout/LineLength:
+        Max: 100
+    YAML
+
+    source_file = Pathname('example.rb')
+    create_file(source_file, <<~RUBY)
+      def previous_or_next_page(page, text, classname)
+        tag :li, link(text, page || '#'), class: [(classname[0..3] if @options[:page_links]), (classname if @options[:page_links]), ('disabled' unless page)].join(' ')
+      end
+    RUBY
+
+    status = cli.run(['--autocorrect-all'])
+    expect(status).to eq(0)
+    expect($stderr.string).to eq('')
   end
 end

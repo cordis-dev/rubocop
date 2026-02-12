@@ -2,6 +2,7 @@
 
 require 'erb'
 require 'yaml'
+require_relative 'cache_config'
 require_relative 'config_finder'
 
 module RuboCop
@@ -23,12 +24,16 @@ module RuboCop
       include FileFinder
 
       attr_accessor :debug, :ignore_parent_exclusion, :disable_pending_cops, :enable_pending_cops,
-                    :ignore_unrecognized_cops, :cache_root
-      attr_writer :default_configuration
+                    :ignore_unrecognized_cops
+      attr_writer :default_configuration, :cache_root
       attr_reader :loaded_plugins, :loaded_features
 
       alias debug? debug
       alias ignore_parent_exclusion? ignore_parent_exclusion
+
+      def cache_root(cache_root_override = nil)
+        @cache_root ||= CacheConfig.root_dir_from_toplevel_config(cache_root_override)
+      end
 
       def clear_options
         @debug = nil
@@ -151,31 +156,22 @@ module RuboCop
       # When testing a plugin using `rubocop/rspec/support`, the plugin is loaded automatically,
       # so this API is usually not needed. It is intended to be used only when implementing tests
       # that do not use `rubocop/rspec/support`.
-      # rubocop:disable Metrics/MethodLength
       def inject_defaults!(config_yml_path)
         if Pathname(config_yml_path).directory?
-          # TODO: Since the warning noise is expected to be high until some time after the release,
-          # warnings will only be issued when `RUBYOPT=-w` is specified.
-          # To proceed step by step, the next step is to remove `$VERBOSE` and always issue warning.
-          # Eventually, `project_root` will no longer be accepted.
-          if $VERBOSE
-            warn Rainbow(<<~MESSAGE).yellow, uplevel: 1
-              Use config YAML file path instead of project root directory.
-              e.g., `path/to/config/default.yml`
-            MESSAGE
-          end
-          # NOTE: For compatibility.
-          project_root = config_yml_path
-          path = File.join(project_root, 'config', 'default.yml')
-          config = load_file(path)
-        else
-          hash = ConfigLoader.load_yaml_configuration(config_yml_path.to_s)
-          config = Config.new(hash, config_yml_path).tap(&:make_excludes_absolute)
+          warn Rainbow(<<~MESSAGE).yellow, uplevel: 1
+            Use config YAML file path instead of project root directory.
+            e.g., `path/to/config/default.yml`
+          MESSAGE
+          raise ArgumentError,
+                'Passing a project root directory to `inject_defaults!` is no longer supported.'
         end
+
+        path = config_yml_path.to_s
+        hash = ConfigLoader.load_yaml_configuration(path)
+        config = Config.new(hash, path).tap(&:make_excludes_absolute)
 
         @default_configuration = ConfigLoader.merge_with_default(config, path)
       end
-      # rubocop:enable Metrics/MethodLength
 
       # Returns the path RuboCop inferred as the root of the project. No file
       # searches will go past this directory.
