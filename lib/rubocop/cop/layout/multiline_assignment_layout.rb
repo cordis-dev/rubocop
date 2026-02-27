@@ -69,14 +69,18 @@ module RuboCop
         SAME_LINE_OFFENSE = 'Right hand side of multi-line assignment is not ' \
                             'on the same line as the assignment operator `=`.'
 
+        BLOCK_TYPES = %i[block numblock itblock].freeze
+
+        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def check_assignment(node, rhs)
           return if node.send_type? && node.loc.operator&.source != '='
           return unless rhs
           return unless supported_types.include?(rhs.type)
-          return if rhs.single_line?
+          return if rhs.single_line? && (!rhs.block_type? || same_line?(node, rhs.loc.begin))
 
           check_by_enforced_style(node, rhs)
         end
+        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def check_by_enforced_style(node, rhs)
           case style
@@ -109,7 +113,10 @@ module RuboCop
         private
 
         def supported_types
-          @supported_types ||= cop_config['SupportedTypes'].map(&:to_sym)
+          @supported_types ||= cop_config['SupportedTypes'].flat_map do |type|
+            sym = type.to_sym
+            sym == :block ? BLOCK_TYPES : sym
+          end
         end
       end
     end

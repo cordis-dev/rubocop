@@ -10,21 +10,35 @@ the necessary info listed in our issue reporting template (it's loaded
 automatically when you create a new GitHub issue).
 
 NOTE: Please, don't ask support-like questions on the issue tracker (e.g. "How
-can I configure RuboCop to do X?" - use the xref:support.adoc[support channels]
+can I configure RuboCop to do X?") - use the xref:support.adoc[support channels]
 instead.
 
-== Patches
+== Code contributions
 
 Patches in any form are always welcome! GitHub pull requests are even better! :-)
 
-Before submitting a patch or a pull request make sure all tests are
+Before submitting a pull request make sure all tests are
 passing and that your patch is in line with the https://github.com/rubocop/rubocop/blob/master/CONTRIBUTING.md[contribution
 guidelines].
 
-A handy way to test only the files that you have modified in the last commit
-(with `rspec` and `rubocop`) is to use `rake check_commit`.
+=== Quick start
 
-Also see the xref:development.adoc[Development section].
+[source,sh]
+----
+$ git clone https://github.com/rubocop/rubocop.git
+$ cd rubocop
+$ bundle install
+$ bundle exec rake              # run the full CI suite
+----
+
+A typical contribution workflow:
+
+. Pick an issue from the https://github.com/rubocop/rubocop/issues[issue tracker] (look for `good first issue` or `help wanted` labels).
+. Create a feature branch: `git checkout -b fix-1234-short-description`.
+. Make your changes and add tests (see xref:development.adoc[Development]).
+. Run the full test suite: `bundle exec rake`.
+. Add a changelog entry: `bundle exec rake changelog:fix` (or `changelog:new` / `changelog:change`).
+. Open a pull request.
 
 == Documentation
 
@@ -39,48 +53,61 @@ adding or improving Cop descriptions.
 
 The manual is generated from the AsciiDoc files in the https://github.com/rubocop/rubocop/tree/master/docs[docs] folder of RuboCop's GitHub repo and is published to https://docs.rubocop.org.
 https://antora.org[Antora] is used to convert the manual into HTML.
-The filesystem layout is described at https://docs.antora.org/antora/2.0/component-structure/.
+The filesystem layout is described at https://docs.antora.org/antora/3.1/standard-directories/.
 
 To make changes to the manual you simply have to change the files under `docs`.
 The manual will be regenerated manually periodically.
+
+The site configuration and build infrastructure live in a separate repo: https://github.com/rubocop/docs.rubocop.org[docs.rubocop.org].
 
 ==== Installing Antora
 
 NOTE: The instructions here assume you already have (the right version of) node.js installed.
 
-Installing the Antora is super simple:
+Installing Antora is super simple — just clone the docs site repo and run:
 
-[source]
+[source,sh]
 ----
-$ npm i -g @antora/cli@2.0 @antora/site-generator-default@2.0
+$ cd docs.rubocop.org
+$ make install
 ----
 
-Check out https://docs.antora.org/antora/2.0/install/install-antora/[the detailed installation instructions]
+Check out https://docs.antora.org/antora/3.1/install/install-antora/[the detailed installation instructions]
 if you run into any problems.
 
 ==== Building the Site
 
 You can build the documentation locally from the https://github.com/rubocop/docs.rubocop.org[docs.rubocop.org] repo.
 
-[source]
+[source,sh]
 ----
 $ cd docs.rubocop.org
-$ antora --pull antora-playbook.yml
+$ make build
 ----
 
-After you're done with the initial setup you can use the `deploy` script to push changes to the site:
+TIP: You can preview your changes by opening `build/site/index.html` in your favourite browser.
 
-[source]
-----
-./deploy
-----
-
-NOTE: You'll need commit access to the repository for this to work.
-
-To check the generated site you can simply open `docs/index.html` in your favourite browser.
+The site is automatically deployed to GitHub Pages via a GitHub Action on push to `master`.
 
 If you want to make changes to the manual's page structure you'll have to edit
 https://github.com/rubocop/rubocop/blob/master/docs/modules/ROOT/nav.adoc[nav.adoc].
+
+=== Working on rubocop.org
+
+The https://rubocop.org[rubocop.org] landing page is a separate project, built with https://www.bridgetownrb.com/[Bridgetown] and https://tailwindcss.com/[Tailwind CSS]. Its source lives at https://github.com/rubocop/rubocop.org[github.com/rubocop/rubocop.org].
+
+To run the site locally you'll need Ruby (>= 3.2) and Node.js (>= 20):
+
+[source,sh]
+----
+$ cd rubocop.org
+$ bundle install && npm install
+$ bin/bridgetown start
+----
+
+Then visit http://localhost:4000[localhost:4000] to preview your changes.
+
+The site is automatically deployed to GitHub Pages on push to `main`.
 
 == Funding
 

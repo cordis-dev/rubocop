@@ -2,28 +2,32 @@
 
 In RuboCop lingo the various checks performed on the code are called cops.
 Each cop is responsible for detecting one particular offense. There are several
-cop departments, grouping the cops by class of offense. A short description of
-the different departments is provided below.
+cop departments, grouping the cops by class of offense.
 
 Many of the Style and Layout cops have configuration options, allowing them to
-enforce different coding conventions.
+enforce different coding conventions. See xref:configuration/cop_settings.adoc[Configuring Cops]
+for details on `Enabled`, `Severity`, `AutoCorrect`, `AllowedMethods`, and other settings.
 
-You can also load xref:extensions.adoc#custom-cops[custom cops].
+You can also load xref:plugins.adoc#custom-cops[custom cops].
 
-Cop-related failures are silenced by default but can be turned on using the
-`--raise-cop-errors` option.
+== Departments
 
-== Style
+=== Style
 
 Style cops check for stylistic consistency of your code. Many of them are
-based on the https://rubystyle.guide[Ruby Style Guide].
+based on the https://rubystyle.guide[Ruby Style Guide]. This is the largest
+department and covers everything from preferred hash syntax to method naming
+conventions. Most Style cops support multiple `EnforcedStyle` options so you
+can adapt them to your team's preferences.
 
-== Layout
+=== Layout
 
 Layout cops inspect your code for consistent use of indentation, alignment,
-and white space.
+and white space. They deal exclusively with formatting — changing Layout cops
+never affects program behavior. Running `rubocop -x` applies only Layout
+autocorrections.
 
-== Lint
+=== Lint
 
 Lint cops check for ambiguities and possible errors in your code.
 
@@ -42,31 +46,45 @@ enabled Lint cops plus a selection of other cops.
 
 Disabling Lint cops is generally a bad idea.
 
-== Metrics
+=== Metrics
 
 Metrics cops deal with properties of the source code that can be measured,
-such as class length, method length, etc. Generally speaking, they have a
+such as class length, method length, and cyclomatic complexity. They have a
 configuration parameter called `Max` and when running
 `rubocop --auto-gen-config`, this parameter will be set to the highest value
 found for the inspected code.
 
-== Naming
+=== Naming
 
-Naming cops check for naming issues in your code, such as method name, constant
-name, file name, etc.
+Naming cops check for naming issues in your code, such as method names, constant
+names, file names, and predicate prefixes. Like Style cops, many support
+multiple enforced styles.
 
-== Security
+=== Security
 
 Security cops check for method calls and constructs which are known to be
-associated with potential security issues.
+associated with potential security issues, such as the use of `eval` or
+`YAML.load`.
 
-== Bundler
+=== Bundler
 
 Bundler cops check for style and bad practices in Bundler files, e.g. `Gemfile`.
 
-== Gemspec
+=== Gemspec
 
 Gemspec cops check for style and bad practices in gemspec files, e.g. `rubocop.gemspec`.
+
+== Cop metadata
+
+Each cop in https://github.com/rubocop/rubocop/blob/master/config/default.yml[config/default.yml] has metadata that helps you understand its status:
+
+* `VersionAdded` — the RuboCop version that introduced the cop
+* `VersionChanged` — the last version that changed the cop's behavior or defaults
+* `Enabled` — whether the cop is enabled by default
+* `SafeAutoCorrect` — whether the autocorrection is safe (won't change behavior)
+
+Cop-related errors are silenced by default but can be surfaced using the
+`--raise-cop-error` option, which is useful for debugging.
 
 == Available cops
 
@@ -219,6 +237,7 @@ In the following section you find all available cops:
 * xref:cops_lint.adoc#lintconstantreassignment[Lint/ConstantReassignment]
 * xref:cops_lint.adoc#lintconstantresolution[Lint/ConstantResolution]
 * xref:cops_lint.adoc#lintcopdirectivesyntax[Lint/CopDirectiveSyntax]
+* xref:cops_lint.adoc#lintdatadefineoverride[Lint/DataDefineOverride]
 * xref:cops_lint.adoc#lintdebugger[Lint/Debugger]
 * xref:cops_lint.adoc#lintdeprecatedclassmethods[Lint/DeprecatedClassMethods]
 * xref:cops_lint.adoc#lintdeprecatedconstants[Lint/DeprecatedConstants]
@@ -336,6 +355,7 @@ In the following section you find all available cops:
 * xref:cops_lint.adoc#lintunmodifiedreduceaccumulator[Lint/UnmodifiedReduceAccumulator]
 * xref:cops_lint.adoc#lintunreachablecode[Lint/UnreachableCode]
 * xref:cops_lint.adoc#lintunreachableloop[Lint/UnreachableLoop]
+* xref:cops_lint.adoc#lintunreachablepatternbranch[Lint/UnreachablePatternBranch]
 * xref:cops_lint.adoc#lintunusedblockargument[Lint/UnusedBlockArgument]
 * xref:cops_lint.adoc#lintunusedmethodargument[Lint/UnusedMethodArgument]
 * xref:cops_lint.adoc#linturiescapeunescape[Lint/UriEscapeUnescape]
@@ -487,6 +507,7 @@ In the following section you find all available cops:
 * xref:cops_style.adoc#stylefetchenvvar[Style/FetchEnvVar]
 * xref:cops_style.adoc#stylefileempty[Style/FileEmpty]
 * xref:cops_style.adoc#stylefilenull[Style/FileNull]
+* xref:cops_style.adoc#stylefileopen[Style/FileOpen]
 * xref:cops_style.adoc#stylefileread[Style/FileRead]
 * xref:cops_style.adoc#stylefiletouch[Style/FileTouch]
 * xref:cops_style.adoc#stylefilewrite[Style/FileWrite]
@@ -532,6 +553,7 @@ In the following section you find all available cops:
 * xref:cops_style.adoc#stylemagiccommentformat[Style/MagicCommentFormat]
 * xref:cops_style.adoc#stylemapcompactwithconditionalblock[Style/MapCompactWithConditionalBlock]
 * xref:cops_style.adoc#stylemapintoarray[Style/MapIntoArray]
+* xref:cops_style.adoc#stylemapjoin[Style/MapJoin]
 * xref:cops_style.adoc#stylemaptohash[Style/MapToHash]
 * xref:cops_style.adoc#stylemaptoset[Style/MapToSet]
 * xref:cops_style.adoc#stylemethodcallwithargsparentheses[Style/MethodCallWithArgsParentheses]
@@ -576,6 +598,7 @@ In the following section you find all available cops:
 * xref:cops_style.adoc#stylenumericliterals[Style/NumericLiterals]
 * xref:cops_style.adoc#stylenumericpredicate[Style/NumericPredicate]
 * xref:cops_style.adoc#styleobjectthen[Style/ObjectThen]
+* xref:cops_style.adoc#styleoneclassperfile[Style/OneClassPerFile]
 * xref:cops_style.adoc#styleonelineconditional[Style/OneLineConditional]
 * xref:cops_style.adoc#styleopenstructuse[Style/OpenStructUse]
 * xref:cops_style.adoc#styleoperatormethodcall[Style/OperatorMethodCall]
@@ -585,14 +608,17 @@ In the following section you find all available cops:
 * xref:cops_style.adoc#styleorassignment[Style/OrAssignment]
 * xref:cops_style.adoc#styleparallelassignment[Style/ParallelAssignment]
 * xref:cops_style.adoc#styleparenthesesaroundcondition[Style/ParenthesesAroundCondition]
+* xref:cops_style.adoc#stylepartitioninsteadofdoubleselect[Style/PartitionInsteadOfDoubleSelect]
 * xref:cops_style.adoc#stylepercentliteraldelimiters[Style/PercentLiteralDelimiters]
 * xref:cops_style.adoc#stylepercentqliterals[Style/PercentQLiterals]
 * xref:cops_style.adoc#styleperlbackrefs[Style/PerlBackrefs]
+* xref:cops_style.adoc#stylepredicatewithkind[Style/PredicateWithKind]
 * xref:cops_style.adoc#stylepreferredhashmethods[Style/PreferredHashMethods]
 * xref:cops_style.adoc#styleproc[Style/Proc]
 * xref:cops_style.adoc#stylequotedsymbols[Style/QuotedSymbols]
 * xref:cops_style.adoc#styleraiseargs[Style/RaiseArgs]
 * xref:cops_style.adoc#stylerandomwithoffset[Style/RandomWithOffset]
+* xref:cops_style.adoc#stylereducetohash[Style/ReduceToHash]
 * xref:cops_style.adoc#styleredundantargument[Style/RedundantArgument]
 * xref:cops_style.adoc#styleredundantarrayconstructor[Style/RedundantArrayConstructor]
 * xref:cops_style.adoc#styleredundantarrayflatten[Style/RedundantArrayFlatten]
@@ -616,6 +642,7 @@ In the following section you find all available cops:
 * xref:cops_style.adoc#styleredundantinterpolation[Style/RedundantInterpolation]
 * xref:cops_style.adoc#styleredundantinterpolationunfreeze[Style/RedundantInterpolationUnfreeze]
 * xref:cops_style.adoc#styleredundantlinecontinuation[Style/RedundantLineContinuation]
+* xref:cops_style.adoc#styleredundantminmaxby[Style/RedundantMinMaxBy]
 * xref:cops_style.adoc#styleredundantparentheses[Style/RedundantParentheses]
 * xref:cops_style.adoc#styleredundantpercentq[Style/RedundantPercentQ]
 * xref:cops_style.adoc#styleredundantregexpargument[Style/RedundantRegexpArgument]
@@ -629,6 +656,7 @@ In the following section you find all available cops:
 * xref:cops_style.adoc#styleredundantsort[Style/RedundantSort]
 * xref:cops_style.adoc#styleredundantsortby[Style/RedundantSortBy]
 * xref:cops_style.adoc#styleredundantstringescape[Style/RedundantStringEscape]
+* xref:cops_style.adoc#styleredundantstructkeywordinit[Style/RedundantStructKeywordInit]
 * xref:cops_style.adoc#styleregexpliteral[Style/RegexpLiteral]
 * xref:cops_style.adoc#stylerequireorder[Style/RequireOrder]
 * xref:cops_style.adoc#stylerescuemodifier[Style/RescueModifier]
@@ -639,6 +667,8 @@ In the following section you find all available cops:
 * xref:cops_style.adoc#stylesafenavigation[Style/SafeNavigation]
 * xref:cops_style.adoc#stylesafenavigationchainlength[Style/SafeNavigationChainLength]
 * xref:cops_style.adoc#stylesample[Style/Sample]
+* xref:cops_style.adoc#styleselectbykind[Style/SelectByKind]
+* xref:cops_style.adoc#styleselectbyrange[Style/SelectByRange]
 * xref:cops_style.adoc#styleselectbyregexp[Style/SelectByRegexp]
 * xref:cops_style.adoc#styleselfassignment[Style/SelfAssignment]
 * xref:cops_style.adoc#stylesemicolon[Style/Semicolon]
@@ -669,6 +699,7 @@ In the following section you find all available cops:
 * xref:cops_style.adoc#stylesymbolarray[Style/SymbolArray]
 * xref:cops_style.adoc#stylesymbolliteral[Style/SymbolLiteral]
 * xref:cops_style.adoc#stylesymbolproc[Style/SymbolProc]
+* xref:cops_style.adoc#styletallymethod[Style/TallyMethod]
 * xref:cops_style.adoc#styleternaryparentheses[Style/TernaryParentheses]
 * xref:cops_style.adoc#styletoplevelmethoddefinition[Style/TopLevelMethodDefinition]
 * xref:cops_style.adoc#styletrailingbodyonclass[Style/TrailingBodyOnClass]

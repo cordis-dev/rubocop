@@ -37,10 +37,20 @@ Style/FormatStringToken:
   Exclude:
     - spec/**/*
 
+Style/InverseMethods:
+  InverseMethods:
+    # RuboCop AST defines common inverse methods. They are listed below:
+    :single_line?: :multiline?
+
 Style/IpAddresses:
   # The test for this cop includes strings that would cause offenses
   Exclude:
     - spec/rubocop/cop/style/ip_addresses_spec.rb
+
+Style/OneClassPerFile:
+  Exclude:
+    - lib/rubocop/rspec/cop_helper.rb
+    - tasks/spec_runner.rake
 
 Style/ReturnNilInPredicateMethodDefinition:
   AllowedMethods:
@@ -225,6 +235,10 @@ InternalAffairs/StyleDetectedApiUse:
   Exclude:
     - 'lib/rubocop/cop/mixin/percent_array.rb'
 
+InternalAffairs/ItblockHandler:
+  Exclude:
+    - 'lib/rubocop/cop/internal_affairs/*.rb'
+
 InternalAffairs/NumblockHandler:
   Exclude:
     - 'lib/rubocop/cop/internal_affairs/*.rb'
@@ -280,6 +294,7 @@ InternalAffairs/OnSendWithoutOnCSend:
     - 'lib/rubocop/cop/lint/redundant_dir_glob_sort.rb'
     - 'lib/rubocop/cop/lint/send_with_mixin_argument.rb'
     - 'lib/rubocop/cop/lint/shared_mutable_default.rb'
+    - 'lib/rubocop/cop/lint/data_define_override.rb'
     - 'lib/rubocop/cop/lint/struct_new_override.rb'
     - 'lib/rubocop/cop/lint/symbol_conversion.rb'
     - 'lib/rubocop/cop/lint/to_enum_arguments.rb'

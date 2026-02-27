@@ -1720,6 +1720,11 @@ Lint/CopDirectiveSyntax:
   Enabled: pending
   VersionAdded: '1.72'
 
+Lint/DataDefineOverride:
+  Description: 'Disallow overriding the `Data` built-in methods via `Data.define`.'
+  Enabled: pending
+  VersionAdded: '1.85'
+
 Lint/Debugger:
   Description: 'Checks for debugger calls.'
   Enabled: true
@@ -2409,8 +2414,9 @@ Lint/SafeNavigationConsistency:
                  consistent and appropriate safe navigation, without excess or deficiency,
                  is used for all method calls on the same object.
   Enabled: true
+  SafeAutoCorrect: false
   VersionAdded: '0.55'
-  VersionChanged: '0.77'
+  VersionChanged: '1.85'
   AllowedMethods:
     - present?
     - blank?
@@ -2586,6 +2592,11 @@ Lint/UnreachableLoop:
     # RSpec uses `times` in its message expectations
     # eg. `exactly(2).times`
     - !ruby/regexp /(exactly|at_least|at_most)\(\d+\)\.times/
+
+Lint/UnreachablePatternBranch:
+  Description: 'Checks for unreachable `in` pattern branches after an unconditional catch-all pattern.'
+  Enabled: pending
+  VersionAdded: '1.85'
 
 Lint/UnusedBlockArgument:
   Description: 'Checks for unused block arguments.'
@@ -3982,10 +3993,11 @@ Style/EmptyClassDefinition:
   Description: 'Enforces consistent style for empty class definitions.'
   Enabled: pending
   VersionAdded: '1.84'
-  EnforcedStyle: class_definition
+  EnforcedStyle: class_keyword
   SupportedStyles:
-    - class_definition
+    - class_keyword
     - class_new
+    - class_definition # Deprecated.
 
 Style/EmptyElse:
   Description: 'Avoid empty else-clauses.'
@@ -4144,6 +4156,12 @@ Style/FileNull:
   Enabled: pending
   SafeAutoCorrect: false
   VersionAdded: '1.69'
+
+Style/FileOpen:
+  Description: 'Checks for `File.open` without a block, which can leak file descriptors.'
+  Enabled: pending
+  Safe: false
+  VersionAdded: '1.85'
 
 Style/FileRead:
   Description: 'Favor `File.(bin)read` convenience methods.'
@@ -4642,6 +4660,12 @@ Style/MapIntoArray:
   VersionChanged: '1.67'
   Safe: false
 
+Style/MapJoin:
+  Description: 'Checks for redundant `map(&:to_s)` before `join`.'
+  Enabled: pending
+  Safe: false
+  VersionAdded: '1.85'
+
 Style/MapToHash:
   Description: 'Prefer `to_h` with a block over `map.to_h`.'
   Enabled: pending
@@ -5091,6 +5115,12 @@ Style/ObjectThen:
     - then
     - yield_self
 
+Style/OneClassPerFile:
+  Description: 'Checks that each source file defines at most one top-level class or module.'
+  Enabled: pending
+  VersionAdded: '1.85'
+  AllowedClasses: []
+
 Style/OneLineConditional:
   Description: >-
                  Favor the ternary operator (?:) or multi-line constructs over
@@ -5179,6 +5209,14 @@ Style/ParenthesesAroundCondition:
   AllowSafeAssignment: true
   AllowInMultilineConditions: false
 
+Style/PartitionInsteadOfDoubleSelect:
+  Description: >-
+                Checks for consecutive `select`/`filter`/`find_all` and `reject` calls
+                on the same receiver with the same block body.
+  Enabled: pending
+  Safe: false
+  VersionAdded: '1.85'
+
 Style/PercentLiteralDelimiters:
   Description: 'Use `%`-literal delimiters consistently.'
   StyleGuide: '#percent-literal-braces'
@@ -5210,6 +5248,12 @@ Style/PerlBackrefs:
   StyleGuide: '#no-perl-regexp-last-matchers'
   Enabled: true
   VersionAdded: '0.13'
+
+Style/PredicateWithKind:
+  Description: 'Prefer `any?(Klass)` to `any? { |x| x.is_a?(Klass) }`.'
+  Enabled: pending
+  SafeAutoCorrect: false
+  VersionAdded: '1.85'
 
 Style/PreferredHashMethods:
   Description: 'Checks use of `has_key?` and `has_value?` Hash methods.'
@@ -5260,6 +5304,12 @@ Style/RandomWithOffset:
   StyleGuide: '#random-numbers'
   Enabled: true
   VersionAdded: '0.52'
+
+Style/ReduceToHash:
+  Description: 'Use `to_h { ... }` instead of `each_with_object`, `inject`, or `reduce` to build a hash.'
+  Enabled: pending
+  Safe: false
+  VersionAdded: '1.85'
 
 Style/RedundantArgument:
   Description: 'Checks for a redundant argument passed to certain methods.'
@@ -5430,6 +5480,11 @@ Style/RedundantLineContinuation:
   Enabled: pending
   VersionAdded: '1.49'
 
+Style/RedundantMinMaxBy:
+  Description: 'Identifies places where `max_by`/`min_by` can be replaced by `max`/`min`.'
+  Enabled: pending
+  VersionAdded: '1.85'
+
 Style/RedundantParentheses:
   Description: "Checks for parentheses that seem not to serve any purpose."
   Enabled: true
@@ -5506,6 +5561,12 @@ Style/RedundantStringEscape:
   Description: 'Checks for redundant escapes in string literals.'
   Enabled: pending
   VersionAdded: '1.37'
+
+Style/RedundantStructKeywordInit:
+  Description: 'Checks for redundant `keyword_init` option for `Struct.new`.'
+  Enabled: pending
+  SafeAutoCorrect: false
+  VersionAdded: '1.85'
 
 Style/RegexpLiteral:
   Description: 'Use / or %r around regular expressions.'
@@ -5613,8 +5674,20 @@ Style/Sample:
   Enabled: true
   VersionAdded: '0.30'
 
+Style/SelectByKind:
+  Description: 'Prefer grep/grep_v to select/reject/find/detect with a kind check.'
+  Enabled: pending
+  SafeAutoCorrect: false
+  VersionAdded: '1.85'
+
+Style/SelectByRange:
+  Description: 'Prefer grep/grep_v to select/reject/find/detect with a range check.'
+  Enabled: pending
+  SafeAutoCorrect: false
+  VersionAdded: '1.85'
+
 Style/SelectByRegexp:
-  Description: 'Prefer grep/grep_v to select/reject with a regexp match.'
+  Description: 'Prefer grep/grep_v to select/reject/find/detect with a regexp match.'
   Enabled: pending
   SafeAutoCorrect: false
   VersionAdded: '1.22'
@@ -5872,6 +5945,12 @@ Style/SymbolProc:
     - define_method
   AllowedPatterns: []
   AllowComments: false
+
+Style/TallyMethod:
+  Description: 'Prefer `Enumerable#tally` over manual counting patterns.'
+  Enabled: pending
+  Safe: false
+  VersionAdded: '1.85'
 
 Style/TernaryParentheses:
   Description: 'Checks for use of parentheses around ternary conditions.'

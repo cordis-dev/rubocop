@@ -6,8 +6,13 @@ module RuboCop
       # Checks for presence or absence of braces around hash literal as a last
       # array item depending on configuration.
       #
-      # NOTE: This cop will ignore arrays where all items are hashes, regardless of
-      # EnforcedStyle.
+      # NOTE: This cop will ignore arrays where multiple items are all hashes,
+      # regardless of `EnforcedStyle`.
+      #
+      # [source,ruby]
+      # ----
+      # [{ one: 1 }, { two: 2 }]
+      # ----
       #
       # @example EnforcedStyle: braces (default)
       #   # bad
@@ -16,8 +21,11 @@ module RuboCop
       #   # good
       #   [1, 2, { one: 1, two: 2 }]
       #
+      #   # bad
+      #   [one: 1, two: 2]
+      #
       #   # good
-      #   [{ one: 1 }, { two: 2 }]
+      #   [{ one: 1, two: 2 }]
       #
       # @example EnforcedStyle: no_braces
       #   # bad
@@ -26,8 +34,11 @@ module RuboCop
       #   # good
       #   [1, 2, one: 1, two: 2]
       #
+      #   # bad
+      #   [{ one: 1, two: 2 }]
+      #
       #   # good
-      #   [{ one: 1 }, { two: 2 }]
+      #   [one: 1, two: 2]
       class HashAsLastArrayItem < Base
         include RangeHelp
         include ConfigurableEnforcedStyle
@@ -69,7 +80,12 @@ module RuboCop
           return if node.braces?
 
           add_offense(node, message: 'Wrap hash in `{` and `}`.') do |corrector|
-            corrector.wrap(node, '{', '}')
+            if node.single_line? || same_line?(node, node.parent)
+              corrector.wrap(node, '{', '}')
+            else
+              indent = indent(node)
+              corrector.wrap(node, "{\n#{indent}", "\n#{indent}}")
+            end
           end
         end
 

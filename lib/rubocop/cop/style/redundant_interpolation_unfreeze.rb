@@ -15,6 +15,9 @@ module RuboCop
       #   # bad
       #   "#{foo} bar".dup
       #
+      #   # bad
+      #   String.new("#{foo} bar")
+      #
       #   # good
       #   "#{foo} bar"
       #
@@ -25,19 +28,32 @@ module RuboCop
 
         MSG = "Don't unfreeze interpolated strings as they are already unfrozen."
 
-        RESTRICT_ON_SEND = %i[+@ dup].freeze
-
         minimum_target_ruby_version 3.0
 
-        def on_send(node)
-          return if node.arguments?
-          return unless (receiver = node.receiver)
-          return unless receiver.dstr_type?
-          return if uninterpolated_string?(receiver) || uninterpolated_heredoc?(receiver)
+        # @!method redundant_unfreeze?(node)
+        def_node_matcher :redundant_unfreeze?, <<~PATTERN
+          {
+            (send dstr_type? {:+@ :dup})
+            (send (const nil? :String) :new dstr_type?)
+          }
+        PATTERN
 
-          add_offense(node.loc.selector) do |corrector|
-            corrector.remove(node.loc.selector)
-            corrector.remove(node.loc.dot) unless node.unary_operation?
+        def on_dstr(node)
+          return if uninterpolated_string?(node) || uninterpolated_heredoc?(node)
+          return unless redundant_unfreeze?(node.parent)
+
+          add_offense(offense_range(node.parent)) do |corrector|
+            corrector.replace(node.parent, node.source)
+          end
+        end
+
+        private
+
+        def offense_range(node)
+          if node.method?(:new)
+            node.source_range.begin.join(node.loc.selector)
+          else
+            node.loc.selector
           end
         end
       end

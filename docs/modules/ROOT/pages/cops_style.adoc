@@ -231,8 +231,10 @@ end
 |===
 
 Checks for grouping of accessors in `class` and `module` bodies.
-By default it enforces accessors to be placed in grouped declarations,
-but it can be configured to enforce separating them in multiple declarations.
+By default it enforces accessors to be placed in grouped
+declarations, reducing boilerplate. It can also be configured
+to enforce separating them into individual declarations for
+easier diffing and per-attribute documentation.
 
 NOTE: If there is a method call before the accessor method it is always allowed
 as it might be intended like Sorbet.
@@ -315,7 +317,10 @@ end
 |===
 
 Enforces the use of either `#alias` or `#alias_method`
-depending on configuration.
+depending on configuration. Consistent use of one or the
+other prevents confusion about their different semantics
+(e.g., `alias` is resolved at parse time, while `alias_method`
+is resolved at runtime).
 It also flags uses of `alias :symbol` rather than `alias bareword`.
 
 However, it will always enforce `method_alias` when used `alias`
@@ -983,9 +988,11 @@ array.include?(element)
 | 0.31
 |===
 
-Checks for uses of "*" as a substitute for _join_.
+Checks for uses of `*` as a substitute for `Array#join`.
+Using `join` is clearer about intent and more readable than
+overloading the `*` operator for string conversion.
 
-Not all cases can reliably checked, due to Ruby's dynamic
+Not all cases can be reliably checked, due to Ruby's dynamic
 types, so we consider only cases when the first argument is an
 array literal or the second is a string literal.
 
@@ -1020,8 +1027,11 @@ array literal or the second is a string literal.
 |===
 
 Checks for non-ascii (non-English) characters
-in comments. You could set an array of allowed non-ascii chars in
-`AllowedChars` attribute (copyright notice "©" by default).
+in comments. Non-ascii characters can cause issues with
+portability and encoding across different environments
+and editors. You could set an array of allowed non-ascii
+chars in `AllowedChars` attribute (copyright notice "©"
+by default).
 
 [#examples-styleasciicomments]
 === Examples
@@ -1064,14 +1074,17 @@ in comments. You could set an array of allowed non-ascii chars in
 | 0.12
 |===
 
-Checks for uses of Module#attr.
+Checks for uses of `Module#attr`. The `attr` method has confusing
+behavior: with a single argument it creates a reader (like `attr_reader`),
+but with a second boolean argument it creates an accessor (deprecated in
+Ruby 1.9). Use `attr_reader` or `attr_accessor` to make intent explicit.
 
 [#examples-styleattr]
 === Examples
 
 [source,ruby]
 ----
-# bad - creates a single attribute accessor (deprecated in Ruby 1.9)
+# bad
 attr :something, true
 attr :one, :two, :three # behaves as attr_reader
 
@@ -1137,7 +1150,9 @@ end
 | -
 |===
 
-Checks if usage of %() or %Q() matches configuration.
+Checks if usage of `%()` or `%Q()` matches configuration.
+Consistent use of one style makes the codebase easier
+to read.
 
 [#examples-stylebarepercentliterals]
 === Examples
@@ -1199,7 +1214,9 @@ Checks if usage of %() or %Q() matches configuration.
 | -
 |===
 
-Checks for BEGIN blocks.
+Checks for `BEGIN` blocks. They are Perl-style constructs that execute
+code before the rest of the file is parsed, making the control flow
+harder to follow and reason about.
 
 [#examples-stylebeginblock]
 === Examples
@@ -1603,6 +1620,10 @@ things.map { |thing|
 |===
 
 Checks for uses of the case equality operator (`===`).
+The `===` operator has different behavior depending on the
+receiver and its use outside of `case`/`when` is confusing.
+Prefer more explicit alternatives like `is_a?`, `include?`,
+or `match?`.
 
 If `AllowOnConstant` option is enabled, the cop will ignore violations when the receiver of
 the case equality operator is a constant.
@@ -1866,8 +1887,11 @@ manual oversight.
 
 [source,ruby]
 ----
+# bad
+class Foo::Bar
+end
+
 # good
-# have each child on its own line
 class Foo
   class Bar
   end
@@ -1879,8 +1903,13 @@ end
 
 [source,ruby]
 ----
+# bad
+class Foo
+  class Bar
+  end
+end
+
 # good
-# combine definitions as much as possible
 class Foo::Bar
 end
 ----
@@ -2564,7 +2593,9 @@ x.many?
 |===
 
 Checks for methods invoked via the `::` operator instead
-of the `.` operator (like `FileUtils::rmdir` instead of `FileUtils.rmdir`).
+of the `.` operator (like `FileUtils::rmdir` instead of
+`FileUtils.rmdir`). The `::` operator is conventionally used to
+reference constants, so using it for method calls can be misleading.
 
 [#examples-stylecolonmethodcall]
 === Examples
@@ -3394,7 +3425,7 @@ end
 | -
 |===
 
-Check that a copyright notice was given in each source file.
+Checks that a copyright notice was given in each source file.
 
 The default regexp for an acceptable copyright notice can be found in
 config/default.yml. The default can be changed as follows:
@@ -4448,19 +4479,26 @@ end
 
 Enforces consistent style for empty class definitions.
 
-This cop can enforce either a two-line class definition or `Class.new`
+This cop can enforce either a standard class definition or `Class.new`
 for classes with no body.
 
 The supported styles are:
 
-* class_definition (default) - prefer two-line class definition over `Class.new`
+* class_definition (default) - prefer standard class definition over `Class.new`
 * class_new - prefer `Class.new` over class definition
+
+One difference between the two styles is that the `Class.new` form does not make
+the subclass name available to the base class's `inherited` callback.
+For this reason, `EnforcedStyle: class_definition` is set as the default style.
+Class definitions without a superclass, which are not involved in inheritance,
+are not detected. This ensures safe detection regardless of the applied style.
+This avoids overlapping responsibilities with the `Lint/EmptyClass` cop.
 
 [#examples-styleemptyclassdefinition]
 === Examples
 
-[#enforcedstyle_-class_definition-_default_-styleemptyclassdefinition]
-==== EnforcedStyle: class_definition (default)
+[#enforcedstyle_-class_keyword-_default_-styleemptyclassdefinition]
+==== EnforcedStyle: class_keyword (default)
 
 [source,ruby]
 ----
@@ -4498,8 +4536,8 @@ FooError = Class.new(StandardError)
 | Name | Default value | Configurable values
 
 | EnforcedStyle
-| `class_definition`
-| `class_definition`, `class_new`
+| `class_keyword`
+| `class_keyword`, `class_new`, `class_definition`
 |===
 
 [#styleemptyelse]
@@ -4972,7 +5010,9 @@ RuboCop can't detect that, so we only check inside of string interpolation.
 | 0.50
 |===
 
-Checks ensures source files have no utf-8 encoding comments.
+Checks that source files have no utf-8 encoding comments.
+Since Ruby 2.0, UTF-8 is the default source encoding, so
+these comments are no longer necessary and just add noise.
 
 [#examples-styleencoding]
 === Examples
@@ -4983,6 +5023,9 @@ Checks ensures source files have no utf-8 encoding comments.
 # encoding: UTF-8
 # coding: UTF-8
 # -*- coding: UTF-8 -*-
+
+# good
+# No encoding comment needed
 ----
 
 [#references-styleencoding]
@@ -5003,7 +5046,9 @@ Checks ensures source files have no utf-8 encoding comments.
 | 0.81
 |===
 
-Checks for END blocks.
+Checks for `END` blocks. `END` blocks are Perl-style constructs
+and `Kernel#at_exit` is the idiomatic Ruby alternative, as it's
+explicit and can be used anywhere.
 
 [#examples-styleendblock]
 === Examples
@@ -5786,6 +5831,58 @@ null_devices = %w[/dev/null nul]
 { unix: "/dev/null", windows: "nul" }
 ----
 
+[#stylefileopen]
+== Style/FileOpen
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| No
+| No
+| 1.85
+| -
+|===
+
+Checks for `File.open` without a block, which can leak file descriptors.
+
+When `File.open` is called without a block, the caller is responsible
+for closing the file descriptor. If it is not explicitly closed, it
+will only be closed when the garbage collector runs, which may lead
+to resource exhaustion. Using the block form ensures the file is
+automatically closed when the block exits.
+
+[#safety-stylefileopen]
+=== Safety
+
+This cop is unsafe because it detects all `File.open` calls without
+a block, including intentional uses such as one-shot reads
+(`File.open("f").read`) where the file descriptor is closed by the
+garbage collector.
+
+[#examples-stylefileopen]
+=== Examples
+
+[source,ruby]
+----
+# bad
+f = File.open('file')
+
+# bad
+File.open('file').read
+
+# good
+File.open('file') do |f|
+  f.read
+end
+
+# good
+File.open('file', &:read)
+
+# good - use File.read for one-shot reads
+File.read('file')
+----
+
 [#stylefileread]
 == Style/FileRead
 
@@ -6067,6 +6164,9 @@ preferred alternative is set in the EnforcedStyle configuration
 parameter. An `each` call with a block on a single line is always
 allowed.
 
+NOTE: `each` is preferred in idiomatic Ruby because `for` leaks
+its loop variable into the surrounding scope.
+
 [#safety-stylefor]
 === Safety
 
@@ -6251,6 +6351,11 @@ Additionally, the cop can be made conservative by configuring it with
 of `EnforcedStyle`) are only considered if used in the format string argument to the
 methods `printf`, `sprintf`, `format` and `%`.
 
+NOTE: In `aggressive` mode, offenses are registered for all strings containing tokens,
+but autocorrection is only applied when the string appears in a known formatting context
+(`format`, `sprintf`, `printf`, or `%`). This is done in order to prevent false
+autocorrections for strings that are not actually format strings.
+
 NOTE: Tokens in the `unannotated` style (eg. `%s`) are always treated as if
 configured with `Conservative: true`. This is done in order to prevent false positives,
 because this format is very similar to encoded URLs or Date/Time formatting strings.
@@ -6362,14 +6467,33 @@ redirect('foo/%{bar_id}')
 redirect('foo/%{bar_id}')
 ----
 
+[#mode_-aggressive-_default__-enforcedstyle_-annotated-styleformatstringtoken]
+==== Mode: aggressive (default), EnforcedStyle: annotated
+
+[source,ruby]
+----
+# bad
+"%{greeting}"
+foo("%{greeting}")
+
+# bad
+format("%{greeting}", greeting: 'Hello')
+printf("%{greeting}", greeting: 'Hello')
+sprintf("%{greeting}", greeting: 'Hello')
+"%{greeting}" % { greeting: 'Hello' }
+
+# good
+format("%<greeting>s", greeting: 'Hello')
+printf("%<greeting>s", greeting: 'Hello')
+sprintf("%<greeting>s", greeting: 'Hello')
+"%<greeting>s" % { greeting: 'Hello' }
+----
+
 [#mode_-conservative_-enforcedstyle_-annotated-styleformatstringtoken]
 ==== Mode: conservative, EnforcedStyle: annotated
 
 [source,ruby]
 ----
-# In `conservative` mode, offenses are only registered for strings
-# given to a known formatting method.
-
 # good
 "%{greeting}"
 foo("%{greeting}")
@@ -6379,6 +6503,12 @@ format("%{greeting}", greeting: 'Hello')
 printf("%{greeting}", greeting: 'Hello')
 sprintf("%{greeting}", greeting: 'Hello')
 "%{greeting}" % { greeting: 'Hello' }
+
+# good
+format("%<greeting>s", greeting: 'Hello')
+printf("%<greeting>s", greeting: 'Hello')
+sprintf("%<greeting>s", greeting: 'Hello')
+"%<greeting>s" % { greeting: 'Hello' }
 ----
 
 [#configurable-attributes-styleformatstringtoken]
@@ -6606,7 +6736,10 @@ end
 | -
 |===
 
-Looks for uses of global variables.
+Looks for uses of global variables. Global variables introduce
+shared mutable state that makes code harder to test, debug,
+and reason about, since any part of the program can read or modify them.
+
 It does not report offenses for built-in global variables.
 Built-in global variables are allowed by default. Additionally
 users can allow additional variables via the AllowedVariables option.
@@ -6806,8 +6939,13 @@ end
 Checks for presence or absence of braces around hash literal as a last
 array item depending on configuration.
 
-NOTE: This cop will ignore arrays where all items are hashes, regardless of
-EnforcedStyle.
+NOTE: This cop will ignore arrays where multiple items are all hashes,
+regardless of `EnforcedStyle`.
+
+[source,ruby]
+----
+[{ one: 1 }, { two: 2 }]
+----
 
 [#examples-stylehashaslastarrayitem]
 === Examples
@@ -6823,8 +6961,11 @@ EnforcedStyle.
 # good
 [1, 2, { one: 1, two: 2 }]
 
+# bad
+[one: 1, two: 2]
+
 # good
-[{ one: 1 }, { two: 2 }]
+[{ one: 1, two: 2 }]
 ----
 
 [#enforcedstyle_-no_braces-stylehashaslastarrayitem]
@@ -6838,8 +6979,11 @@ EnforcedStyle.
 # good
 [1, 2, one: 1, two: 2]
 
+# bad
+[{ one: 1, two: 2 }]
+
 # good
-[{ one: 1 }, { two: 2 }]
+[one: 1, two: 2]
 ----
 
 [#configurable-attributes-stylehashaslastarrayitem]
@@ -7623,9 +7767,11 @@ It should only be enabled on Ruby version 2.5 or newer.
 [#safety-stylehashtransformkeys]
 === Safety
 
-This cop is unsafe, as it can produce false positives if we are
-transforming an enumerable of key-value-like pairs that isn't actually
-a hash, e.g.: `[[k1, v1], [k2, v2], ...]`
+This cop identifies the receiver as a hash by checking for literal hash
+syntax and common methods that are known to return hashes (e.g. `to_h`,
+`merge`, `invert`, `group_by`, etc.). However, it is unsafe because it
+is possible for a custom class to define one of these methods and return
+something other than a hash.
 
 [#examples-stylehashtransformkeys]
 === Examples
@@ -7637,10 +7783,18 @@ a hash, e.g.: `[[k1, v1], [k2, v2], ...]`
 Hash[{a: 1, b: 2}.collect { |k, v| [foo(k), v] }]
 {a: 1, b: 2}.map { |k, v| [k.to_s, v] }.to_h
 {a: 1, b: 2}.to_h { |k, v| [k.to_s, v] }
+foo.to_h.each_with_object({}) { |(k, v), h| h[k.to_sym] = v }
+foo.merge(bar).map { |k, v| [k.to_s, v] }.to_h
 
 # good
 {a: 1, b: 2}.transform_keys { |k| foo(k) }
 {a: 1, b: 2}.transform_keys { |k| k.to_s }
+foo.to_h.transform_keys { |k| k.to_sym }
+foo.merge(bar).transform_keys { |k| k.to_s }
+
+# Won't register an offense - receiver is not known to be a hash
+foo.bar.each_with_object({}) { |(k, v), h| h[k.to_s] = v }
+baz.map { |k, v| [k.to_s, v] }.to_h
 ----
 
 [#stylehashtransformvalues]
@@ -7666,9 +7820,11 @@ call to `transform_values` instead.
 [#safety-stylehashtransformvalues]
 === Safety
 
-This cop is unsafe, as it can produce false positives if we are
-transforming an enumerable of key-value-like pairs that isn't actually
-a hash, e.g.: `[[k1, v1], [k2, v2], ...]`
+This cop identifies the receiver as a hash by checking for literal hash
+syntax and common methods that are known to return hashes (e.g. `to_h`,
+`merge`, `invert`, `group_by`, etc.). However, it is unsafe because it
+is possible for a custom class to define one of these methods and return
+something other than a hash.
 
 [#examples-stylehashtransformvalues]
 === Examples
@@ -7680,10 +7836,18 @@ a hash, e.g.: `[[k1, v1], [k2, v2], ...]`
 Hash[{a: 1, b: 2}.collect { |k, v| [k, foo(v)] }]
 {a: 1, b: 2}.map { |k, v| [k, v * v] }.to_h
 {a: 1, b: 2}.to_h { |k, v| [k, v * v] }
+foo.to_h.each_with_object({}) { |(k, v), h| h[k] = foo(v) }
+foo.merge(bar).map { |k, v| [k, v.to_s] }.to_h
 
 # good
 {a: 1, b: 2}.transform_values { |v| foo(v) }
 {a: 1, b: 2}.transform_values { |v| v * v }
+foo.to_h.transform_values { |v| foo(v) }
+foo.merge(bar).transform_values { |v| v.to_s }
+
+# Won't register an offense - receiver is not known to be a hash
+foo.bar.each_with_object({}) { |(k, v), h| h[k] = v.to_s }
+baz.map { |k, v| [k, v.to_s] }.to_h
 ----
 
 [#styleidenticalconditionalbranches]
@@ -8286,7 +8450,10 @@ end
 | -
 |===
 
-Checks for trailing inline comments.
+Checks for trailing inline comments. Inline comments can
+make lines harder to read, especially when they are long.
+Placing comments on their own line above the code they
+describe is often clearer.
 
 [#examples-styleinlinecomment]
 === Examples
@@ -9271,6 +9438,52 @@ dest
 === References
 
 * https://rubystyle.guide#functional-code
+
+[#stylemapjoin]
+== Style/MapJoin
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| No
+| Always (Unsafe)
+| 1.85
+| -
+|===
+
+Checks for `map { |x| x.to_s }.join` and similar calls where the
+`map` is redundant because `Array#join` implicitly calls `#to_s` on
+each element.
+
+[#safety-stylemapjoin]
+=== Safety
+
+This cop is unsafe because it cannot guarantee that the receiver
+is an `Array` by static analysis. If the receiver does not have
+an `Array#join`-compatible implementation (i.e. one that calls
+`#to_s` on elements), the correction may change behavior.
+
+[#examples-stylemapjoin]
+=== Examples
+
+[source,ruby]
+----
+# bad
+array.map(&:to_s).join(', ')
+
+# bad
+array.map { |x| x.to_s }.join(', ')
+
+# bad
+array.collect(&:to_s).join
+
+# good
+array.join(', ')
+
+# good
+array.join
+----
 
 [#stylemaptohash]
 == Style/MapToHash
@@ -10687,7 +10900,9 @@ Checks for uses of if/unless modifiers with multiple-lines bodies.
 | 0.26
 |===
 
-Checks for uses of the `then` keyword in multi-line if statements.
+Checks for uses of the `then` keyword in multi-line `if` statements.
+In multi-line `if` statements, `then` is redundant because the newline
+already separates the condition from the body.
 
 [#examples-stylemultilineifthen]
 === Examples
@@ -11816,9 +12031,8 @@ end
 |===
 
 Checks for comparison of something with nil using `==` and
-`nil?`.
-
-Supported styles are: predicate, comparison.
+`nil?`. Enforcing a consistent style (either the `nil?`
+predicate or `==` comparison) improves readability.
 
 [#examples-stylenilcomparison]
 === Examples
@@ -12010,6 +12224,8 @@ end
 |===
 
 Checks for uses of the keyword `not` instead of `!`.
+The `not` keyword has lower precedence than `!`, which can
+lead to surprising behavior and often requires parentheses.
 
 [#examples-stylenot]
 === Examples
@@ -12224,7 +12440,8 @@ num = 01234
 |===
 
 Checks for big numeric literals without `_` between groups
-of digits in them.
+of digits in them. Underscores make large numbers easier to
+read by visually separating groups of digits.
 
 Additional allowed patterns can be added by adding regexps to
 the `AllowedPatterns` configuration. All regexps are treated
@@ -12513,6 +12730,82 @@ obj.yield_self { |x| x.do_something }
 
 * https://rubystyle.guide#object-yield-self-vs-object-then
 
+[#styleoneclassperfile]
+== Style/OneClassPerFile
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| No
+| 1.85
+| -
+|===
+
+Checks that each source file defines at most one top-level class or module.
+
+Keeping one class or module per file makes it easier to find and navigate
+code, and follows the convention used by most Ruby projects.
+
+Classes and modules listed in `AllowedClasses` are not counted toward the
+limit. This is useful for small ancillary classes like custom exception
+classes that logically belong with the main class.
+
+[#examples-styleoneclassperfile]
+=== Examples
+
+[source,ruby]
+----
+# bad
+class Foo
+end
+
+class Bar
+end
+
+# bad
+class Foo
+end
+
+module Bar
+end
+
+# good
+class Foo
+end
+
+# good
+class Foo
+  class Bar
+  end
+end
+----
+
+[#allowedclasses_-__allowedclass__-styleoneclassperfile]
+==== AllowedClasses: ['AllowedClass']
+
+[source,ruby]
+----
+# good
+class Foo
+end
+
+class AllowedClass
+end
+----
+
+[#configurable-attributes-styleoneclassperfile]
+=== Configurable attributes
+
+|===
+| Name | Default value | Configurable values
+
+| AllowedClasses
+| `[]`
+| Array
+|===
+
 [#styleonelineconditional]
 == Style/OneLineConditional
 
@@ -12526,9 +12819,10 @@ obj.yield_self { |x| x.do_something }
 | 0.90
 |===
 
-Checks for uses of if/then/else/end constructs on a single line.
-`AlwaysCorrectToMultiline` config option can be set to true to autocorrect all offenses to
-multi-line constructs. When `AlwaysCorrectToMultiline` is false (default case) the
+Checks for uses of `if/then/else/end` constructs on a single line.
+A ternary operator (`?:`) or multi-line `if` is more readable.
+`AlwaysCorrectToMultiline` config option can be set to `true` to autocorrect all offenses to
+multi-line constructs. When `AlwaysCorrectToMultiline` is `false` (default case) the
 autocorrect will first try converting them to ternary operators.
 
 [#examples-styleonelineconditional]
@@ -12931,6 +13225,10 @@ name ||= 'Bozhidar'
 |===
 
 Checks for simple usages of parallel assignment.
+Parallel assignment is less readable than individual
+assignments and makes it harder to follow what each
+variable is being set to.
+
 This will only complain when the number of variables
 being assigned matched the number of assigning variables.
 
@@ -13066,6 +13364,76 @@ end
 
 * https://rubystyle.guide#no-parens-around-condition
 
+[#stylepartitioninsteadofdoubleselect]
+== Style/PartitionInsteadOfDoubleSelect
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| No
+| Always (Unsafe)
+| 1.85
+| -
+|===
+
+Checks for consecutive calls to `select`/`filter`/`find_all` and `reject`
+on the same receiver with the same block body, where `partition` could be
+used instead. Also detects two `select` or two `reject` calls where one
+block negates the other with `!`. Using `partition` reduces two collection
+traversals to one.
+
+[#safety-stylepartitioninsteadofdoubleselect]
+=== Safety
+
+This cop is unsafe because:
+
+* `Hash#select` and `Hash#reject` return hashes, but `Hash#partition`
+  returns nested arrays.
+* When the receiver has side effects, calling it once (with `partition`)
+  versus twice (with `select` + `reject`) may produce different results.
+* Custom classes may override `select`/`reject` without providing a
+  compatible `partition` method.
+
+[#examples-stylepartitioninsteadofdoubleselect]
+=== Examples
+
+[source,ruby]
+----
+# bad
+positives = array.select { |x| x > 0 }
+negatives = array.reject { |x| x > 0 }
+
+# bad
+positives = array.filter { |x| x > 0 }
+negatives = array.reject { |x| x > 0 }
+
+# bad
+negatives = array.reject { |x| x > 0 }
+positives = array.select { |x| x > 0 }
+
+# bad
+positives = array.select(&:positive?)
+negatives = array.reject(&:positive?)
+
+# bad
+positives = array.select(&:positive?)
+negatives = array.reject { |x| x.positive? }
+
+# bad
+positives = array.select { |x| x.positive? }
+non_positives = array.select { |x| !x.positive? }
+
+# good
+positives, negatives = array.partition { |x| x > 0 }
+
+# good
+positives, non_positives = array.partition { |x| x.positive? }
+
+# good
+positives, negatives = array.partition(&:positive?)
+----
+
 [#stylepercentliteraldelimiters]
 == Style/PercentLiteralDelimiters
 
@@ -13080,6 +13448,8 @@ end
 |===
 
 Enforces the consistent usage of `%`-literal delimiters.
+Using consistent delimiters across the codebase reduces
+cognitive load when reading `%`-literals.
 
 Specify the 'default' key to set all preferred delimiters at once. You
 can continue to specify individual preferred delimiters to override the
@@ -13215,6 +13585,48 @@ puts Regexp.last_match(1)
 
 * https://rubystyle.guide#no-perl-regexp-last-matchers
 
+[#stylepredicatewithkind]
+== Style/PredicateWithKind
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| Always (Unsafe)
+| 1.85
+| -
+|===
+
+Looks for uses of `any?`, `all?`, `none?`, or `one?` with a block
+containing only an `is_a?`, `kind_of?`, or `instance_of?` check, and
+suggests using the predicate method with the class argument directly.
+
+[#safety-stylepredicatewithkind]
+=== Safety
+
+This cop is unsafe because `instance_of?` checks for an exact class
+match, while the pattern argument uses `===` which also matches
+subclasses. For `is_a?` and `kind_of?`, the behavior is equivalent.
+
+[#examples-stylepredicatewithkind]
+=== Examples
+
+[source,ruby]
+----
+# bad
+array.any? { |x| x.is_a?(Integer) }
+array.all? { |x| x.kind_of?(String) }
+array.none? { |x| x.is_a?(Float) }
+array.one? { |x| x.instance_of?(Symbol) }
+
+# good
+array.any?(Integer)
+array.all?(String)
+array.none?(Float)
+array.one?(Symbol)
+----
+
 [#stylepreferredhashmethods]
 == Style/PreferredHashMethods
 
@@ -13300,8 +13712,9 @@ Hash#has_value?
 | 0.18
 |===
 
-Checks for uses of Proc.new where Kernel#proc
-would be more appropriate.
+Checks for uses of `Proc.new` where `Kernel#proc`
+would be more appropriate. `proc` is the shorter and
+more idiomatic way to create procs in Ruby.
 
 [#examples-styleproc]
 === Examples
@@ -13518,6 +13931,62 @@ rand(1...7)
 === References
 
 * https://rubystyle.guide#random-numbers
+
+[#stylereducetohash]
+== Style/ReduceToHash
+
+NOTE: Requires Ruby version 2.6
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| No
+| Always (Unsafe)
+| 1.85
+| -
+|===
+
+Checks for `each_with_object`, `inject`, and `reduce` calls that build
+a hash from an enumerable, where `to_h` with a block could be used instead.
+
+This cop complements `Style/HashTransformKeys` and `Style/HashTransformValues`,
+which handle hash-to-hash transformations with destructured key-value pairs.
+This cop targets the case where a hash is built from individual elements
+(non-destructured block parameter).
+
+[#safety-stylereducetohash]
+=== Safety
+
+This cop is unsafe because it cannot guarantee that the receiver
+is an `Enumerable` by static analysis, so the correction may
+not be actually equivalent. Additionally, `each_with_object` returns
+the hash object while `to_h` returns a new hash, which could matter
+if the hash object identity is important.
+
+[#examples-stylereducetohash]
+=== Examples
+
+[source,ruby]
+----
+# bad
+array.each_with_object({}) { |elem, hash| hash[elem.id] = elem.name }
+
+# bad
+array.inject({}) { |hash, elem| hash[elem.id] = elem.name; hash }
+
+# bad
+array.reduce({}) { |hash, elem| hash[elem.id] = elem.name; hash }
+
+# bad
+array.each_with_object({}) { |elem, hash| hash[elem] = elem.to_s }
+
+# good
+array.to_h { |elem| [elem.id, elem.name] }
+
+# good
+array.to_h { |elem| [elem, elem.to_s] }
+----
 
 [#styleredundantargument]
 == Style/RedundantArgument
@@ -13745,9 +14214,9 @@ end
 | 0.21
 |===
 
-Checks for redundant `begin` blocks.
-
-Currently it checks for code like this:
+Checks for redundant `begin` blocks. A `begin` block is redundant
+when the `rescue`/`ensure` can be handled by the enclosing method
+or block definition directly, avoiding unnecessary indentation.
 
 [#examples-styleredundantbegin]
 === Examples
@@ -14745,6 +15214,9 @@ unfreezing them redundant.
 # bad
 "#{foo} bar".dup
 
+# bad
+String.new("#{foo} bar")
+
 # good
 "#{foo} bar"
 ----
@@ -14826,6 +15298,38 @@ foo(bar, # \
 # it is not redundant.
 some_method \
   (argument)
+----
+
+[#styleredundantminmaxby]
+== Style/RedundantMinMaxBy
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| Always
+| 1.85
+| -
+|===
+
+Identifies places where `max_by { ... }`, `min_by { ... }`, or
+`minmax_by { ... }` can be replaced by `max`, `min`, or `minmax`.
+
+[#examples-styleredundantminmaxby]
+=== Examples
+
+[source,ruby]
+----
+# bad
+array.max_by { |x| x }
+array.min_by { |x| x }
+array.minmax_by { |x| x }
+
+# good
+array.max
+array.min
+array.minmax
 ----
 
 [#styleredundantparentheses]
@@ -15073,7 +15577,9 @@ Checks for redundant escapes inside `Regexp` literals.
 | 0.14
 |===
 
-Checks for redundant `return` expressions.
+Checks for redundant `return` expressions. Ruby methods
+implicitly return the value of the last evaluated expression,
+so an explicit `return` at the end of a method body is unnecessary.
 
 [#examples-styleredundantreturn]
 === Examples
@@ -15464,6 +15970,46 @@ bar"
 <<~STR
   #foo "foo"
 STR
+----
+
+[#styleredundantstructkeywordinit]
+== Style/RedundantStructKeywordInit
+
+NOTE: Requires Ruby version 3.2
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| Always (Unsafe)
+| 1.85
+| -
+|===
+
+Checks for redundant `keyword_init` option for `Struct.new`.
+
+Since Ruby 3.2, `keyword_init` in `Struct.new` defaults to `nil` behavior.
+Therefore, this cop detects and autocorrects redundant `keyword_init: nil`
+and `keyword_init: true` in `Struct.new`.
+
+[#safety-styleredundantstructkeywordinit]
+=== Safety
+
+This autocorrect is unsafe because when the value of `keyword_init` changes
+from `true` to `nil`, the return value of `Struct#keyword_init?` changes.
+
+[#examples-styleredundantstructkeywordinit]
+=== Examples
+
+[source,ruby]
+----
+# bad
+Struct.new(:foo, keyword_init: nil)
+Struct.new(:foo, keyword_init: true)
+
+# good
+Struct.new(:foo)
 ----
 
 [#styleregexpliteral]
@@ -16310,6 +16856,114 @@ Identifies usages of `shuffle.first`,
 
 * https://github.com/fastruby/fast-ruby#arrayshufflefirst-vs-arraysample-code
 
+[#styleselectbykind]
+== Style/SelectByKind
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| Always (Unsafe)
+| 1.85
+| -
+|===
+
+Looks for places where a subset of an Enumerable (array,
+range, set, etc.; see note below) is calculated based on a class type
+check, and suggests `grep` or `grep_v` instead.
+
+NOTE: Hashes do not behave as you may expect with `grep`, which
+means that `hash.grep` is not equivalent to `hash.select`. Although
+RuboCop is limited by static analysis, this cop attempts to avoid
+registering an offense when the receiver is a hash (hash literal,
+`Hash.new`, `Hash#[]`, or `to_h`/`to_hash`).
+
+[#safety-styleselectbykind]
+=== Safety
+
+Autocorrection is marked as unsafe because the cop cannot guarantee
+that the receiver is actually an array by static analysis, so the
+correction may not be actually equivalent.
+
+[#examples-styleselectbykind]
+=== Examples
+
+[source,ruby]
+----
+# bad (select or find_all)
+array.select { |x| x.is_a?(Foo) }
+array.select { |x| x.kind_of?(Foo) }
+
+# bad (reject)
+array.reject { |x| x.is_a?(Foo) }
+
+# bad (negative form)
+array.reject { |x| !x.is_a?(Foo) }
+
+# good
+array.grep(Foo)
+array.grep_v(Foo)
+----
+
+[#styleselectbyrange]
+== Style/SelectByRange
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| Always (Unsafe)
+| 1.85
+| -
+|===
+
+Looks for places where a subset of an Enumerable (array,
+range, set, etc.; see note below) is calculated based on a range
+check, and suggests `grep` or `grep_v` instead.
+
+NOTE: Hashes do not behave as you may expect with `grep`, which
+means that `hash.grep` is not equivalent to `hash.select`. Although
+RuboCop is limited by static analysis, this cop attempts to avoid
+registering an offense when the receiver is a hash (hash literal,
+`Hash.new`, `Hash#[]`, or `to_h`/`to_hash`).
+
+[#safety-styleselectbyrange]
+=== Safety
+
+Autocorrection is marked as unsafe because the cop cannot guarantee
+that the receiver is actually an array by static analysis, so the
+correction may not be actually equivalent.
+
+[#examples-styleselectbyrange]
+=== Examples
+
+[source,ruby]
+----
+# bad (select or find_all)
+array.select { |x| x.between?(1, 10) }
+array.select { |x| (1..10).cover?(x) }
+array.select { |x| (1..10).include?(x) }
+
+# bad (reject)
+array.reject { |x| x.between?(1, 10) }
+
+# bad (find or detect)
+array.find { |x| x.between?(1, 10) }
+array.detect { |x| (1..10).cover?(x) }
+
+# bad (negative form)
+array.reject { |x| !x.between?(1, 10) }
+array.find { |x| !(1..10).cover?(x) }
+
+# good
+array.grep(1..10)
+array.grep_v(1..10)
+array.grep(1..10).first
+array.grep_v(1..10).first
+----
+
 [#styleselectbyregexp]
 == Style/SelectByRegexp
 
@@ -16365,6 +17019,9 @@ array.reject { |x| /regexp/.match?(x) }
 array.reject { |x| x =~ /regexp/ }
 array.reject { |x| /regexp/ =~ x }
 
+# bad (negative form)
+array.reject { |x| !x.match? /regexp/ }
+
 # good
 array.grep(regexp)
 array.grep_v(regexp)
@@ -16417,6 +17074,8 @@ x += 1
 
 Checks for multiple expressions placed on the same line.
 It also checks for lines terminated with a semicolon.
+In idiomatic Ruby, each expression should be on its own line
+for readability.
 
 This cop has `AllowAsExpressionSeparator` configuration option.
 It allows `;` to separate several expressions on the same line.
@@ -16911,7 +17570,9 @@ end
 |===
 
 Checks for single-line method definitions that contain a body.
-It will accept single-line methods with no body.
+Single-line methods with a body are harder to read and debug
+than their multi-line equivalents. It will accept single-line
+methods with no body.
 
 Endless methods added in Ruby 3.0 are also accepted by this cop.
 
@@ -17133,7 +17794,12 @@ end if condition_a
 |===
 
 Looks for uses of Perl-style global variables.
-Correcting to global variables in the 'English' library
+Perl-style global variables like `$;` or `$/` are cryptic
+and hard to understand without consulting documentation.
+The `English` library provides descriptive aliases like
+`$FIELD_SEPARATOR` and `$INPUT_RECORD_SEPARATOR`.
+
+Correcting to global variables in the `English` library
 will add a require statement to the top of the file if
 enabled by RequireEnglish config.
 
@@ -18332,6 +18998,58 @@ Proc.new { |x| x.foo }
 | `false`
 | Boolean
 |===
+
+[#styletallymethod]
+== Style/TallyMethod
+
+NOTE: Requires Ruby version 2.7
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| No
+| Always (Unsafe)
+| 1.85
+| -
+|===
+
+Checks for manual counting patterns that can be replaced by `Enumerable#tally`.
+
+The cop detects the following patterns:
+
+- `each_with_object(Hash.new(0)) { |item, counts| counts[item] += 1 }`
+- `group_by(&:itself).transform_values(&:count)`
+- `group_by { |x| x }.transform_values(&:size)`
+- `group_by { |x| x }.transform_values { |v| v.length }`
+
+[#safety-styletallymethod]
+=== Safety
+
+This cop is unsafe because it cannot guarantee that the receiver
+is an `Enumerable` by static analysis, so the correction may
+not be actually equivalent.
+
+[#examples-styletallymethod]
+=== Examples
+
+[source,ruby]
+----
+# bad
+array.each_with_object(Hash.new(0)) { |item, counts| counts[item] += 1 }
+
+# bad
+array.group_by(&:itself).transform_values(&:count)
+
+# bad
+array.group_by { |item| item }.transform_values(&:size)
+
+# bad
+array.group_by { |item| item }.transform_values { |v| v.length }
+
+# good
+array.tally
+----
 
 [#styleternaryparentheses]
 == Style/TernaryParentheses

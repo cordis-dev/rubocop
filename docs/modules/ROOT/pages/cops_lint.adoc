@@ -906,7 +906,7 @@ end
 | -
 |===
 
-Check that certain constants are fully qualified.
+Checks that certain constants are fully qualified.
 
 This is not enabled by default because it would mark a lot of offenses
 unnecessarily.
@@ -1045,6 +1045,41 @@ A comment can be added to the directive by prefixing it with `--`.
 
 # good
 # rubocop:disable Layout/LineLength -- comment
+----
+
+[#lintdatadefineoverride]
+== Lint/DataDefineOverride
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| No
+| 1.85
+| -
+|===
+
+Checks unexpected overrides of the `Data` built-in methods
+via `Data.define`.
+
+[#examples-lintdatadefineoverride]
+=== Examples
+
+[source,ruby]
+----
+# bad
+Bad = Data.define(:members, :clone, :to_s)
+b = Bad.new(members: [], clone: true, to_s: 'bad')
+b.members #=> [] (overriding `Data#members`)
+b.clone #=> true (overriding `Object#clone`)
+b.to_s #=> "bad" (overriding `Data#to_s`)
+
+# good
+Good = Data.define(:id, :name)
+g = Good.new(id: 1, name: "foo")
+g.members #=> [:id, :name]
+g.clone #=> #<data Good id=1, name="foo">
 ----
 
 [#lintdebugger]
@@ -5458,8 +5493,9 @@ while node.is_a?(BeginNode)
   node = node.parent
 end
 
-# good - without `&.` this will always return `true`
+# good - without `&.` this changes the return value for `nil`
 foo&.respond_to?(:to_a)
+foo&.respond_to?(:class)
 
 # bad - for `nil`s conversion methods return default values for the type
 foo&.to_h || {}
@@ -6274,14 +6310,22 @@ x&.foo || bar
 
 | Enabled
 | Yes
-| Always
+| Always (Unsafe)
 | 0.55
-| 0.77
+| 1.85
 |===
 
-Check to make sure that if safe navigation is used in an `&&` or `||` condition,
+Checks that if safe navigation is used in an `&&` or `||` condition,
 consistent and appropriate safe navigation, without excess or deficiency,
 is used for all method calls on the same object.
+
+[#safety-lintsafenavigationconsistency]
+=== Safety
+
+Autocorrection is unsafe because if the receiver is not a local variable
+but a method call, it may not be idempotent. For example, replacing
+`foo&.bar` with `foo.bar` could raise `NoMethodError` if `foo` returns
+`nil` on a subsequent call.
 
 [#examples-lintsafenavigationconsistency]
 === Examples
@@ -7839,6 +7883,87 @@ exactly(2).times { raise StandardError }
 | `(?-mix:(exactly\|at_least\|at_most)\(\d+\)\.times)`
 | Array
 |===
+
+[#lintunreachablepatternbranch]
+== Lint/UnreachablePatternBranch
+
+NOTE: Requires Ruby version 2.7
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| No
+| 1.85
+| -
+|===
+
+Checks for unreachable `in` pattern branches in `case...in` statements.
+
+An `in` branch is unreachable when a previous branch uses an unguarded
+catch-all pattern that matches any value unconditionally. Any `in` branches
+(and `else`) that follow such a catch-all are dead code.
+
+A catch-all pattern is one of:
+
+* A bare variable capture (`in x`)
+* An underscore (`in _`)
+* A pattern alias where the left side is a catch-all (`in _ => y`)
+* An alternation pattern where at least one alternative is a catch-all
+  (`in _ | Integer`)
+
+NOTE: A catch-all pattern with a guard clause (e.g., `in _ if condition`)
+does NOT make subsequent branches unreachable because the guard might
+not be satisfied.
+
+[#examples-lintunreachablepatternbranch]
+=== Examples
+
+[source,ruby]
+----
+# bad
+case value
+in Integer
+  handle_integer
+in x
+  handle_other
+in String
+  handle_string
+else
+  handle_else
+end
+
+# good
+case value
+in Integer
+  handle_integer
+in String
+  handle_string
+in x
+  handle_other
+end
+
+# bad - else is unreachable after catch-all
+case value
+in Integer
+  handle_integer
+in _
+  handle_other
+else
+  handle_else
+end
+
+# good - guard clause means catch-all might not match
+case value
+in x if x.positive?
+  handle_positive
+in Integer
+  handle_integer
+else
+  handle_other
+end
+----
 
 [#lintunusedblockargument]
 == Lint/UnusedBlockArgument

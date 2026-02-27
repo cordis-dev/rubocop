@@ -828,11 +828,11 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
     RUBY
   end
 
-  it 'registers an offense for parens around a block body' do
+  it 'registers an offense for parens around a block body with do..end syntax' do
     expect_offense(<<~RUBY)
       x do
         (foo; bar)
-        ^^^^^^^^^^ Don't use parentheses around a method call.
+        ^^^^^^^^^^ Don't use parentheses around block body.
       end
     RUBY
 
@@ -840,6 +840,17 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
       x do
         foo; bar
       end
+    RUBY
+  end
+
+  it 'registers an offense for parens around a block body with braces syntax' do
+    expect_offense(<<~RUBY)
+      let(:foo) { (bar + baz) }
+                  ^^^^^^^^^^^ Don't use parentheses around block body.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      let(:foo) { bar + baz }
     RUBY
   end
 

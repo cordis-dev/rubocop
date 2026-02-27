@@ -2,7 +2,7 @@
 
 RuboCop targets Ruby 2.0+ code analysis.footnote:[As defined by its reference implementation MRI.]
 
-RuboCop officially runtime supports MRI (a.k.a. CRuby) and JRuby.
+RuboCop officially supports MRI (a.k.a. CRuby) and JRuby at runtime.
 
 - MRI 2.7+
 - JRuby 9.4+
@@ -13,9 +13,7 @@ NOTE: RuboCop might be working with other Ruby implementations as well, but it's
 
 == Support Matrix
 
-RuboCop generally aims to follow MRI's own support policy - meaning RuboCop would support all officially supported MRI releases.footnote:[Typically the last 3 releases.] To give people extra time for a smooth transition, we've customarily provided support for about one year after EOL of MRI version. footnote:[At the core team's discretion this policy might be waived aside for MRI releases causing significant maintenance overhead.]
-
-NOTE: There are major version incompatibilities between Ruby 2.7 and Ruby 3.0, and the latest stable version of Ruby on Rails, 7.1, still supports Ruby 2.7. Therefore, it might be early for RuboCop to drop support for Ruby 2.7 at this stage. As long as Rails 7.1 is in the "Bug Fix" phase of the https://guides.rubyonrails.org/maintenance_policy.html[Maintenance Policy for Ruby on Rails], RuboCop will continue supporting Ruby 2.7.
+RuboCop generally aims to follow MRI's own support policy - meaning RuboCop would support all officially supported MRI releases.footnote:[Typically the last 3 releases.] To give people extra time for a smooth transition, we've customarily provided support for about one year after EOL of a MRI version.footnote:[At the core team's discretion this policy might be waived aside for MRI releases causing significant maintenance overhead.]
 
 The following table is the runtime support matrix.
 
@@ -40,14 +38,20 @@ The following table is the runtime support matrix.
 | 4.1 (experimental) | -
 |===
 
-RuboCop targets Ruby 2.0+ code analysis with Parser gem as a parser since RuboCop 1.30. It restored code analysis support that had been removed earlier by mistake, together with dropping runtime support for unsupported Ruby versions.
+IMPORTANT: The table above is about *runtime* support (which Ruby can run RuboCop itself). *Code analysis* support is broader — RuboCop can analyze code targeting Ruby 2.0+ regardless of the Ruby version it runs on. See xref:configuration.adoc#setting-the-target-ruby-version[`TargetRubyVersion`] for details.
 
-Starting from RuboCop 1.62, support for Prism's translation layer will allow analysis of Ruby 3.3+ with the `prism` gem.
+== Parser engines
 
-Starting from RuboCop 1.75, the `prism` translation layer is used by default when analyzing Ruby 3.4+.
+RuboCop supports two parser backends, configured via
+xref:configuration.adoc#setting-the-parser-engine[`ParserEngine`]:
 
-NOTE: The compatibility xref:configuration.adoc#setting-the-target-ruby-version[setting `TargetRubyVersion`] is about code analysis (what RuboCop can analyze), not runtime (is RuboCop capable of running on some Ruby or not).
+* **`parser_whitequark`** — the https://github.com/whitequark/parser[Parser] gem. Supports analyzing code targeting Ruby 2.0+.
+* **`parser_prism`** — the https://github.com/ruby/prism[Prism] translation layer. Supports analyzing Ruby 3.3+ code and tends to be faster.
 
-== Forward Compatibility
+Since RuboCop 1.75, `parser_prism` is used by default when `TargetRubyVersion` is 3.4 or higher.
 
-Features may be provided for development version of Ruby. These are all considered experimental, and may change before the stable version of Ruby will be released.
+== Forward compatibility
+
+RuboCop may ship support for features from in-development Ruby versions before
+they are officially released. Such support is considered experimental and may
+change to track upstream changes in the Ruby implementation.

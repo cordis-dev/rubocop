@@ -17,16 +17,15 @@ do so.
 
 ```console
 $ rubocop -V
-1.81.1 (using Parser 3.3.5.0, rubocop-ast 1.32.3, analyzing as Ruby 3.3, running on ruby 3.3.5) [x86_64-linux]
-  - rubocop-performance 1.22.1
-  - rubocop-rspec 3.1.0
+1.85.0 (using Parser 3.3.7.2, rubocop-ast 1.49.0, analyzing as Ruby 3.4, running on ruby 3.4.8) [x86_64-linux]
+  - rubocop-performance 1.26.1
+  - rubocop-rspec 3.9.0
 ```
 
 * Include any relevant code to the issue summary.
 
 ## Pull requests
 
-* Read [how to properly contribute to open source projects on GitHub][2].
 * Fork the project.
 * If you're adding or making changes to cops, read the [Development docs](https://docs.rubocop.org/rubocop/development.html)
 * Use a topic/feature branch to easily amend a pull request later, if necessary.
@@ -43,7 +42,7 @@ $ rubocop -V
   around it.
 * Make sure the test suite is passing and the code you wrote doesn't produce
   RuboCop offenses (usually this is as simple as running `bundle exec rake`).
-* [Squash related commits together][5].
+* Squash related commits together.
 * Open a [pull request][4] that relates to *only* one subject with a clear title
   and description in grammatically correct, complete sentences.
 
@@ -97,8 +96,6 @@ Here are a few examples:
 * At the end of the entry, add an implicit link to your GitHub user page as `([@username][])`.
 
 [1]: https://github.com/rubocop/rubocop/issues
-[2]: https://www.gun.io/blog/how-to-github-fork-branch-and-pull-request
 [3]: https://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html
 [4]: https://help.github.com/articles/about-pull-requests
-[5]: http://gitready.com/advanced/2009/02/10/squashing-commits-with-rebase.html
 [6]: https://daringfireball.net/projects/markdown/syntax

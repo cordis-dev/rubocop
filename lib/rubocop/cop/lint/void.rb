@@ -87,8 +87,9 @@ module RuboCop
         def on_block(node)
           return unless node.body && !node.body.begin_type?
           return unless in_void_context?(node.body)
+          return if node.method?(:each)
 
-          check_void_op(node.body) { node.method?(:each) }
+          check_void_op(node.body)
           check_expression(node.body)
         end
         alias on_numblock on_block
@@ -107,22 +108,23 @@ module RuboCop
 
         def check_begin(node)
           expressions = *node
-          expressions.pop unless in_void_context?(node)
+          inside_each_block = node.each_ancestor(:any_block).first&.method?(:each)
+          expressions.pop if !in_void_context?(node) || inside_each_block
           expressions.each do |expr|
-            check_void_op(expr) do
-              block_node = node.each_ancestor(:any_block).first
-
-              block_node&.method?(:each)
-            end
-
+            check_void_op(expr) { inside_each_block }
             check_expression(expr)
           end
         end
 
         def check_expression(expr)
-          expr = expr.body if expr.if_type?
-          return unless expr
+          return check_if_expression(expr) if expr.if_type?
+          return check_case_expression(expr) if expr.case_type?
+          return check_case_match_expression(expr) if expr.case_match_type?
 
+          check_void_expression_nodes(expr)
+        end
+
+        def check_void_expression_nodes(expr)
           check_literal(expr)
           check_var(expr)
           check_self(expr)
@@ -130,6 +132,22 @@ module RuboCop
           return unless cop_config['CheckForMethodsWithNoSideEffects']
 
           check_nonmutating(expr)
+        end
+
+        def check_if_expression(if_node)
+          check_void_expression_nodes(if_node.body) if if_node.body
+        end
+
+        def check_case_expression(case_node)
+          case_node.each_when { |when_node| check_expression(when_node.body) if when_node.body }
+          check_expression(case_node.else_branch) if case_node.else_branch
+        end
+
+        def check_case_match_expression(case_node)
+          case_node.each_in_pattern do |in_pattern_node|
+            check_expression(in_pattern_node.body) if in_pattern_node.body
+          end
+          check_expression(case_node.else_branch) if case_node.else_branch
         end
 
         # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -168,7 +186,9 @@ module RuboCop
         end
 
         def check_literal(node)
-          return if !entirely_literal?(node) || node.xstr_type? || node.range_type?
+          if !entirely_literal?(node) || node.xstr_type? || node.range_type? || node.nil_type?
+            return
+          end
 
           add_offense(node, message: format(LIT_MSG, lit: node.source)) do |corrector|
             autocorrect_void_expression(corrector, node)
@@ -238,7 +258,7 @@ module RuboCop
         end
 
         def autocorrect_void_expression(corrector, node)
-          return if node.parent.if_type?
+          return if node.parent.type?(:if, :case, :when, :case_match, :in_pattern)
           return if (def_node = node.each_ancestor(:any_def).first) && def_node.assignment_method?
 
           corrector.remove(range_with_surrounding_space(range: node.source_range, side: :left))

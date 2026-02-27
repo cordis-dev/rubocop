@@ -76,7 +76,9 @@ module RuboCop
       STATUS_ERROR
     ensure
       elapsed_time = Process.clock_gettime(Process::CLOCK_MONOTONIC) - time_start
-      puts "Finished in #{elapsed_time} seconds" if @options[:debug] || @options[:display_time]
+      if @options[:debug] || @options[:display_time]
+        puts "Finished in #{elapsed_time.round(5)} seconds"
+      end
     end
     # rubocop:enable Metrics/MethodLength, Metrics/AbcSize
 
@@ -198,7 +200,7 @@ module RuboCop
       RuboCop::LSP.enable if @options[:editor_mode]
     end
 
-    # rubocop:disable Metrics/CyclomaticComplexity
+    # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def handle_exiting_options
       return unless Options::EXITING_OPTIONS.any? { |o| @options.key? o }
 
@@ -206,9 +208,10 @@ module RuboCop
       run_command(:show_cops) if @options[:show_cops]
       run_command(:show_docs_url) if @options[:show_docs_url]
       run_command(:lsp) if @options[:lsp]
+      run_command(:mcp) if @options[:mcp]
       raise Finished
     end
-    # rubocop:enable Metrics/CyclomaticComplexity
+    # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     def apply_default_formatter
       # This must be done after the options have already been processed,

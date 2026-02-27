@@ -1134,7 +1134,7 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
   describe '--display-time' do
     before { create_empty_file('example1.rb') }
 
-    regex = /Finished in [0-9]*\.[0-9]* seconds/
+    regex = /Finished in [0-9]*\.[0-9]{1,5} seconds/
 
     context 'without --display-time' do
       it 'does not display elapsed time in seconds' do
@@ -2087,7 +2087,7 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
         expect(cli.run(['--autocorrect', '--format', 'simple', target_file])).to eq(0)
 
         expect($stdout.string.lines.to_a.last)
-          .to eq("1 file inspected, 3 offenses detected, 3 offenses corrected\n")
+          .to eq("1 file inspected, 2 offenses detected, 2 offenses corrected\n")
       end
     end
 
@@ -2413,6 +2413,23 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
           1 file inspected, 1 offense detected, 1 offense corrected
         RESULT
       end
+    end
+  end
+
+  describe '--mcp' do
+    let(:initialize_request) { { jsonrpc: '2.0', id: '1', method: 'initialize' }.to_json }
+
+    it 'starts MCP server and responds to initialize request' do
+      # Using `cli.run` would not detect missing requires because spec_helper.rb
+      # has already loaded the gems in the same process.
+      stdout, stderr, status = Open3.capture3(
+        'ruby', '-I', '.', rubocop, '--mcp', stdin_data: initialize_request
+      )
+
+      expect(status.exitstatus).to eq(0), "MCP server failed to start: #{stderr}"
+      response = JSON.parse(stdout.lines.first, symbolize_names: true)
+      expect(response).to include(jsonrpc: '2.0', id: '1')
+      expect(response[:result]).to include(:protocolVersion, :capabilities, :serverInfo)
     end
   end
 

@@ -102,6 +102,17 @@ RSpec.describe RuboCop::Cop::Style::RedundantInterpolationUnfreeze, :config do
       RUBY
     end
 
+    it 'registers an offense for `String.new` with interpolated string' do
+      expect_offense(<<~'RUBY')
+        String.new("#{1}")
+        ^^^^^^^^^^ Don't unfreeze interpolated strings as they are already unfrozen.
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        "#{1}"
+      RUBY
+    end
+
     it 'registers no offense for uninterpolated heredoc' do
       expect_no_offenses(<<~'RUBY')
         foo(+<<~'MSG')
@@ -139,6 +150,12 @@ RSpec.describe RuboCop::Cop::Style::RedundantInterpolationUnfreeze, :config do
     it 'registers no offense when there is no receiver' do
       expect_no_offenses(<<~RUBY)
         dup
+      RUBY
+    end
+
+    it 'registers no offense for `String.new` with interpolated string and keyword arguments' do
+      expect_no_offenses(<<~'RUBY')
+        String.new("#{1}", encoding: Encoding::US_ASCII)
       RUBY
     end
   end

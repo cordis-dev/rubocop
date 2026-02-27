@@ -3,9 +3,15 @@
 module RuboCop
   module Cop
     module Lint
-      # Check to make sure that if safe navigation is used in an `&&` or `||` condition,
+      # Checks that if safe navigation is used in an `&&` or `||` condition,
       # consistent and appropriate safe navigation, without excess or deficiency,
       # is used for all method calls on the same object.
+      #
+      # @safety
+      #   Autocorrection is unsafe because if the receiver is not a local variable
+      #   but a method call, it may not be idempotent. For example, replacing
+      #   `foo&.bar` with `foo.bar` could raise `NoMethodError` if `foo` returns
+      #   `nil` on a subsequent call.
       #
       # @example
       #   # bad

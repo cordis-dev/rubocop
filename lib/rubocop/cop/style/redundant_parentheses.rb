@@ -155,6 +155,9 @@ module RuboCop
           return 'a literal' if node.literal? && disallowed_literal?(begin_node, node)
           return 'a variable' if node.variable?
           return 'a constant' if node.const_type?
+          if begin_node.parent&.any_block_type? && begin_node.parent.body == begin_node
+            return 'block body'
+          end
           if node.assignment? && (begin_node.parent.nil? || begin_node.parent.begin_type?)
             return 'an assignment'
           end
@@ -308,10 +311,10 @@ module RuboCop
         end
 
         def singular_parenthesized_parent?(begin_node)
-          return true unless begin_node.parent
-          return false if begin_node.parent.type?(:splat, :kwsplat)
+          return true unless (parent = begin_node.parent)
+          return false if parent.type?(:splat, :kwsplat)
 
-          parentheses?(begin_node) && begin_node.parent.children.one?
+          parent.children.one?
         end
 
         def only_begin_arg?(args)

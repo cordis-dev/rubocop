@@ -95,7 +95,7 @@ end
 | 0.77
 |===
 
-Check that the arguments on a multi-line method call are aligned.
+Checks that the arguments on a multi-line method call are aligned.
 
 [#examples-layoutargumentalignment]
 === Examples
@@ -181,7 +181,7 @@ foo :bar,
 | 0.77
 |===
 
-Check that the elements of a multi-line array literal are
+Checks that the elements of a multi-line array literal are
 aligned.
 
 [#examples-layoutarrayalignment]
@@ -2179,8 +2179,14 @@ the configuration.
 
 [source,ruby]
 ----
-# good
+# bad
+foo do |bar|
 
+  # ...
+
+end
+
+# good
 foo do |bar|
   # ...
 end
@@ -2191,8 +2197,12 @@ end
 
 [source,ruby]
 ----
-# good
+# bad
+foo do |bar|
+  # ...
+end
 
+# good
 foo do |bar|
 
   # ...
@@ -2240,8 +2250,16 @@ the configuration.
 
 [source,ruby]
 ----
-# good
+# bad
+class Foo
 
+  def bar
+    # ...
+  end
+
+end
+
+# good
 class Foo
   def bar
     # ...
@@ -2254,8 +2272,14 @@ end
 
 [source,ruby]
 ----
-# good
+# bad
+class Foo
+  def bar
+    # ...
+  end
+end
 
+# good
 class Foo
 
   def bar
@@ -2482,8 +2506,16 @@ the configuration.
 
 [source,ruby]
 ----
-# good
+# bad
+module Foo
 
+  def bar
+    # ...
+  end
+
+end
+
+# good
 module Foo
   def bar
     # ...
@@ -2496,8 +2528,14 @@ end
 
 [source,ruby]
 ----
-# good
+# bad
+module Foo
+  def bar
+    # ...
+  end
+end
 
+# good
 module Foo
 
   def bar
@@ -3754,7 +3792,7 @@ end
 | 1.16
 |===
 
-Check that the keys, separators, and values of a multi-line hash
+Checks that the keys, separators, and values of a multi-line hash
 literal are aligned according to configuration. The configuration
 options are:
 
@@ -6332,7 +6370,7 @@ end
 | 0.77
 |===
 
-Check that the parameters on a multi-line method call or definition are aligned.
+Checks that the parameters on a multi-line method call or definition are aligned.
 
 To set the alignment of the first argument, use the
 `Layout/FirstParameterIndentation` cop.

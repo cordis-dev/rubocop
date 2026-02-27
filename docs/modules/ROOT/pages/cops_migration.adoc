@@ -19,5 +19,17 @@
 | -
 |===
 
-Check that cop names in rubocop:disable comments are given with
+Checks that cop names in rubocop:disable comments are given with
 department name.
+
+[#examples-migrationdepartmentname]
+=== Examples
+
+[source,ruby]
+----
+# bad
+# rubocop:disable AbcSize
+
+# good
+# rubocop:disable Metrics/AbcSize
+----

@@ -2,13 +2,21 @@
 * xref:installation.adoc[Installation]
 * xref:compatibility.adoc[Compatibility]
 * Usage
-** xref:usage/basic_usage.adoc[Basic Usage]
+** xref:usage/getting_started.adoc[Getting Started]
+** xref:usage/cli_reference.adoc[CLI Reference]
+** xref:usage/auto_gen_config.adoc[Auto-generating Configuration]
 ** xref:usage/autocorrect.adoc[Autocorrect]
 ** xref:usage/caching.adoc[Caching]
 ** xref:usage/lsp.adoc[LSP]
+** xref:usage/mcp.adoc[MCP]
 ** xref:usage/server.adoc[Server]
+** xref:usage/source_code_directives.adoc[Source Code Directives]
 ** xref:usage/profiling.adoc[Profiling]
-* xref:configuration.adoc[Configuration]
+* Configuration
+** xref:configuration.adoc[Overview]
+** xref:configuration/inheritance.adoc[Inheritance]
+** xref:configuration/include_exclude.adoc[Including and Excluding Files]
+** xref:configuration/cop_settings.adoc[Configuring Cops]
 * xref:cops.adoc[Cops]
 * xref:formatters.adoc[Formatters]
 * Cop Documentation
@@ -21,9 +29,9 @@
 ** xref:cops_naming.adoc[Naming]
 ** xref:cops_security.adoc[Security]
 ** xref:cops_style.adoc[Style]
-** xref:v1_upgrade_notes.adoc[Upgrade Notes]
 * Plugins
-** xref:extensions.adoc[Plugin Configuration]
+** xref:plugins.adoc[Overview]
+** xref:plugin_configuration.adoc[Plugin Configuration]
 ** xref:plugin_migration_guide.adoc[Plugin Migration Guide]
 * xref:integration_with_other_tools.adoc[Integration with Other Tools]
 * xref:automated_code_review.adoc[Automated Code Review]
@@ -31,6 +39,7 @@
 * xref:contributing.adoc[Contributing]
 * xref:support.adoc[Support]
 * xref:versioning.adoc[Versioning]
+* xref:v1_upgrade_notes.adoc[v1 Upgrade Notes]
 * About
 ** xref:about/history.adoc[History]
 ** xref:about/team.adoc[Team]

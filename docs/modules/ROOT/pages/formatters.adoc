@@ -13,6 +13,29 @@ You can enable multiple formatters at the same time by specifying `-f/--format` 
 The `-o/--out` option applies to the previously specified `-f/--format`,
 or the default `progress` format if no `-f/--format` is specified before the `-o/--out` option.
 
+=== Quick reference
+
+|===
+| Formatter | Flag | Use case
+
+| Progress (default) | `progress` | Interactive terminal use
+| Clang | `clang` | Detailed offenses with source context
+| Simple | `simple` | Compact human-readable output
+| Quiet | `quiet` | Only show output when there are offenses
+| Fuubar | `fuubar` | Progress bar with real-time offense reporting
+| Pacman | `pacman` | Fun progress indicator
+| Emacs | `emacs` | Emacs-compatible output (machine-parsable)
+| JSON | `json` | Machine consumption / custom tooling (machine-parsable)
+| JUnit | `junit` | CI systems like Jenkins (machine-parsable)
+| TAP | `tap` | Test Anything Protocol consumers (machine-parsable)
+| GitHub Actions | `github` | GitHub Actions annotations
+| HTML | `html` | HTML report for sharing / CI artifacts
+| Markdown | `markdown` | Markdown report for PR comments
+| File List | `files` | Pipe file names to other tools (machine-parsable)
+| Offense Count | `offenses` | Overview of which cops trigger the most
+| Worst Offenders | `worst` | Find files needing the most attention
+|===
+
 [source,sh]
 ----
 # Simple format to $stdout.
@@ -40,7 +63,7 @@ $ rubocop --out result.txt --format simple
 #              $stdout     default format
 ----
 
-You can also load xref:extensions.adoc#custom-formatters[custom formatters].
+You can also load xref:development.adoc#custom-formatters[custom formatters].
 
 == Progress Formatter (default)
 
@@ -119,9 +142,9 @@ $ rubocop --format fuubar
 lib/foo.rb.rb:1:1: C: Naming/MethodName: Use snake_case for method names.
 def badName
     ^^^^^^^
-lib/bar.rb:13:14: W: Lint/DeprecatedClassMethods: File.exists? is deprecated in favor of File.exist?.
-        File.exists?(path)
-             ^^^^^^^
+lib/bar.rb:13:14: W: Lint/UnreachableCode: Unreachable code detected.
+        x + 1
+        ^^^^^
  22/53 files |======== 43 ========>                           |  ETA: 00:00:02
 ----
 
@@ -205,11 +228,11 @@ The JSON structure is like the following example:
 ----
 {
   "metadata": {
-    "rubocop_version": "1.12.0",
+    "rubocop_version": "1.84.2",
     "ruby_engine": "ruby",
-    "ruby_version": "3.0.0",
-    "ruby_patchlevel": "0",
-    "ruby_platform": "x86_64-darwin19"
+    "ruby_version": "3.4.8",
+    "ruby_patchlevel": "72",
+    "ruby_platform": "arm64-darwin24"
   },
   "files": [{
       "path": "lib/foo.rb",
@@ -219,22 +242,32 @@ The JSON structure is like the following example:
       "offenses": [{
           "severity": "convention",
           "message": "Line is too long. [81/80]",
-          "cop_name": "LineLength",
+          "cop_name": "Layout/LineLength",
           "corrected": true,
+          "correctable": true,
           "location": {
+            "start_line": 546,
+            "start_column": 80,
+            "last_line": 546,
+            "last_column": 84,
+            "length": 4,
             "line": 546,
-            "column": 80,
-            "length": 4
+            "column": 80
           }
         }, {
           "severity": "warning",
           "message": "Unreachable code detected.",
-          "cop_name": "UnreachableCode",
+          "cop_name": "Lint/UnreachableCode",
           "corrected": false,
+          "correctable": false,
           "location": {
+            "start_line": 15,
+            "start_column": 9,
+            "last_line": 15,
+            "last_column": 19,
+            "length": 10,
             "line": 15,
-            "column": 9,
-            "length": 10
+            "column": 9
           }
         }
       ]
@@ -336,7 +369,7 @@ $ rubocop --format worst
 
 == HTML Formatter
 
-Useful for CI environments. It will create an HTML report like http://f.cl.ly/items/0M3029412x3O091a1X1R/expected.html[this].
+Useful for CI environments. It will create an HTML report like https://github.com/rubocop/rubocop/blob/master/spec/fixtures/html_formatter/expected.html[this].
 
 [source,sh]
 ----
