@@ -27,6 +27,7 @@ module RuboCop
     # there's parallel execution and the cache is shared.
     def self.cleanup(config_store, verbose, cache_root_override = nil)
       return if inhibit_cleanup # OPTIMIZE: For faster testing
+      return unless config_store.for_pwd.for_all_cops['MaxFilesInCache']
 
       rubocop_cache_dir = cache_root(config_store, cache_root_override)
       return unless File.exist?(rubocop_cache_dir)
@@ -85,13 +86,21 @@ module RuboCop
     end
 
     def self.cache_root(config_store, cache_root_override = nil)
-      CacheConfig.root_dir do
+      return @cache_root if @cache_root && !cache_root_override
+
+      result = CacheConfig.root_dir do
         cache_root_override || config_store.for_pwd.for_all_cops['CacheRootDirectory']
       end
+      @cache_root = result unless cache_root_override
+      result
     end
 
     def self.allow_symlinks_in_cache_location?(config_store)
       config_store.for_pwd.for_all_cops['AllowSymlinksInCacheRootDirectory']
+    end
+
+    def self.reset_config_cache
+      @cache_root = nil
     end
 
     attr_reader :path
@@ -196,6 +205,17 @@ module RuboCop
         end
       end
 
+      # Return a hash of the options given at invocation, minus the ones that have
+      # no effect on which offenses and disabled line ranges are found, and thus
+      # don't affect caching.
+      def relevant_options_digest(options)
+        @relevant_options_digest ||= {}
+        @relevant_options_digest[options] ||= begin
+          options = options.reject { |key, _| NON_CHANGING.include?(key) }
+          options.to_s.gsub(/[^a-z]+/i, '_')
+        end
+      end
+
       private
 
       def digest(path)
@@ -227,20 +247,12 @@ module RuboCop
       end
     end
 
-    # Return a hash of the options given at invocation, minus the ones that have
-    # no effect on which offenses and disabled line ranges are found, and thus
-    # don't affect caching.
-    def relevant_options_digest(options)
-      options = options.reject { |key, _| NON_CHANGING.include?(key) }
-      options.to_s.gsub(/[^a-z]+/i, '_')
-    end
-
     # We combine team and options into a single "context" checksum to avoid
     # making file names that are too long for some filesystems to handle.
     # This context is for anything that's not (1) the RuboCop executable
     # checksum or (2) the inspected file checksum.
     def context_checksum(team, options)
-      keys = [team.external_dependency_checksum, relevant_options_digest(options)]
+      keys = [team.external_dependency_checksum, self.class.relevant_options_digest(options)]
       Digest::SHA1.hexdigest(keys.join)
     end
   end

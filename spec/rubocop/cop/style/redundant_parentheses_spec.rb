@@ -683,6 +683,11 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
                ^^^^^^ Don't use parentheses around a method call.
       }.qux)
     RUBY
+
+    expect_correction(<<~RUBY)
+      foo bar: baz {
+      }.qux
+    RUBY
   end
 
   it 'registers an offense for parentheses around a method chain with `{`...`}` numblock in keyword argument' do
@@ -691,6 +696,12 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
                ^^^^^^ Don't use parentheses around a method call.
         do_something(_1)
       }.qux)
+    RUBY
+
+    expect_correction(<<~RUBY)
+      foo bar: baz {
+        do_something(_1)
+      }.qux
     RUBY
   end
 
@@ -882,6 +893,143 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
       x do
         baz
         foo; bar
+      end
+    RUBY
+  end
+
+  it 'does not register an offense for parens around an endless irange in a keyword argument' do
+    expect_no_offenses(<<~RUBY)
+      foo bar: (baz..)
+      qux
+    RUBY
+  end
+
+  it 'does not register an offense for parens around an endless erange in a keyword argument' do
+    expect_no_offenses(<<~RUBY)
+      foo bar: (baz...)
+      qux
+    RUBY
+  end
+
+  it 'registers parentheses around an irange inside a block' do
+    expect_offense(<<~RUBY)
+      something do
+        (a..b)
+        ^^^^^^ Don't use parentheses around block body.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      something do
+        a..b
+      end
+    RUBY
+  end
+
+  it 'registers parentheses around an erange inside a block' do
+    expect_offense(<<~RUBY)
+      something do
+        (a...b)
+        ^^^^^^^ Don't use parentheses around block body.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      something do
+        a...b
+      end
+    RUBY
+  end
+
+  it 'registers parentheses around an irange inside a braces block' do
+    expect_offense(<<~RUBY)
+      something { (a..b) }
+                  ^^^^^^ Don't use parentheses around block body.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      something { a..b }
+    RUBY
+  end
+
+  it 'registers parentheses around a beginless range inside a block' do
+    expect_offense(<<~RUBY)
+      something do
+        (..b)
+        ^^^^^ Don't use parentheses around block body.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      something do
+        ..b
+      end
+    RUBY
+  end
+
+  it 'registers parentheses around a beginless range followed by an expression inside a block' do
+    expect_offense(<<~RUBY)
+      something do
+        (..b)
+        ^^^^^ Don't use parentheses around block body.
+        x
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      something do
+        ..b
+        x
+      end
+    RUBY
+  end
+
+  it 'accepts parentheses around a beginless range preceded by an expression inside a block' do
+    expect_no_offenses(<<~RUBY)
+      something do
+        x
+        (..b)
+      end
+    RUBY
+  end
+
+  it 'registers parentheses around an endless range inside a block' do
+    expect_offense(<<~RUBY)
+      something do
+        (a..)
+        ^^^^^ Don't use parentheses around block body.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      something do
+        a..
+      end
+    RUBY
+  end
+
+  it 'registers parentheses around an endless range preceded by an expression inside a block' do
+    expect_offense(<<~RUBY)
+      something do
+        x
+        (a..)
+        ^^^^^ Don't use parentheses around block body.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      something do
+        x
+        a..
+      end
+    RUBY
+  end
+
+  it 'accepts parentheses around an endless range followed by an expression inside a block' do
+    expect_no_offenses(<<~RUBY)
+      something do
+        (a..)
+        x
       end
     RUBY
   end
@@ -1173,6 +1321,10 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
       if x; y else (1) end
                    ^^^ Don't use parentheses around a literal.
     RUBY
+
+    expect_correction(<<~RUBY)
+      if x; y else 1 end
+    RUBY
   end
 
   it 'accepts parentheses when enclosed in parentheses at `while-post`' do
@@ -1447,10 +1599,18 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
       expect_no_offenses('x ({ y: 1 }.merge({ y: 2 }).merge({ y: 3 })), z')
     end
 
+    it 'accepts parentheses if the argument list is not parenthesized with safe navigation' do
+      expect_no_offenses('x&.y ({ z: 1 }), w')
+    end
+
     it 'registers an offense if the argument list is parenthesized' do
       expect_offense(<<~RUBY)
         x(({ y: 1 }), z)
           ^^^^^^^^^^ Don't use parentheses around a literal.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x({ y: 1 }, z)
       RUBY
     end
   end
@@ -1460,6 +1620,10 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
       expect_offense(<<~RUBY)
         x ({ y: 1 }), ({ y: 1 })
                       ^^^^^^^^^^ Don't use parentheses around a literal.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x ({ y: 1 }), { y: 1 }
       RUBY
     end
   end

@@ -3,20 +3,16 @@
 AllCops:
   RubyInterpreters:
     - ruby
-    - macruby
     - rake
     - jruby
-    - rbx
   # Include common Ruby source files.
   Include:
     - '**/*.rb'
     - '**/*.arb'
     - '**/*.axlsx'
     - '**/*.builder'
-    - '**/*.fcgi'
     - '**/*.gemfile'
     - '**/*.gemspec'
-    - '**/*.god'
     - '**/*.jb'
     - '**/*.jbuilder'
     - '**/*.mspec'
@@ -25,15 +21,12 @@ AllCops:
     - '**/*.podspec'
     - '**/*.rabl'
     - '**/*.rake'
-    - '**/*.rbuild'
     - '**/*.rbw'
-    - '**/*.rbx'
     - '**/*.ru'
     - '**/*.ruby'
     - '**/*.schema'
     - '**/*.spec'
     - '**/*.thor'
-    - '**/*.watchr'
     - '**/.irbrc'
     - '**/.pryrc'
     - '**/.simplecov'
@@ -43,7 +36,6 @@ AllCops:
     - '**/Brewfile'
     - '**/Buildfile'
     - '**/Capfile'
-    - '**/Cheffile'
     - '**/Dangerfile'
     - '**/Deliverfile'
     - '**/Fastfile'
@@ -60,7 +52,6 @@ AllCops:
     - '**/Snapfile'
     - '**/Steepfile'
     - '**/Thorfile'
-    - '**/Vagabondfile'
     - '**/Vagrantfile'
   Exclude:
     - 'node_modules/**/*'
@@ -117,7 +108,7 @@ AllCops:
   # line option.
   UseCache: true
   # Threshold for how many files can be stored in the result cache before some
-  # of the files are automatically removed.
+  # of the files are automatically removed. Set to false to disable cache pruning.
   MaxFilesInCache: 20000
   # The cache will be stored in "rubocop_cache" under this directory. If
   # CacheRootDirectory is ~ (nil), which it is by default, the root will be
@@ -3993,11 +3984,13 @@ Style/EmptyClassDefinition:
   Description: 'Enforces consistent style for empty class definitions.'
   Enabled: pending
   VersionAdded: '1.84'
+  VersionChanged: '1.86'
   EnforcedStyle: class_keyword
   SupportedStyles:
     - class_keyword
     - class_new
     - class_definition # Deprecated.
+  AllowedParentClasses: []
 
 Style/EmptyElse:
   Description: 'Avoid empty else-clauses.'
@@ -5119,7 +5112,10 @@ Style/OneClassPerFile:
   Description: 'Checks that each source file defines at most one top-level class or module.'
   Enabled: pending
   VersionAdded: '1.85'
+  VersionChanged: '<<next>>'
   AllowedClasses: []
+  Exclude:
+    - 'spec/**/*'
 
 Style/OneLineConditional:
   Description: >-
@@ -5564,9 +5560,10 @@ Style/RedundantStringEscape:
 
 Style/RedundantStructKeywordInit:
   Description: 'Checks for redundant `keyword_init` option for `Struct.new`.'
-  Enabled: pending
+  Enabled: false
   SafeAutoCorrect: false
   VersionAdded: '1.85'
+  VersionChanged: '<<next>>'
 
 Style/RegexpLiteral:
   Description: 'Use / or %r around regular expressions.'

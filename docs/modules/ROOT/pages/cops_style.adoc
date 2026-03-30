@@ -4474,7 +4474,7 @@ end
 | Yes
 | Always
 | 1.84
-| -
+| 1.86
 |===
 
 Enforces consistent style for empty class definitions.
@@ -4484,15 +4484,19 @@ for classes with no body.
 
 The supported styles are:
 
-* class_definition (default) - prefer standard class definition over `Class.new`
+* class_keyword (default) - prefer standard class definition over `Class.new`
 * class_new - prefer `Class.new` over class definition
 
 One difference between the two styles is that the `Class.new` form does not make
 the subclass name available to the base class's `inherited` callback.
-For this reason, `EnforcedStyle: class_definition` is set as the default style.
+For this reason, `EnforcedStyle: class_keyword` is set as the default style.
 Class definitions without a superclass, which are not involved in inheritance,
 are not detected. This ensures safe detection regardless of the applied style.
 This avoids overlapping responsibilities with the `Lint/EmptyClass` cop.
+
+Use `AllowedParentClasses` to permit both styles for specific parent classes.
+For example, adding `StandardError` allows both `Error = Class.new(StandardError)`
+and `class Error < StandardError; end` regardless of the enforced style.
 
 [#examples-styleemptyclassdefinition]
 === Examples
@@ -4529,6 +4533,19 @@ class FooError < StandardError; end
 FooError = Class.new(StandardError)
 ----
 
+[#allowedparentclasses_-__standarderror__-styleemptyclassdefinition]
+==== AllowedParentClasses: ['StandardError']
+
+[source,ruby]
+----
+# good - allowed regardless of EnforcedStyle
+FooError = Class.new(StandardError)
+
+# good - allowed regardless of EnforcedStyle
+class FooError < StandardError
+end
+----
+
 [#configurable-attributes-styleemptyclassdefinition]
 === Configurable attributes
 
@@ -4538,6 +4555,10 @@ FooError = Class.new(StandardError)
 | EnforcedStyle
 | `class_keyword`
 | `class_keyword`, `class_new`, `class_definition`
+
+| AllowedParentClasses
+| `[]`
+| Array
 |===
 
 [#styleemptyelse]
@@ -5852,13 +5873,19 @@ will only be closed when the garbage collector runs, which may lead
 to resource exhaustion. Using the block form ensures the file is
 automatically closed when the block exits.
 
+This cop only registers an offense when the result of `File.open` is
+assigned to a variable or has a method chained on it, as those are the
+clearest indicators that the block form should be used instead. When
+`File.open` is used as a return value or passed as an argument, the
+caller is likely managing the file descriptor intentionally.
+
 [#safety-stylefileopen]
 === Safety
 
-This cop is unsafe because it detects all `File.open` calls without
-a block, including intentional uses such as one-shot reads
-(`File.open("f").read`) where the file descriptor is closed by the
-garbage collector.
+This cop is unsafe because it relies on syntax heuristics and cannot
+verify whether the file descriptor is safely managed. For example, it
+still flags intentional one-shot reads (`File.open("f").read`) where
+the file descriptor is closed by the garbage collector.
 
 [#examples-stylefileopen]
 === Examples
@@ -5878,6 +5905,14 @@ end
 
 # good
 File.open('file', &:read)
+
+# good - pass an open file object to an API that manages its lifecycle
+process(io: File.open('file'))
+
+# good - return an open file object for the caller to manage
+def json_key_io
+  File.open('file')
+end
 
 # good - use File.read for one-shot reads
 File.read('file')
@@ -7432,6 +7467,15 @@ hash[key]
 
 # good
 hash.fetch(key)
+----
+
+[#allowedreceivers_-__rails_cache__-stylehashlookupmethod]
+==== AllowedReceivers: ['Rails.cache']
+
+[source,ruby]
+----
+# good
+Rails.cache.fetch(name, options) { block }
 ----
 
 [#configurable-attributes-stylehashlookupmethod]

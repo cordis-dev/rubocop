@@ -82,28 +82,35 @@ module RuboCop
             !NIL_METHODS.include?(method_name) && !@additional_nil_methods.include?(method_name)
           end
 
-          # rubocop:disable Metrics/PerceivedComplexity
+          # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
           def sole_condition_of_parent_if?(node)
+            child = node
             parent = node.parent
 
             while parent
               if parent.if_type?
-                if parent.condition == node
-                  return true
-                elsif parent.elsif?
-                  parent = find_top_if(parent)
-                end
+                condition = parent.condition
+                return true if !child.equal?(condition) && non_nil_condition?(condition, node)
+
+                parent = find_top_if(parent) if parent.elsif?
               elsif else_branch?(parent)
                 # Find the top `if` for `else`.
                 parent = parent.parent
               end
 
+              child = parent
               parent = parent&.parent
             end
 
             false
           end
-          # rubocop:enable Metrics/PerceivedComplexity
+          # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+
+          def non_nil_condition?(condition, node)
+            return true if condition == node
+
+            condition.csend_type? && csend_root_receiver(condition) == node
+          end
 
           def else_branch?(node)
             node.parent&.if_type? && node.parent.else_branch == node
@@ -113,6 +120,14 @@ module RuboCop
             node = node.parent while node.elsif?
 
             node
+          end
+
+          def csend_root_receiver(node)
+            return unless (receiver = node.receiver)
+
+            receiver = receiver.receiver while receiver.call_type? && receiver.receiver
+
+            receiver
           end
         end
       end

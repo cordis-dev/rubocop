@@ -110,6 +110,54 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
     RUBY
   end
 
+  context '>= Ruby 2.7', :ruby27 do
+    it 'registers an offense and corrects when using numblock `reject` to reject nils' do
+      expect_offense(<<~RUBY)
+        array.reject { _1.nil? }
+              ^^^^^^^^^^^^^^^^^^ Use `compact` instead of `reject { _1.nil? }`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        array.compact
+      RUBY
+    end
+
+    it 'registers an offense and corrects when using numblock `select` to reject nils' do
+      expect_offense(<<~RUBY)
+        array.select { !_1.nil? }
+              ^^^^^^^^^^^^^^^^^^^ Use `compact` instead of `select { !_1.nil? }`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        array.compact
+      RUBY
+    end
+  end
+
+  context '>= Ruby 3.4', :ruby34 do
+    it 'registers an offense and corrects when using itblock `reject` to reject nils' do
+      expect_offense(<<~RUBY)
+        array.reject { it.nil? }
+              ^^^^^^^^^^^^^^^^^^ Use `compact` instead of `reject { it.nil? }`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        array.compact
+      RUBY
+    end
+
+    it 'registers an offense and corrects when using itblock `select` to reject nils' do
+      expect_offense(<<~RUBY)
+        array.select { !it.nil? }
+              ^^^^^^^^^^^^^^^^^^^ Use `compact` instead of `select { !it.nil? }`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        array.compact
+      RUBY
+    end
+  end
+
   it 'registers an offense and corrects when using `reject` and receiver is a variable' do
     expect_offense(<<~RUBY)
       def foo(params)
@@ -238,6 +286,12 @@ RSpec.describe RuboCop::Cop::Style::CollectionCompact, :config, :ruby24 do
       expect_no_offenses(<<~RUBY)
         array.to_enum.reject { |e| e.nil? }
         array.to_enum.reject! { |e| e.nil? }
+      RUBY
+    end
+
+    it 'does not register an offense when using safe navigation `to_enum.reject` on array to reject nils' do
+      expect_no_offenses(<<~RUBY)
+        array&.to_enum.reject { |e| e.nil? }
       RUBY
     end
 

@@ -114,7 +114,7 @@ module RuboCop
         def first_arg_begins_with_hash_literal?(node)
           # Don't flag `method ({key: value})` or `method ({key: value}.method)`
           hash_literal = method_chain_begins_with_hash_literal(node.children.first)
-          if (root_method = node.each_ancestor(:send).to_a.last)
+          if (root_method = node.each_ancestor(:call).to_a.last)
             parenthesized = root_method.parenthesized_call?
           end
           hash_literal && first_argument?(node) && !parentheses?(hash_literal) && !parenthesized
@@ -139,6 +139,8 @@ module RuboCop
           node = begin_node.children.first
 
           if (message = find_offense_message(begin_node, node))
+            return offense(begin_node, message) if message == 'block body'
+
             if node.range_type? && !argument_of_parenthesized_method_call?(begin_node, node)
               begin_node = begin_node.parent
             end
@@ -155,9 +157,8 @@ module RuboCop
           return 'a literal' if node.literal? && disallowed_literal?(begin_node, node)
           return 'a variable' if node.variable?
           return 'a constant' if node.const_type?
-          if begin_node.parent&.any_block_type? && begin_node.parent.body == begin_node
-            return 'block body'
-          end
+          return 'block body' if begin_node.parent&.any_block_type? || body_range?(begin_node, node)
+
           if node.assignment? && (begin_node.parent.nil? || begin_node.parent.begin_type?)
             return 'an assignment'
           end
@@ -269,6 +270,15 @@ module RuboCop
           end
         end
 
+        def body_range?(begin_node, node)
+          return false unless node.range_type?
+          return false unless (parent = begin_node.parent)
+          return false if parent.pair_type?
+
+          (node.begin.nil? && begin_node == parent.children.first) ||
+            (node.end.nil? && begin_node == parent.children.last)
+        end
+
         def disallowed_one_line_pattern_matching?(begin_node, node)
           if (parent = begin_node.parent)
             return false if parent.any_def_type? && parent.endless?
@@ -322,28 +332,15 @@ module RuboCop
         end
 
         def first_argument?(node)
-          if first_send_argument?(node) ||
-             first_super_argument?(node) ||
-             first_yield_argument?(node)
-            return true
-          end
+          return true if first_call_argument?(node)
 
           node.each_ancestor.any? { |ancestor| first_argument?(ancestor) }
         end
 
-        # @!method first_send_argument?(node)
-        def_node_matcher :first_send_argument?, <<~PATTERN
-          ^(send _ _ equal?(%0) ...)
-        PATTERN
-
-        # @!method first_super_argument?(node)
-        def_node_matcher :first_super_argument?, <<~PATTERN
-          ^(super equal?(%0) ...)
-        PATTERN
-
-        # @!method first_yield_argument?(node)
-        def_node_matcher :first_yield_argument?, <<~PATTERN
-          ^(yield equal?(%0) ...)
+        # @!method first_call_argument?(node)
+        def_node_matcher :first_call_argument?, <<~PATTERN
+          {^(call _ _ equal?(%0) ...)
+           ^({super yield} equal?(%0) ...)}
         PATTERN
 
         def call_chain_starts_with_int?(begin_node, send_node)

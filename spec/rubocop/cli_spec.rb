@@ -81,7 +81,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
           1 file inspected, 2 offenses detected, 1 offense autocorrectable
       RESULT
       expect($stderr.string).to eq(<<~RESULT)
-        #{abs('.rubocop.yml')}: Warning: no department given for EndOfLine.
+        .rubocop.yml: Warning: no department given for EndOfLine.
       RESULT
     end
   end
@@ -547,7 +547,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
                    'end'])
       expect(cli.run(['--format', 'emacs', 'example.rb'])).to eq(1)
       expect($stderr.string)
-        .to eq(['example.rb: Style/LineLength has the wrong ' \
+        .to eq(['example.rb: Warning: Style/LineLength has the wrong ' \
                 'namespace - replace it with Layout/LineLength',
                 ''].join("\n"))
       # 2 real cops were disabled, and 1 that was incorrect
@@ -590,8 +590,8 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
                      'y("123") # rubocop:disable StringLiterals'])
         expect(cli.run(['--format', 'emacs', 'example.rb'])).to eq(1)
         expect($stderr.string).to eq(<<~OUTPUT)
-          #{abs('example.rb')}: Warning: no department given for LineLength. Run `rubocop -a --only Migration/DepartmentName` to fix.
-          #{abs('example.rb')}: Warning: no department given for StringLiterals. Run `rubocop -a --only Migration/DepartmentName` to fix.
+          example.rb: Warning: no department given for LineLength. Run `rubocop -a --only Migration/DepartmentName` to fix.
+          example.rb: Warning: no department given for StringLiterals. Run `rubocop -a --only Migration/DepartmentName` to fix.
         OUTPUT
         expect($stdout.string)
           .to eq(<<~RESULT)
@@ -667,6 +667,90 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
         end
       end
 
+      context 'when using `rubocop:disable` line comment for `Lint/EmptyWhen`' do
+        it 'does not register an offense for `Lint/RedundantCopDisableDirective`' do
+          create_file('.rubocop.yml', <<~YAML)
+            Lint/EmptyWhen:
+              Enabled: true
+            Lint/RedundantCopDisableDirective:
+              Enabled: true
+          YAML
+          create_file('example.rb', <<~RUBY)
+            # frozen_string_literal: true
+
+            case x
+            when 1 # rubocop:disable Lint/EmptyWhen
+            when 2
+              :ok
+            end
+          RUBY
+          expect(cli.run(['example.rb'])).to eq(0)
+          expect($stdout.string).to include('1 file inspected, no offenses detected')
+        end
+      end
+
+      context 'when using `rubocop:disable` line comment for `Lint/EmptyConditionalBody`' do
+        it 'does not register an offense for `Lint/RedundantCopDisableDirective`' do
+          create_file('.rubocop.yml', <<~YAML)
+            Lint/EmptyConditionalBody:
+              Enabled: true
+            Lint/RedundantCopDisableDirective:
+              Enabled: true
+          YAML
+          create_file('example.rb', <<~RUBY)
+            # frozen_string_literal: true
+
+            if condition # rubocop:disable Lint/EmptyConditionalBody
+            end
+          RUBY
+          expect(cli.run(['example.rb'])).to eq(0)
+          expect($stdout.string).to include('1 file inspected, no offenses detected')
+        end
+      end
+
+      context 'when using `rubocop:disable` line comment for `Lint/EmptyInPattern`' do
+        it 'does not register an offense for `Lint/RedundantCopDisableDirective`' do
+          create_file('.rubocop.yml', <<~YAML)
+            Lint/EmptyInPattern:
+              Enabled: true
+            Lint/RedundantCopDisableDirective:
+              Enabled: true
+          YAML
+          create_file('example.rb', <<~RUBY)
+            # frozen_string_literal: true
+
+            case [1]
+            in [a] # rubocop:disable Lint/EmptyInPattern
+            in [a, b]
+              :ok
+            end
+          RUBY
+          expect(cli.run(['example.rb'])).to eq(0)
+          expect($stdout.string).to include('1 file inspected, no offenses detected')
+        end
+      end
+
+      context 'when using `rubocop:disable` line comment for `Style/SymbolProc`' do
+        it 'does not register an offense for `Lint/RedundantCopDisableDirective`' do
+          create_file('.rubocop.yml', <<~YAML)
+            Style/SymbolProc:
+              Enabled: true
+              AllowComments: true
+            Lint/RedundantCopDisableDirective:
+              Enabled: true
+          YAML
+          create_file('example.rb', <<~RUBY)
+            # frozen_string_literal: true
+
+            something do |e| # rubocop:disable Style/SymbolProc
+              e.upcase
+            end
+          RUBY
+          expect(cli.run(['example.rb'])).to eq(0)
+          expect($stdout.string).to include('1 file inspected, no offenses detected')
+        end
+      end
+
       shared_examples 'RedundantCopDisableDirective not run' do |state, config|
         context "and RedundantCopDisableDirective is #{state}" do
           it 'does not report RedundantCopDisableDirective offenses' do
@@ -680,8 +764,8 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
             create_file('.rubocop.yml', config)
             expect(cli.run(['--format', 'emacs'])).to eq(1)
             expect($stderr.string).to eq(<<~OUTPUT)
-              #{abs('example.rb')}: Warning: no department given for LineLength. Run `rubocop -a --only Migration/DepartmentName` to fix.
-              #{abs('example.rb')}: Warning: no department given for ClassLength. Run `rubocop -a --only Migration/DepartmentName` to fix.
+              example.rb: Warning: no department given for LineLength. Run `rubocop -a --only Migration/DepartmentName` to fix.
+              example.rb: Warning: no department given for ClassLength. Run `rubocop -a --only Migration/DepartmentName` to fix.
             OUTPUT
             expect($stdout.string)
               .to eq(<<~RESULT)
@@ -1228,6 +1312,9 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
         create_file('child/grandkid/.rubocop.yml', <<~YAML)
           inherit_from:
             - ../../.rubocop.yml
+          Style/FrozenStringLiteralComment:
+            Include:
+              - '*.rb'
         YAML
       end
 
@@ -1245,6 +1332,34 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
           Dir.chdir('child/grandkid') { expect(cli.run(['-L'])).to eq(0) }
           expect($stdout.string).to eq("file.rbi\n")
         end
+      end
+    end
+
+    context 'when a .rubocop.yml is inherited from a parent directory' do
+      before do
+        create_file('.rubocop.yml', <<~YAML)
+          AllCops:
+            DisabledByDefault: true
+          Style/FrozenStringLiteralComment:
+            Enabled: true
+        YAML
+        create_file('child/.rubocop.yml', <<~YAML)
+          inherit_from: ../.rubocop.yml
+          Style/FrozenStringLiteralComment:
+            Include:
+              - '*.rb'
+        YAML
+      end
+
+      it 'keeps the include pattern from the local configuration' do
+        Dir.chdir('child') do
+          expect(cli.run(['--show-cops', 'Style/FrozenStringLiteralComment'])).to eq(0)
+        end
+        expect($stderr.string).to eq('')
+        expect($stdout.string.lines.last(3).map(&:strip).join("\n")).to eq(<<~TEXT)
+          Include:
+          - "*.rb"
+        TEXT
       end
     end
 

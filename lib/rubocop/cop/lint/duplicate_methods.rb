@@ -197,6 +197,13 @@ module RuboCop
         # @!method sym_name(node)
         def_node_matcher :sym_name, '(sym $_name)'
 
+        # @!method class_or_module_new_block?(node)
+        def_node_matcher :class_or_module_new_block?, <<~PATTERN
+          (block
+            (send (const _ {:Class :Module}) :new ...)
+            ...)
+        PATTERN
+
         def on_send(node) # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
           name, original_name = alias_method?(node)
 
@@ -233,9 +240,12 @@ module RuboCop
 
         def check_self_receiver(node, name)
           enclosing = node.parent_module_name
-          return unless enclosing
-
-          found_method(node, "#{enclosing}.#{name}")
+          if enclosing
+            found_method(node, "#{enclosing}.#{name}")
+          elsif (anon_block = anonymous_class_block(node))
+            scope = qualified_name(anon_block.parent_module_name, nil, 'Object')
+            found_method(node, "#{scope}.#{name}", scope_id: anon_block_scope_id(anon_block))
+          end
         end
 
         def inside_condition?(node)
@@ -274,16 +284,50 @@ module RuboCop
         end
 
         def found_instance_method(node, name)
-          return found_sclass_method(node, name) unless (scope = node.parent_module_name)
+          if (scope = node.parent_module_name)
+            found_method(node, "#{humanize_scope(scope)}#{name}")
+          elsif (anon_block = anonymous_class_block(node))
+            base = qualified_name(anon_block.parent_module_name, nil, 'Object')
+            scope = node.each_ancestor(:sclass).any? ? "#<Class:#{base}>" : base
+            found_method(
+              node, "#{humanize_scope(scope)}#{name}", scope_id: anon_block_scope_id(anon_block)
+            )
+          else
+            found_sclass_method(node, name)
+          end
+        end
 
-          # Humanize the scope
+        def humanize_scope(scope)
           scope = scope.sub(
             /(?:(?<name>.*)::)#<Class:\k<name>>|#<Class:(?<name>.*)>(?:::)?/,
             '\k<name>.'
           )
-          scope << '#' unless scope.end_with?('.')
+          scope.end_with?('.') ? scope : "#{scope}#"
+        end
 
-          found_method(node, "#{scope}#{name}")
+        def anonymous_class_block(node)
+          first_block = node.each_ancestor(:block).first
+          return unless class_or_module_new_block?(first_block)
+          return if first_block.parent&.type?(:lvasgn)
+          return if node.each_ancestor(:sclass).any? { |s| !s.children.first.self_type? }
+
+          first_block
+        end
+
+        def anon_block_scope_id(anon_block)
+          parent = anon_block.parent
+          return unless parent&.type?(:any_block, :begin, :call)
+
+          if (receiver = named_receiver(parent))
+            "#{receiver.source}.#{parent.method_name}"
+          elsif !parent.begin_type? || parent.parent&.any_block_type?
+            source_location(anon_block)
+          end
+        end
+
+        def named_receiver(node)
+          receiver = node.receiver
+          receiver unless class_or_module_new_block?(receiver)
         end
 
         def found_sclass_method(node, name)
@@ -296,8 +340,10 @@ module RuboCop
           found_method(node, "#{singleton_receiver_node.method_name}.#{name}")
         end
 
-        def found_method(node, method_name)
+        # rubocop:disable Metrics/AbcSize
+        def found_method(node, method_name, scope_id: nil)
           key = method_key(node, method_name)
+          key = "#{key}@#{scope_id}" if scope_id
           scope = node.each_ancestor(:rescue, :ensure).first&.type
 
           if @definitions.key?(key)
@@ -314,6 +360,7 @@ module RuboCop
             @definitions[key] = node
           end
         end
+        # rubocop:enable Metrics/AbcSize
 
         def method_key(node, method_name)
           if (ancestor_def = node.each_ancestor(:any_def).first)
