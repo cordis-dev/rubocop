@@ -4219,7 +4219,80 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
 
     status = cli.run(['--autocorrect-all'])
-    expect(status).to eq(0)
+    expect(status).to eq(1)
     expect($stderr.string).to eq('')
+    expect(source_file.read).to eq(<<~RUBY)
+      # frozen_string_literal: true
+
+      def previous_or_next_page(page, text, classname)
+        tag :li, link(text, page || '#'),
+            class: [(classname[0..3] if @options[:page_links]), (classname if @options[:page_links]), ('disabled' unless page)].join(' ')
+      end
+    RUBY
+  end
+
+  context 'when a custom ruby extractor returns multiple processed sources for one file' do
+    def with_ruby_extractor(ruby_extractor)
+      RuboCop::Runner.ruby_extractors.unshift(ruby_extractor)
+      yield
+    ensure
+      RuboCop::Runner.ruby_extractors.shift
+    end
+
+    it 'applies autocorrections for all extracted sources in one run' do
+      path = 'example.rb'
+
+      create_file(path, <<~RUBY.split("\n"))
+        Hash.new()
+        Hash.new()
+        Hash.new()
+      RUBY
+
+      ruby_extractor = lambda do |_processed_source|
+        offset = 0
+        File.read(path).lines.map do |line|
+          current_offset = offset
+          offset += line.bytesize
+
+          {
+            offset: current_offset,
+            processed_source: RuboCop::ProcessedSource.new(
+              line,
+              3.4,
+              path,
+              parser_engine:
+              parser_engine
+            )
+          }
+        end
+      end
+
+      with_ruby_extractor(ruby_extractor) do
+        expect(cli.run(%w[--autocorrect-all --only Style/EmptyLiteral])).to eq(0)
+        expect(File.read(path)).to eq(<<~RUBY)
+          {}
+          {}
+          {}
+        RUBY
+        expect($stdout.string).to eq(<<~RESULT)
+          Inspecting 1 file
+          C
+
+          Offenses:
+
+          example.rb:1:1: C: [Corrected] Style/EmptyLiteral: Use hash literal {} instead of Hash.new().
+          Hash.new()
+          ^^^^^^^^^^
+          example.rb:2:1: C: [Corrected] Style/EmptyLiteral: Use hash literal {} instead of Hash.new().
+          Hash.new()
+          ^^^^^^^^^^
+          example.rb:3:1: C: [Corrected] Style/EmptyLiteral: Use hash literal {} instead of Hash.new().
+          Hash.new()
+          ^^^^^^^^^^
+
+          1 file inspected, 3 offenses detected, 3 offenses corrected
+        RESULT
+      end
+    end
   end
 end

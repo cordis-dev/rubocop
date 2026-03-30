@@ -176,7 +176,7 @@ module RuboCop
           if first_non_comment_token
             0...first_non_comment_token.line
           else
-            (0..)
+            0..
           end
         end
 
@@ -299,7 +299,7 @@ module RuboCop
         end
 
         def supported_capitalizations
-          cop_config['SupportedCapitalizations'].map(&:to_sym)
+          @supported_capitalizations ||= cop_config['SupportedCapitalizations'].map(&:to_sym).freeze
         end
       end
     end

@@ -3,7 +3,7 @@
 module RuboCop
   # This module holds the RuboCop version information.
   module Version
-    STRING = '1.85.0'
+    STRING = '1.86.0'
 
     MSG = '%<version>s (using %<parser_version>s, ' \
           'rubocop-ast %<rubocop_ast_version>s, ' \
@@ -55,7 +55,7 @@ module RuboCop
 
     # @api private
     def self.parser_version(target_ruby_version)
-      config_path = ConfigFinder.find_config_path(Dir.pwd)
+      config_path = ConfigFinder.find_config_path(PathUtil.pwd)
       yaml = Util.silence_warnings do
         ConfigLoader.load_yaml_configuration(config_path)
       end

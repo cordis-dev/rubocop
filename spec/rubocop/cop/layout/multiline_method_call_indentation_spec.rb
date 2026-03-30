@@ -441,6 +441,13 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
           ^^^^^ Use 2 (not 0) spaces for indenting an expression spanning multiple lines.
         end
       RUBY
+
+      expect_correction(<<~RUBY)
+        def foo
+          !0
+            .nil?
+        end
+      RUBY
     end
 
     # We call it semantic alignment when a dot is aligned with the first dot in
@@ -556,6 +563,73 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
               key: Foo.bar
                    .baz
             }
+          RUBY
+        end
+      end
+
+      context 'when inside a hash pair in a multiline chain method call' do
+        it 'accepts method chain inside hash pair passed to a chained method' do
+          expect_no_offenses(<<~RUBY)
+            @foo = Foo
+                   .where(id: Bar.select(:id)
+                     .joins(:bar)
+                     .where.not(bar: { id: 123 }))
+          RUBY
+        end
+
+        it 'accepts method chain inside hash pair passed to a chained method with safe navigation' do
+          expect_no_offenses(<<~RUBY)
+            @foo = Foo
+                   &.where(id: Bar.select(:id)
+                     &.joins(:bar))
+          RUBY
+        end
+
+        it 'accepts method chain inside hash pair when outer chain uses trailing dot' do
+          expect_no_offenses(<<~RUBY)
+            @foo = Foo.
+                   where(id: Bar.select(:id)
+                     .joins(:bar))
+          RUBY
+        end
+
+        it 'accepts multiple hash pairs with chains in the same multiline chain call' do
+          expect_no_offenses(<<~RUBY)
+            Foo
+              .where(id: Bar.select(:id)
+                .joins(:bar),
+                     name: Car.find(:name)
+                .strip)
+          RUBY
+        end
+
+        it 'accepts method chain inside hash pair with explicit hash braces in multiline chain' do
+          expect_no_offenses(<<~RUBY)
+            Foo
+              .where({id: Bar.select(:id)
+                .joins(:bar)})
+          RUBY
+        end
+
+        it 'accepts chaining after a multiline chain call with hash pair' do
+          expect_no_offenses(<<~RUBY)
+            Foo
+              .where(id: Bar.select(:id)
+                .joins(:bar))
+              .order(:name)
+          RUBY
+        end
+
+        it 'still registers an offense for same-line chain with hash pair' do
+          expect_offense(<<~RUBY)
+            Foo.where(id: Bar.select(:id)
+                                    .joins(:bar))
+                                    ^^^^^^ Align `.joins` with `Bar.select(:id)` on line 1.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            Foo.where(id: Bar.select(:id)
+                          .joins(:bar))
           RUBY
         end
       end
@@ -1353,6 +1427,13 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
           ^^^^^ Indent `.nil?` 2 spaces more than `0` on line 2.
         end
       RUBY
+
+      expect_correction(<<~RUBY)
+        def foo
+          !0
+             .nil?
+        end
+      RUBY
     end
 
     it 'accepts correctly indented methods in operation' do
@@ -1776,6 +1857,60 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
                       .baz)
       RUBY
     end
+
+    context 'when inside a hash pair in a multiline chain method call' do
+      it 'accepts method chain inside hash pair passed to a chained method' do
+        expect_no_offenses(<<~RUBY)
+          @foo = Foo
+                   .where(id: Bar.select(:id)
+                     .joins(:bar)
+                     .where.not(bar: { id: 123 }))
+        RUBY
+      end
+
+      it 'accepts method chain inside hash pair when outer chain uses trailing dot' do
+        expect_no_offenses(<<~RUBY)
+          @foo = Foo.
+                   where(id: Bar.select(:id)
+                     .joins(:bar))
+        RUBY
+      end
+
+      it 'accepts multiple hash pairs with chains in the same multiline chain call' do
+        expect_no_offenses(<<~RUBY)
+          Foo
+            .where(id: Bar.select(:id)
+              .joins(:bar),
+                   name: Car.find(:name)
+              .strip)
+        RUBY
+      end
+
+      it 'accepts chaining after a multiline chain call with hash pair' do
+        expect_no_offenses(<<~RUBY)
+          Foo
+            .where(id: Bar.select(:id)
+              .joins(:bar))
+            .order(:name)
+        RUBY
+      end
+
+      it 'accepts method chain inside hash pair passed to a chained method with safe navigation' do
+        expect_no_offenses(<<~RUBY)
+          @foo = Foo
+                   &.where(id: Bar.select(:id)
+                     &.joins(:bar))
+        RUBY
+      end
+
+      it 'accepts method chain inside hash pair with explicit hash braces in multiline chain' do
+        expect_no_offenses(<<~RUBY)
+          Foo
+            .where({id: Bar.select(:id)
+              .joins(:bar)})
+        RUBY
+      end
+    end
   end
 
   context 'when EnforcedStyle is indented' do
@@ -1791,6 +1926,13 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
           !0
           .nil?
           ^^^^^ Use 2 (not 0) spaces for indenting an expression spanning multiple lines.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo
+          !0
+            .nil?
         end
       RUBY
     end
@@ -1927,6 +2069,13 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
           #{keyword} receiver
             .nil? &&
             ^^^^^ Use 4 (not 2) spaces for indenting a condition in #{article} `#{keyword}` statement spanning multiple lines.
+            !args.empty?
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          #{keyword} receiver
+              .nil? &&
             !args.empty?
           end
         RUBY
@@ -2179,6 +2328,60 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
       RUBY
     end
 
+    context 'when inside a hash pair in a multiline chain method call' do
+      it 'accepts method chain inside hash pair passed to a chained method' do
+        expect_no_offenses(<<~RUBY)
+          @foo = Foo
+            .where(id: Bar.select(:id)
+              .joins(:bar)
+              .where.not(bar: { id: 123 }))
+        RUBY
+      end
+
+      it 'accepts method chain inside hash pair when outer chain uses trailing dot' do
+        expect_no_offenses(<<~RUBY)
+          @foo = Foo.
+            where(id: Bar.select(:id)
+              .joins(:bar))
+        RUBY
+      end
+
+      it 'accepts multiple hash pairs with chains in the same multiline chain call' do
+        expect_no_offenses(<<~RUBY)
+          Foo
+            .where(id: Bar.select(:id)
+              .joins(:bar),
+                   name: Car.find(:name)
+              .strip)
+        RUBY
+      end
+
+      it 'accepts chaining after a multiline chain call with hash pair' do
+        expect_no_offenses(<<~RUBY)
+          Foo
+            .where(id: Bar.select(:id)
+              .joins(:bar))
+            .order(:name)
+        RUBY
+      end
+
+      it 'accepts method chain inside hash pair passed to a chained method with safe navigation' do
+        expect_no_offenses(<<~RUBY)
+          @foo = Foo
+            &.where(id: Bar.select(:id)
+              &.joins(:bar))
+        RUBY
+      end
+
+      it 'accepts method chain inside hash pair with explicit hash braces in multiline chain' do
+        expect_no_offenses(<<~RUBY)
+          Foo
+            .where({id: Bar.select(:id)
+              .joins(:bar)})
+        RUBY
+      end
+    end
+
     context 'when indentation width is overridden for this cop' do
       let(:cop_indent) { 7 }
 
@@ -2240,6 +2443,13 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
             #{keyword} receiver
                 .nil? &&
                 ^^^^^ Use 9 (not 4) spaces for indenting a condition in #{article} `#{keyword}` statement spanning multiple lines.
+                !args.empty?
+            end
+          RUBY
+
+          expect_correction(<<~RUBY)
+            #{keyword} receiver
+                     .nil? &&
                 !args.empty?
             end
           RUBY
