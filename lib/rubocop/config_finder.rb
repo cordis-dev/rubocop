@@ -30,7 +30,7 @@ module RuboCop
       private
 
       def find_project_root
-        pwd = Dir.pwd
+        pwd = PathUtil.pwd
         gems_file = find_last_file_upwards('.rubocop.yml', pwd)
         return unless gems_file
 
