@@ -3523,8 +3523,8 @@ Person.ancestors
 | 0.92
 |===
 
-Checks for consistent usage of the `DateTime` class over the
-`Time` class. This cop is disabled by default since these classes,
+Checks for consistent usage of the `Time` class over the
+`DateTime` class. This cop is disabled by default since these classes,
 although highly overlapping, have particularities that make them not
 replaceable in certain situations when dealing with multiple timezones
 and/or DST.
@@ -10801,6 +10801,12 @@ instance methods in the module, then check if a given method is inside that
 array, while `method_defined?` will do direct method lookup, which is much
 faster and consumes less memory.
 
+NOTE: `constants.include?` is not handled by this cop because
+`Module#const_defined?` has different lookup behavior than
+`Module#constants` - `const_defined?` searches up to `Object`
+(top-level constants like `String`, `Integer`, etc.) while
+`constants` does not, which can cause behavior changes after autocorrection.
+
 [#examples-stylemodulememberexistencecheck]
 === Examples
 
@@ -10820,40 +10826,16 @@ Array.method_defined?(:find, false)
 
 # bad
 Array.class_variables.include?(:foo)
-Array.constants.include?(:foo)
 Array.private_instance_methods.include?(:foo)
 Array.protected_instance_methods.include?(:foo)
 Array.public_instance_methods.include?(:foo)
-Array.included_modules.include?(:foo)
 
 # good
 Array.class_variable_defined?(:foo)
-Array.const_defined?(:foo)
 Array.private_method_defined?(:foo)
 Array.protected_method_defined?(:foo)
 Array.public_method_defined?(:foo)
-Array.include?(:foo)
 ----
-
-[#allowedmethods_-_included_modules_-stylemodulememberexistencecheck]
-==== AllowedMethods: [included_modules]
-
-[source,ruby]
-----
-# good
-Array.included_modules.include?(:foo)
-----
-
-[#configurable-attributes-stylemodulememberexistencecheck]
-=== Configurable attributes
-
-|===
-| Name | Default value | Configurable values
-
-| AllowedMethods
-| `[]`
-| Array
-|===
 
 [#stylemultilineblockchain]
 == Style/MultilineBlockChain
@@ -12784,7 +12766,7 @@ obj.yield_self { |x| x.do_something }
 | Yes
 | No
 | 1.85
-| -
+| 1.86
 |===
 
 Checks that each source file defines at most one top-level class or module.
@@ -12801,27 +12783,47 @@ classes that logically belong with the main class.
 
 [source,ruby]
 ----
-# bad
+# bad - Multiple top-level classes
 class Foo
 end
 
 class Bar
 end
 
-# bad
+# bad - Multiple top-level modules
+module Foo
+end
+
+module Bar
+end
+
+# bad - A top-level class and a top-level module
 class Foo
 end
 
 module Bar
 end
 
-# good
+# good - A single top-level class
 class Foo
 end
 
-# good
+# good - A single top-level module
+module Foo
+end
+
+# good - Nested classes within a single top-level class
 class Foo
   class Bar
+  end
+end
+
+# good - Multiple classes within a single top-level module
+module Foo
+  class Bar
+  end
+
+  class Baz
   end
 end
 ----
@@ -12847,6 +12849,10 @@ end
 
 | AllowedClasses
 | `[]`
+| Array
+
+| Exclude
+| `+spec/**/*+`, `+test/**/*+`
 | Array
 |===
 
@@ -16024,11 +16030,11 @@ NOTE: Requires Ruby version 3.2
 |===
 | Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
 
-| Pending
+| Disabled
 | Yes
 | Always (Unsafe)
 | 1.85
-| -
+| 1.86
 |===
 
 Checks for redundant `keyword_init` option for `Struct.new`.
@@ -16036,6 +16042,16 @@ Checks for redundant `keyword_init` option for `Struct.new`.
 Since Ruby 3.2, `keyword_init` in `Struct.new` defaults to `nil` behavior.
 Therefore, this cop detects and autocorrects redundant `keyword_init: nil`
 and `keyword_init: true` in `Struct.new`.
+
+This cop is disabled by default because `keyword_init: true` is not purely
+redundant. It changes behavior in the following ways:
+
+- `Struct#keyword_init?` returns `true` instead of `nil`.
+- A `Struct` with `keyword_init: true` accepts a `Hash` argument and
+  expands it as keyword arguments, whereas without it the `Hash` is
+  treated as a positional argument.
+- `keyword_init: true` raises an `ArgumentError` for positional arguments,
+  enforcing keyword-only initialization.
 
 [#safety-styleredundantstructkeywordinit]
 === Safety
@@ -20579,6 +20595,11 @@ end
 # good
 x += 1 while x < 10
 
+# good
+while x < 10
+  y += 1 if x.odd?
+end
+
 # bad
 until x > 10
   x += 1
@@ -20586,6 +20607,11 @@ end
 
 # good
 x += 1 until x > 10
+
+# good
+until x > 10
+  y += 1 unless x.even?
+end
 
 # bad
 x += 100 while x < 500 # a long comment that makes code too long if it were a single line

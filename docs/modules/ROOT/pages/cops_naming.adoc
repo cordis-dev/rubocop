@@ -944,8 +944,8 @@ define_method(:foo) do
 end
 ----
 
-[#enforcedstyleforleadingunderscores-_optional-namingmemoizedinstancevariablename]
-==== EnforcedStyleForLeadingUnderscores :optional
+[#enforcedstyleforleadingunderscores_-optional-namingmemoizedinstancevariablename]
+==== EnforcedStyleForLeadingUnderscores: optional
 
 [source,ruby]
 ----

@@ -66,6 +66,18 @@ RSpec.describe RuboCop::Cop::Gemspec::RequireMFA, :config do
           end
         RUBY
       end
+
+      it 'does not register an offense when the key is a symbol' do
+        expect_no_offenses(<<~RUBY, 'my.gemspec')
+          Gem::Specification.new do |spec|
+            spec.metadata = {
+              foo: 'bar',
+              rubygems_mfa_required: 'true',
+              baz: 'quux'
+            }
+          end
+        RUBY
+      end
     end
 
     context 'and `rubygems_mfa_required` is not included' do
@@ -100,6 +112,15 @@ RSpec.describe RuboCop::Cop::Gemspec::RequireMFA, :config do
           Gem::Specification.new do |spec|
             spec.metadata['foo'] = 'bar'
             spec.metadata['rubygems_mfa_required'] = 'true'
+          end
+        RUBY
+      end
+
+      it 'does not register an offense when the key is a symbol' do
+        expect_no_offenses(<<~RUBY, 'my.gemspec')
+          Gem::Specification.new do |spec|
+            spec.metadata[:foo] = 'bar'
+            spec.metadata[:rubygems_mfa_required] = 'true'
           end
         RUBY
       end
@@ -150,6 +171,16 @@ RSpec.describe RuboCop::Cop::Gemspec::RequireMFA, :config do
         Gem::Specification.new do |spec|
           spec.metadata = {
             'rubygems_mfa_required' => 'true'
+          }
+        end
+      RUBY
+    end
+
+    it 'does not register an offense when the key is a symbol' do
+      expect_no_offenses(<<~RUBY, 'my.gemspec')
+        Gem::Specification.new do |spec|
+          spec.metadata = {
+            rubygems_mfa_required: 'true'
           }
         end
       RUBY

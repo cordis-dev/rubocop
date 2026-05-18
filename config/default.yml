@@ -529,6 +529,10 @@ Layout/ClosingParenthesisIndentation:
   Description: 'Checks the indentation of hanging closing parentheses.'
   Enabled: true
   VersionAdded: '0.49'
+  VersionChanged: '1.86'
+  # By default the indentation width from `Layout/IndentationWidth` is used,
+  # but it can be overridden by setting this parameter.
+  IndentationWidth: ~
 
 Layout/CommentIndentation:
   Description: 'Indentation of comments.'
@@ -537,7 +541,10 @@ Layout/CommentIndentation:
   # with a comment on the preceding line.
   AllowForAlignment: false
   VersionAdded: '0.49'
-  VersionChanged: '1.24'
+  VersionChanged: '1.86'
+  # By default the indentation width from `Layout/IndentationWidth` is used,
+  # but it can be overridden by setting this parameter.
+  IndentationWidth: ~
 
 Layout/ConditionPosition:
   Description: >-
@@ -4796,7 +4803,6 @@ Style/ModuleMemberExistenceCheck:
   Description: 'Checks for usage of `Module` methods returning arrays that can be replaced with equivalent predicates.'
   Enabled: pending
   VersionAdded: '1.82'
-  AllowedMethods: []
 
 Style/MultilineBlockChain:
   Description: 'Avoid multi-line chains of blocks.'
@@ -5112,10 +5118,11 @@ Style/OneClassPerFile:
   Description: 'Checks that each source file defines at most one top-level class or module.'
   Enabled: pending
   VersionAdded: '1.85'
-  VersionChanged: '<<next>>'
+  VersionChanged: '1.86'
   AllowedClasses: []
   Exclude:
     - 'spec/**/*'
+    - 'test/**/*'
 
 Style/OneLineConditional:
   Description: >-
@@ -5563,7 +5570,7 @@ Style/RedundantStructKeywordInit:
   Enabled: false
   SafeAutoCorrect: false
   VersionAdded: '1.85'
-  VersionChanged: '<<next>>'
+  VersionChanged: '1.86'
 
 Style/RegexpLiteral:
   Description: 'Use / or %r around regular expressions.'

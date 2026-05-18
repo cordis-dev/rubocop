@@ -473,6 +473,38 @@ RSpec.describe RuboCop::Cop::Lint::RedundantSafeNavigation, :config do
       RUBY
     end
 
+    it 'does not register an offense for safe navigation in the body of `unless` with a csend condition' do
+      expect_no_offenses(<<~RUBY)
+        unless foo&.ready?
+          foo&.name
+        end
+      RUBY
+    end
+
+    it 'does not register an offense for safe navigation in modifier `unless` with a csend condition' do
+      expect_no_offenses(<<~RUBY)
+        foo&.name unless foo&.ready?
+      RUBY
+    end
+
+    it 'does not register an offense for safe navigation in the body of `unless` whose condition is the receiver' do
+      expect_no_offenses(<<~RUBY)
+        unless foo
+          foo&.name
+        end
+      RUBY
+    end
+
+    it 'does not register an offense for safe navigation in the body of `unless` with `else`' do
+      expect_no_offenses(<<~RUBY)
+        unless foo&.ready?
+          foo&.name
+        else
+          bar
+        end
+      RUBY
+    end
+
     it 'does not register an offense for chained safe navigation within an if condition' do
       expect_no_offenses(<<~RUBY)
         if foo&.bar&.baz
@@ -724,6 +756,119 @@ RSpec.describe RuboCop::Cop::Lint::RedundantSafeNavigation, :config do
           2
         when foo.bar
           foo.bar
+        else
+          foo.baz
+        end
+      RUBY
+    end
+
+    it 'does not register an offense for safe navigation in a `rescue` body referring to a receiver dereferenced in the `begin` body' do
+      expect_no_offenses(<<~RUBY)
+        begin
+          foo.bar
+        rescue
+          foo&.baz
+        end
+      RUBY
+    end
+
+    it 'does not register an offense for safe navigation in an `ensure` body referring to a receiver dereferenced in the `begin` body' do
+      expect_no_offenses(<<~RUBY)
+        begin
+          foo.bar
+        ensure
+          foo&.baz
+        end
+      RUBY
+    end
+
+    it 'does not register an offense for safe navigation in an `ensure` body when paired with a `rescue` clause' do
+      expect_no_offenses(<<~RUBY)
+        begin
+          foo.bar
+        rescue
+          handle
+        ensure
+          foo&.baz
+        end
+      RUBY
+    end
+
+    it 'registers an offense for safe navigation in the `else` branch of `begin/rescue/else` when the `begin` body dereferences the receiver' do
+      expect_offense(<<~RUBY)
+        begin
+          foo.bar
+        rescue
+          handle
+        else
+          foo&.baz
+             ^^ Redundant safe navigation on non-nil receiver (detected by analyzing previous code/method invocations).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        begin
+          foo.bar
+        rescue
+          handle
+        else
+          foo.baz
+        end
+      RUBY
+    end
+
+    it 'registers an offense for safe navigation in a `rescue` body after a prior dereference within the same `rescue` body' do
+      expect_offense(<<~RUBY)
+        begin
+          do_something
+        rescue
+          foo.bar
+          foo&.baz
+             ^^ Redundant safe navigation on non-nil receiver (detected by analyzing previous code/method invocations).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        begin
+          do_something
+        rescue
+          foo.bar
+          foo.baz
+        end
+      RUBY
+    end
+
+    it 'does not register an offense for safe navigation in modifier `rescue`' do
+      expect_no_offenses(<<~RUBY)
+        foo.bar rescue foo&.baz
+      RUBY
+    end
+
+    it 'does not register an offense for safe navigation in an implicit `rescue` of a method definition' do
+      expect_no_offenses(<<~RUBY)
+        def x
+          foo.bar
+        rescue
+          foo&.baz
+        end
+      RUBY
+    end
+
+    it 'registers an offense for safe navigation in the `else` branch of `case/in` when the condition dereferences the receiver' do
+      expect_offense(<<~RUBY)
+        case foo.condition
+        in Integer
+          1
+        else
+          foo&.baz
+             ^^ Redundant safe navigation on non-nil receiver (detected by analyzing previous code/method invocations).
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        case foo.condition
+        in Integer
+          1
         else
           foo.baz
         end

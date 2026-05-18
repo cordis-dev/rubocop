@@ -70,7 +70,7 @@ module RuboCop
         def_node_matcher :metadata, <<~PATTERN
           `{
             (send _ :metadata= $_)
-            (send (send _ :metadata) :[]= (str "rubygems_mfa_required") $_)
+            (send (send _ :metadata) :[]= {(str "rubygems_mfa_required") (sym :rubygems_mfa_required)} $_)
           }
         PATTERN
 
@@ -78,13 +78,13 @@ module RuboCop
         def_node_search :metadata_assignment, <<~PATTERN
           `{
             (send _ :metadata= _)
-            (send (send _ :metadata) :[]= (str _) _)
+            (send (send _ :metadata) :[]= {str sym} _)
           }
         PATTERN
 
         # @!method rubygems_mfa_required(node)
         def_node_search :rubygems_mfa_required, <<~PATTERN
-          (pair (str "rubygems_mfa_required") $_)
+          (pair {(str "rubygems_mfa_required") (sym :rubygems_mfa_required)} $_)
         PATTERN
 
         # @!method true_string?(node)

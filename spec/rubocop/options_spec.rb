@@ -205,7 +205,9 @@ RSpec.describe RuboCop::Options, :isolated_environment do
 
           Additional Modes:
               -L, --list-target-files          List all files RuboCop will inspect.
-                  --show-cops [COP1,COP2,...]  Shows the given cops, or all cops by
+                  --list-enabled-cops-for PATH List which cops will inspect a given file or
+                                               directory.
+                  --show-cops [COP1,COP2,...]  Show the given cops, or all cops by
                                                default, and their configurations for the
                                                current directory.
                                                You can use `*` as a wildcard.
@@ -334,15 +336,6 @@ RSpec.describe RuboCop::Options, :isolated_environment do
             expect($stdout.string).not_to include('-P/--parallel is being ignored')
             expect(options.instance_variable_get(:@options)).to be_key(:parallel)
           end
-        end
-      end
-
-      context 'combined with --auto-gen-config' do
-        it 'ignores --parallel' do
-          msg = '-P/--parallel is being ignored because it is not compatible with --auto-gen-config'
-          options.parse %w[--parallel --auto-gen-config]
-          expect($stdout.string).to include(msg)
-          expect(options.instance_variable_get(:@options)).not_to be_key(:parallel)
         end
       end
 

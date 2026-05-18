@@ -13,7 +13,7 @@ module RuboCop
     DEFAULT_PARALLEL_OPTIONS = %i[
       color config debug display_style_guide display_time display_only_fail_level_offenses
       display_only_failed editor_mode except extra_details fail_level fix_layout format formatters
-      ignore_disable_comments lint only only_guide_cops require safe
+      ignore_disable_comments lint only only_guide_cops out require safe
       autocorrect safe_autocorrect autocorrect_all
     ].freeze
 
@@ -200,18 +200,15 @@ module RuboCop
       RuboCop::LSP.enable if @options[:editor_mode]
     end
 
-    # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def handle_exiting_options
       return unless Options::EXITING_OPTIONS.any? { |o| @options.key? o }
 
       run_command(:version) if @options[:version] || @options[:verbose_version]
-      run_command(:show_cops) if @options[:show_cops]
-      run_command(:show_docs_url) if @options[:show_docs_url]
-      run_command(:lsp) if @options[:lsp]
-      run_command(:mcp) if @options[:mcp]
+      %i[show_cops list_enabled_cops_for show_docs_url lsp mcp].each do |name|
+        run_command(name) if @options[name]
+      end
       raise Finished
     end
-    # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     def apply_default_formatter
       # This must be done after the options have already been processed,
