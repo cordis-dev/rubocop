@@ -317,7 +317,7 @@ keyword is. If it's set to `begin`, the `end` shall be aligned with the
 `Layout/EndAlignment` cop aligns with keywords (e.g. `if`, `while`, `case`)
 by default. On the other hand, `||= begin` that this cop targets tends to
 align with the start of the line, it defaults to `EnforcedStyleAlignWith: start_of_line`.
-These style can be configured by each cop.
+These styles can be configured by each cop.
 
 [#examples-layoutbeginendalignment]
 === Examples
@@ -729,7 +729,7 @@ You can configure the following order:
      - private_methods
 ----
 
-Instead of putting all literals in the expected order, is also
+Instead of putting all literals in the expected order, it is also
 possible to group categories of macros. Visibility levels are handled
 automatically.
 
@@ -1460,8 +1460,10 @@ end
 
 Enforces empty line after guard clause.
 
-This cop allows `# :nocov:` directive after guard clause because
-SimpleCov excludes code from the coverage report by wrapping it in `# :nocov:`:
+This cop allows a SimpleCov directive comment after guard clause because
+SimpleCov excludes code from the coverage report by wrapping it in such directives.
+Both the legacy `# :nocov:` comment and the newer `# simplecov:disable` /
+`# simplecov:enable` comments are recognized:
 
 [source,ruby]
 ----
@@ -1469,6 +1471,13 @@ def foo
   # :nocov:
   return if condition
   # :nocov:
+  bar
+end
+
+def foo
+  # simplecov:disable
+  return if condition
+  # simplecov:enable
   bar
 end
 ----
@@ -2634,10 +2643,10 @@ start of the line where the matching keyword appears.
 
 This `Layout/EndAlignment` cop aligns with keywords (e.g. `if`, `while`, `case`)
 by default. On the other hand, `Layout/BeginEndAlignment` cop aligns with
-`EnforcedStyleAlignWith: start_of_line` by default due to `||= begin` tends
+`EnforcedStyleAlignWith: start_of_line` by default because `||= begin` tends
 to align with the start of the line. `Layout/DefEndAlignment` cop also aligns with
 `EnforcedStyleAlignWith: start_of_line` by default.
-These style can be configured by each cop.
+These styles can be configured by each cop.
 
 [#examples-layoutendalignment]
 === Examples
@@ -7257,7 +7266,7 @@ foo.map{ |a|
 |===
 
 Checks for space between the name of a receiver and a left
-brackets.
+bracket.
 
 [#examples-layoutspacebeforebrackets]
 === Examples

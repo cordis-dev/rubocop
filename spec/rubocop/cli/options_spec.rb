@@ -146,6 +146,15 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
           output = `ruby -I . "#{rubocop}" --start-server`
           expect(output).to match(/RuboCop server starting on \d+\.\d+\.\d+\.\d+:\d+\./)
         end
+
+        it 'reports the server as running immediately after the command returns' do
+          _stdout, stderr, status = Open3.capture3("ruby -I . \"#{rubocop}\" --start-server")
+          expect(stderr).to eq('')
+          expect(status).to be_success
+
+          server_status = `ruby -I . "#{rubocop}" --server-status`
+          expect(server_status).to match(/RuboCop server \(\d+\) is running\./)
+        end
       end
 
       describe '--stop-server' do
@@ -2180,6 +2189,77 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
           "1 file inspected, 2 offenses detected, 1 offense corrected\n"
         )
       end
+    end
+  end
+
+  describe '--enable-all-cops' do
+    before do
+      create_file('example.rb', "# frozen_string_literal: true\n\n[1, 2].collect { |x| x }\n")
+    end
+
+    it 'enables cops that are disabled by default' do
+      expect(cli.run(['--format', 'simple', '--only', 'Style/CollectionMethods',
+                      '--enable-all-cops', 'example.rb'])).to eq(1)
+      expect($stdout.string).to include('Style/CollectionMethods')
+    end
+
+    it 'overrides AllCops/DisabledByDefault from the configuration file' do
+      create_file('.rubocop.yml', <<~YAML)
+        AllCops:
+          DisabledByDefault: true
+      YAML
+
+      expect(cli.run(['--format', 'simple', '--only', 'Style/CollectionMethods',
+                      '--enable-all-cops', 'example.rb'])).to eq(1)
+      expect($stdout.string).to include('Style/CollectionMethods')
+    end
+
+    it 'works in combination with --force-default-config' do
+      create_file('.rubocop.yml', <<~YAML)
+        AllCops:
+          DisabledByDefault: true
+      YAML
+
+      expect(cli.run(['--format', 'simple', '--only', 'Style/CollectionMethods',
+                      '--enable-all-cops', '--force-default-config', 'example.rb'])).to eq(1)
+      expect($stdout.string).to include('Style/CollectionMethods')
+    end
+  end
+
+  describe '--disable-all-cops' do
+    before { create_file('example.rb', "x = 'foo'\n") }
+
+    it 'disables cops that are enabled by default' do
+      expect(cli.run(['--format', 'simple', '--disable-all-cops', 'example.rb'])).to eq(0)
+      expect($stdout.string).to include('no offenses detected')
+    end
+
+    it 'still reports `Lint/Syntax` errors' do
+      create_file('example.rb', '1 /// 2')
+
+      expect(cli.run(['--format', 'simple', '--disable-all-cops', 'example.rb'])).to eq(1)
+      expect($stdout.string).to include('Lint/Syntax')
+    end
+
+    it 'overrides AllCops/EnabledByDefault from the configuration file' do
+      create_file('.rubocop.yml', <<~YAML)
+        AllCops:
+          EnabledByDefault: true
+      YAML
+
+      expect(cli.run(['--format', 'simple', '--disable-all-cops', 'example.rb'])).to eq(0)
+      expect($stdout.string).to include('no offenses detected')
+    end
+  end
+
+  describe '--enable-all-cops with --disable-all-cops' do
+    before { create_file('example.rb', 'x = 1') }
+
+    it 'reports an error' do
+      expect(cli.run(['--enable-all-cops', '--disable-all-cops', 'example.rb'])).to eq(2)
+      expect($stderr.string).to include(
+        '--enable-all-cops cannot be used together with --disable-all-cops.'
+      )
     end
   end
 
