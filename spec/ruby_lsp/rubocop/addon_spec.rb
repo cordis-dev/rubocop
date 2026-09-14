@@ -216,8 +216,11 @@ describe 'RubyLSP::RuboCop::Addon', :isolated_environment, :lsp do
       end
 
       context 'infinite loop error' do
+        include_context 'maintain registry'
+
         before do
-          allow(RuboCop::Cop::Registry).to receive(:all).and_return([cop])
+          allow(RuboCop::Cop::Registry.global).to receive(:filter_by_badge)
+            .and_return(RuboCop::Cop::Registry.new([cop]))
         end
 
         let(:cop) { RuboCop::Cop::Test::InfiniteLoopDuringAutocorrectWithChangeCop }
@@ -329,7 +332,7 @@ describe 'RubyLSP::RuboCop::Addon', :isolated_environment, :lsp do
 
   private
 
-  # rubocop:disable Metrics/MethodLength
+  # rubocop:disable-next Metrics/MethodLength
   def create_server(source, uri)
     server = RubyLsp::Server.new(test_mode: true)
     server.global_state.formatter = 'rubocop'
@@ -355,7 +358,6 @@ describe 'RubyLSP::RuboCop::Addon', :isolated_environment, :lsp do
     server.load_addons
     server
   end
-  # rubocop:enable Metrics/MethodLength
 
   def process_message(method, **params)
     server.process_message(id: request_id.next, method: method, params: params)

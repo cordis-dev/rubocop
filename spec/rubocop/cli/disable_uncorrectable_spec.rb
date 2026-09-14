@@ -31,7 +31,7 @@ RSpec.describe 'RuboCop::CLI --disable-uncorrectable', :isolated_environment do 
         == example.rb ==
         C:  1:  1: [Corrected] Style/FrozenStringLiteralComment: Missing frozen string literal comment.
         C:  1:  7: [Corrected] Layout/SpaceAroundOperators: Surrounding space missing for operator ==.
-        C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Add an empty line after magic comments.
+        C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Expected at least 1 empty line after magic comments; found 0.
 
         1 file inspected, 3 offenses detected, 3 offenses corrected
       OUTPUT
@@ -40,6 +40,43 @@ RSpec.describe 'RuboCop::CLI --disable-uncorrectable', :isolated_environment do 
 
         puts 1 == 2
       RUBY
+    end
+
+    context 'with a cop whose autocorrect is unsafe' do
+      let(:cli_opts) { %w[--autocorrect --format simple --disable-uncorrectable] }
+
+      before do
+        create_file('example.rb', <<~RUBY)
+          # frozen_string_literal: true
+
+          require 'set'
+          require 'set'
+        RUBY
+      end
+
+      it 'adds a todo comment in a safe autocorrect run' do
+        expect(exit_code).to eq(0)
+        expect($stderr.string).to eq('')
+        expect(File.read('example.rb')).to eq(<<~RUBY)
+          # frozen_string_literal: true
+
+          require 'set'
+          require 'set' # rubocop:todo Lint/DuplicateRequire
+        RUBY
+      end
+
+      context 'when unsafe autocorrect is requested' do
+        let(:cli_opts) { %w[--autocorrect-all --format simple --disable-uncorrectable] }
+
+        it 'corrects instead of adding a todo comment' do
+          expect(exit_code).to eq(0)
+          expect(File.read('example.rb')).to eq(<<~RUBY)
+            # frozen_string_literal: true
+
+            require 'set'
+          RUBY
+        end
+      end
     end
 
     context 'if one one-line disable statement fits' do
@@ -51,7 +88,7 @@ RSpec.describe 'RuboCop::CLI --disable-uncorrectable', :isolated_environment do 
           == example.rb ==
           C:  1:  1: [Corrected] Style/FrozenStringLiteralComment: Missing frozen string literal comment.
           C:  1:  4: [Todo] Style/IpAddresses: Do not hardcode IP addresses.
-          C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Add an empty line after magic comments.
+          C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Expected at least 1 empty line after magic comments; found 0.
 
           1 file inspected, 3 offenses detected, 3 offenses corrected
         OUTPUT
@@ -80,7 +117,7 @@ RSpec.describe 'RuboCop::CLI --disable-uncorrectable', :isolated_environment do 
           == example.rb ==
           C:  1:  1: [Corrected] Style/FrozenStringLiteralComment: Missing frozen string literal comment.
           W:  1: 21: [Corrected] Lint/UnusedMethodArgument: Unused method argument - some_arg. If it's necessary, use _ or _some_arg as an argument name to indicate that it won't be used. If it's unnecessary, remove it. You can also write as ordinary_method(*) if you want the method to accept any arguments but don't care about them.
-          C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Add an empty line after magic comments.
+          C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Expected at least 1 empty line after magic comments; found 0.
           W:  5: 29: [Todo] Lint/UnusedMethodArgument: Unused method argument - some_keyword_arg. You can also write as method_with_keyword_arg(*) if you want the method to accept any arguments but don't care about them.
 
           1 file inspected, 4 offenses detected, 4 offenses corrected
@@ -160,7 +197,7 @@ RSpec.describe 'RuboCop::CLI --disable-uncorrectable', :isolated_environment do 
             C:  1:  1: [Corrected] Style/FrozenStringLiteralComment: Missing frozen string literal comment.
             C:  1:  4: [Todo] Style/IpAddresses: Do not hardcode IP addresses.
             C:  1: 15: [Todo] Style/IpAddresses: Do not hardcode IP addresses.
-            C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Add an empty line after magic comments.
+            C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Expected at least 1 empty line after magic comments; found 0.
 
             1 file inspected, 4 offenses detected, 4 offenses corrected
           OUTPUT
@@ -206,13 +243,13 @@ RSpec.describe 'RuboCop::CLI --disable-uncorrectable', :isolated_environment do 
           expect($stdout.string).to eq(<<~OUTPUT)
             == example.rb ==
             C:  1:  1: [Corrected] Style/FrozenStringLiteralComment: Missing frozen string literal comment.
-            C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Add an empty line after magic comments.
-            C:  3:  3: [Todo] Metrics/AbcSize: Assignment Branch Condition size for choose_move is too high. [<8, 12, 6> 15.62/15]
-            C:  3:  3: [Todo] Metrics/CyclomaticComplexity: Cyclomatic complexity for choose_move is too high. [7/6]
-            C:  3:  3: [Todo] Metrics/MethodLength: Method has too many lines. [11/10]
-            C:  4:  3: [Todo] Metrics/AbcSize: Assignment Branch Condition size for choose_move is too high. [<8, 12, 6> 15.62/15]
-            C:  4:  3: [Todo] Metrics/MethodLength: Method has too many lines. [11/10]
-            C:  4: 32: [Corrected] Style/DoubleCopDisableDirective: More than one disable comment on one line.
+            C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Expected at least 1 empty line after magic comments; found 0.
+            R:  3:  3: [Todo] Metrics/AbcSize: Assignment Branch Condition size for choose_move is too high. [<8, 12, 6> 15.62/15]
+            R:  3:  3: [Todo] Metrics/CyclomaticComplexity: Cyclomatic complexity for choose_move is too high. [7/6]
+            R:  3:  3: [Todo] Metrics/MethodLength: Method has too many lines. [11/10]
+            R:  4:  3: [Todo] Metrics/AbcSize: Assignment Branch Condition size for choose_move is too high. [<8, 12, 6> 15.62/15]
+            R:  4:  3: [Todo] Metrics/MethodLength: Method has too many lines. [11/10]
+            W:  4: 32: [Corrected] Lint/CopDirectiveSyntax: Malformed directive comment detected. Only the first directive on a line takes effect. List the cop names in a single directive instead.
 
             1 file inspected, 8 offenses detected, 8 offenses corrected
           OUTPUT
@@ -258,7 +295,7 @@ RSpec.describe 'RuboCop::CLI --disable-uncorrectable', :isolated_environment do 
           == example.rb ==
           C:  1:  1: [Corrected] Style/FrozenStringLiteralComment: Missing frozen string literal comment.
           C:  1:  4: [Todo] Style/IpAddresses: Do not hardcode IP addresses.
-          C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Add an empty line after magic comments.
+          C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Expected at least 1 empty line after magic comments; found 0.
 
           1 file inspected, 3 offenses detected, 3 offenses corrected
         OUTPUT
@@ -417,9 +454,9 @@ RSpec.describe 'RuboCop::CLI --disable-uncorrectable', :isolated_environment do 
           expect($stderr.string).to eq('')
           expect($stdout.string).to eq(<<~OUTPUT)
             == example.rb ==
-            C:  1:  1: [Todo] Metrics/MethodLength: Method has too many lines. [3/2]
+            R:  1:  1: [Todo] Metrics/MethodLength: Method has too many lines. [3/2]
             C:  1:  1: [Corrected] Style/FrozenStringLiteralComment: Missing frozen string literal comment.
-            C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Add an empty line after magic comments.
+            C:  2:  1: [Corrected] Layout/EmptyLineAfterMagicComment: Expected at least 1 empty line after magic comments; found 0.
 
             1 file inspected, 3 offenses detected, 3 offenses corrected
           OUTPUT

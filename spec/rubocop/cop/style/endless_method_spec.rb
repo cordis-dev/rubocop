@@ -15,6 +15,22 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
     context 'EnforcedStyle: disallow' do
       let(:cop_config) { { 'EnforcedStyle' => 'disallow' } }
 
+      it 'registers an offense and corrects nested endless method definitions' do
+        expect_offense(<<~RUBY)
+          def a = def b = 1
+          ^^^^^^^^^^^^^^^^^ Avoid endless method definitions.
+                  ^^^^^^^^^ Avoid endless method definitions.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def a
+            def b
+              1
+            end
+          end
+        RUBY
+      end
+
       it 'registers an offense for an endless method' do
         expect_offense(<<~RUBY)
           def my_method() = x
@@ -343,6 +359,27 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
         RUBY
       end
 
+      it 'does not register an offense when the body ends with an omitted hash value', :ruby31 do
+        expect_no_offenses(<<~RUBY)
+          def my_method(a:)
+            foo 1, a:
+          end
+        RUBY
+      end
+
+      it 'registers an offense and corrects when an omitted hash value is enclosed', :ruby31 do
+        expect_offense(<<~RUBY)
+          def my_method(a:)
+          ^^^^^^^^^^^^^^^^^ Use endless method definitions for single line methods.
+            foo(1, a:)
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def my_method(a:) = foo(1, a:)
+        RUBY
+      end
+
       it 'does not register an offense when heredoc is used only in regular method definition' do
         expect_no_offenses(<<~RUBY)
           def my_method
@@ -371,6 +408,40 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
               bar
             HEREDOC
           end
+        RUBY
+      end
+
+      it 'does not register an offense when multiline heredoc is passed to a method call' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            puts <<~HEREDOC
+              foo
+              bar
+            HEREDOC
+          end
+        RUBY
+      end
+
+      it 'does not register an offense when xstring heredoc is passed to a method call' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            puts <<~`HEREDOC`
+              command
+            HEREDOC
+          end
+        RUBY
+      end
+
+      it 'registers an offense and corrects when an interpolated string is used' do
+        expect_offense(<<~'RUBY')
+          def my_method
+          ^^^^^^^^^^^^^ Use endless method definitions for single line methods.
+            puts("#{foo}bar")
+          end
+        RUBY
+
+        expect_correction(<<~'RUBY')
+          def my_method = puts("#{foo}bar")
         RUBY
       end
 
@@ -423,6 +494,31 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
           def my_method
             'this_string_ends_at_column_75_________________________________________'
           end
+        RUBY
+      end
+
+      it 'takes the indentation into account' do
+        expect_no_offenses(<<~RUBY)
+          module A
+            module B
+              def my_method
+                'this_string_puts_the_endless_form_just_over_the_limit______'
+              end
+            end
+          end
+        RUBY
+      end
+
+      it 'registers an offense when the same body fits at the top level' do
+        expect_offense(<<~RUBY)
+          def my_method
+          ^^^^^^^^^^^^^ Use endless method definitions for single line methods.
+            'this_string_puts_the_endless_form_just_over_the_limit______'
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def my_method = 'this_string_puts_the_endless_form_just_over_the_limit______'
         RUBY
       end
 
@@ -498,6 +594,42 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
     context 'EnforcedStyle: require_always' do
       let(:cop_config) { { 'EnforcedStyle' => 'require_always' } }
 
+      it 'does not register an offense for a method with a `rescue` body' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            x
+          rescue StandardError
+            y
+          end
+        RUBY
+      end
+
+      it 'does not register an offense for a method with an `ensure` body' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            x
+          ensure
+            y
+          end
+        RUBY
+      end
+
+      it 'registers an offense and corrects nested method definitions' do
+        expect_offense(<<~RUBY)
+          def a
+          ^^^^^ Use endless method definitions.
+            def b
+            ^^^^^ Use endless method definitions.
+              1
+            end
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def a = def b = 1
+        RUBY
+      end
+
       it 'does not register an offense for an endless method' do
         expect_no_offenses(<<~RUBY)
           def my_method() = x
@@ -547,6 +679,27 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
               foo && bar
             end
           end
+        RUBY
+      end
+
+      it 'does not register an offense when the body ends with an omitted hash value', :ruby31 do
+        expect_no_offenses(<<~RUBY)
+          def my_method(a:)
+            foo 1, a:
+          end
+        RUBY
+      end
+
+      it 'registers an offense and corrects when an omitted hash value is enclosed', :ruby31 do
+        expect_offense(<<~RUBY)
+          def my_method(a:)
+          ^^^^^^^^^^^^^^^^^ Use endless method definitions.
+            foo(1, a:)
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def my_method(a:) = foo(1, a:)
         RUBY
       end
 
@@ -711,6 +864,32 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
              .baz
         RUBY
       end
+    end
+  end
+
+  context 'when the body is a block spread over several lines', :ruby30 do
+    let(:cop_config) { { 'EnforcedStyle' => 'require_single_line' } }
+
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        def a
+          b
+            .c { d }
+        end
+      RUBY
+    end
+
+    it 'still registers an offense for a body that really is on one line' do
+      expect_offense(<<~RUBY)
+        def a
+        ^^^^^ Use endless method definitions for single line methods.
+          b { c }
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def a = b { c }
+      RUBY
     end
   end
 end

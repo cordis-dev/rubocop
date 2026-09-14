@@ -44,7 +44,7 @@ module RuboCop
       uri.start_with?('http://', 'https://')
     end
 
-    SMART_PATH_CACHE = {} # rubocop:disable Style/MutableConstant
+    SMART_PATH_CACHE = {} # rubocop:disable Style/MutableConstant -- a cache, written to at runtime
     private_constant :SMART_PATH_CACHE
 
     def smart_path(path)
@@ -63,7 +63,7 @@ module RuboCop
         end
     end
 
-    # rubocop:disable Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+    # rubocop:disable-next Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def match_path?(pattern, path)
       case pattern
       when String
@@ -89,7 +89,6 @@ module RuboCop
         end
       end
     end
-    # rubocop:enable Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     # Returns true for an absolute Unix or Windows path.
     def absolute?(path)

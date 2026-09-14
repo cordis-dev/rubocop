@@ -36,14 +36,14 @@ RSpec.describe RuboCop::Options, :isolated_environment do
         expect { options.parse ['--help'] }.to exit_with_code(0)
       end
 
-      # rubocop:disable RSpec/ExampleLength
+      # rubocop:disable-next RSpec/ExampleLength
       it 'shows help text' do
         begin
           options.parse(['--help'])
-        rescue SystemExit # rubocop:disable Lint/SuppressedException
+        rescue SystemExit # rubocop:disable Lint/SuppressedException -- the exit is the expected outcome
         end
 
-        # rubocop:todo Naming/InclusiveLanguage
+        # rubocop:todo-next Naming/InclusiveLanguage -- the deprecated flag spelling is the subject here
         expected_help = <<~OUTPUT
           Usage: rubocop [options] [file1, file2, ...]
 
@@ -68,6 +68,10 @@ RSpec.describe RuboCop::Options, :isolated_environment do
                                                disabled by default. Overrides
                                                `AllCops/EnabledByDefault` and
                                                `AllCops/DisabledByDefault` in config files.
+                  --[no-]preview               Opt in to unstable behavior: cops that are
+                                               `Enabled: preview`, and changes to existing
+                                               cops that are not the default yet.
+                                               Overrides `AllCops: Preview`.
                   --ignore-disable-comments    Report offenses even if they have been manually disabled
                                                with a `rubocop:disable` or `rubocop:todo` directive.
                   --force-exclusion            Any files excluded by `Exclude` in configuration
@@ -81,6 +85,10 @@ RSpec.describe RuboCop::Options, :isolated_environment do
                   --ignore-unrecognized-cops   Ignore unrecognized cops or departments in the config.
                   --force-default-config       Use default configuration even if configuration
                                                files are present in the directory tree.
+                  --changed [REVISION]         Inspect only the files that differ from a git
+                                               revision, defaulting to HEAD. Untracked files
+                                               count as changed. Pass a revision with
+                                               `--changed=REVISION`.
               -s, --stdin FILE                 Pipe source from STDIN, using FILE in offense
                                                reports. This is useful for editor integration.
                   --editor-mode                Optimize real-time feedback in editors,
@@ -93,6 +101,7 @@ RSpec.describe RuboCop::Options, :isolated_environment do
                                                This is used to prevent cops from failing silently.
                                                Default is false.
                   --fail-level SEVERITY        Minimum severity for exit with error code.
+                                               Overrides `AllCops: FailLevel` in the configuration.
                                                  [A] autocorrect
                                                  [I] info
                                                  [R] refactor
@@ -148,6 +157,7 @@ RSpec.describe RuboCop::Options, :isolated_environment do
                                                  [pa]cman
                                                  [p]rogress (default)
                                                  [q]uiet
+                                                 [sa]rif
                                                  [s]imple
                                                  [t]ap
                                                  [w]orst
@@ -173,6 +183,8 @@ RSpec.describe RuboCop::Options, :isolated_environment do
                   --display-only-safe-correctable
                                                Only output safe-correctable offense messages
                                                when combined with --display-only-correctable.
+                  --display-suppressed         Also output offenses suppressed by directive
+                                               comments. They do not affect the exit code.
 
           Autocorrection:
               -a, --autocorrect                Autocorrect offenses (only when it's safe).
@@ -183,6 +195,10 @@ RSpec.describe RuboCop::Options, :isolated_environment do
                   --disable-uncorrectable      Used with --autocorrect to annotate any
                                                offenses that do not support autocorrect
                                                with `rubocop:todo` comments.
+                  --diff                       Print a unified diff of what autocorrection
+                                               would change, without writing any files.
+                                               Turns on safe autocorrection unless a mode
+                                               was already given with -a, -A or -x.
 
           Config Generation:
                   --auto-gen-config            Generate a configuration file acting as a
@@ -190,6 +206,8 @@ RSpec.describe RuboCop::Options, :isolated_environment do
                   --regenerate-todo            Regenerate the TODO configuration file using
                                                the last configuration. If there is no existing
                                                TODO file, acts like --auto-gen-config.
+                  --report-unused-todo-entries Also report TODO configuration file entries that
+                                               are no longer needed, and fail if any are found.
                   --exclude-limit COUNT        Set the limit for how many files to explicitly exclude.
                                                If there are more files than the limit, the cop will
                                                be disabled instead. Default is 15.
@@ -233,7 +251,6 @@ RSpec.describe RuboCop::Options, :isolated_environment do
               -v, --version                    Display version.
               -V, --verbose-version            Display verbose version.
         OUTPUT
-        # rubocop:enable Naming/InclusiveLanguage
 
         if RUBY_ENGINE == 'ruby' && !RuboCop::Platform.windows?
           expected_help += <<~OUTPUT
@@ -246,12 +263,11 @@ RSpec.describe RuboCop::Options, :isolated_environment do
 
         expect($stdout.string).to eq(expected_help)
       end
-      # rubocop:enable RSpec/ExampleLength
 
       it 'lists all builtin formatters' do
         begin
           options.parse(['--help'])
-        rescue SystemExit # rubocop:disable Lint/SuppressedException
+        rescue SystemExit # rubocop:disable Lint/SuppressedException -- the exit is the expected outcome
         end
 
         option_sections = $stdout.string.lines.slice_before(/^\s*-/)
@@ -664,7 +680,7 @@ RSpec.describe RuboCop::Options, :isolated_environment do
       end
     end
 
-    # rubocop:todo Naming/InclusiveLanguage
+    # rubocop:todo-next Naming/InclusiveLanguage -- the deprecated flag spelling is the subject here
     describe 'deprecated options' do
       describe '--auto-correct' do
         it 'emits a warning and sets the correct options instead' do
@@ -694,7 +710,6 @@ RSpec.describe RuboCop::Options, :isolated_environment do
         end
       end
     end
-    # rubocop:enable Naming/InclusiveLanguage
 
     def expect_autocorrect_options_for_fix_layout
       options_keys = options.instance_variable_get(:@options).keys

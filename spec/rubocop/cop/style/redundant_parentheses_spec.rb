@@ -203,6 +203,8 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
   it_behaves_like 'plausible', 'until (var = 42); end'
   it_behaves_like 'plausible', '(var + 42) > do_something'
   it_behaves_like 'plausible', 'foo((bar rescue baz))'
+  it_behaves_like 'plausible', 'foo((x and y))'
+  it_behaves_like 'plausible', 'foo((x or y))'
 
   it_behaves_like 'redundant', '(!x)', '!x', 'a unary operation'
   it_behaves_like 'redundant', '(~x)', '~x', 'a unary operation'
@@ -861,6 +863,69 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
     expect_correction(<<~RUBY)
       def self.x
         foo; bar
+      end
+    RUBY
+  end
+
+  it 'registers an offense when `__FILE__` appears in the surrounding scope' do
+    expect_offense(<<~RUBY)
+      class A
+        ROOT = __FILE__
+        def same
+          (foo)
+          ^^^^^ Don't use parentheses around a method call.
+        end
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      class A
+        ROOT = __FILE__
+        def same
+          foo
+        end
+      end
+    RUBY
+  end
+
+  it 'registers an offense when `__LINE__` appears in the surrounding scope' do
+    expect_offense(<<~RUBY)
+      class A
+        def same
+          (foo)
+          ^^^^^ Don't use parentheses around a method call.
+        end
+        LINE = __LINE__
+      end
+    RUBY
+  end
+
+  it 'registers offenses in structurally identical definitions in different classes' do
+    expect_offense(<<~RUBY)
+      class A
+        def same
+          (foo)
+          ^^^^^ Don't use parentheses around a method call.
+        end
+      end
+      class B
+        def same
+          (foo)
+          ^^^^^ Don't use parentheses around a method call.
+        end
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      class A
+        def same
+          foo
+        end
+      end
+      class B
+        def same
+          foo
+        end
       end
     RUBY
   end

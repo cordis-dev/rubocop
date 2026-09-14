@@ -95,19 +95,22 @@ module RuboCop
     # When the `--disable-all-cops` or `--enable-all-cops` CLI option is given,
     # it takes precedence over the configuration values.
     def merge_with_default(config, config_file, unset_nil:)
-      default_configuration = ConfigLoader.default_configuration
+      base_defaults = apply_preview_defaults(ConfigLoader.default_configuration, preview?(config))
+      default_configuration = base_defaults
       disabled_by_default, enabled_by_default = resolve_default_overrides(config)
 
       if disabled_by_default || enabled_by_default
-        default_configuration = transform(default_configuration) do |params|
+        default_configuration = transform(base_defaults) do |params|
           params.merge('Enabled' => !disabled_by_default)
         end
       end
 
-      config = handle_disabled_by_default(config, default_configuration) if disabled_by_default
+      if disabled_by_default
+        config = handle_disabled_by_default(config, default_configuration, base_defaults)
+      end
       override_enabled_for_disabled_departments(default_configuration, config)
 
-      opts = { inherit_mode: config['inherit_mode'] || {}, unset_nil: unset_nil }
+      opts = { inherit_mode: inherit_mode_for_default(config), unset_nil: unset_nil }
       Config.new(merge(default_configuration, config, **opts), config_file)
     end
 
@@ -115,7 +118,7 @@ module RuboCop
     # with the addition that any value that is a hash, and occurs in both
     # arguments, will also be merged. And so on.
     #
-    # rubocop:disable Metrics/AbcSize
+    # rubocop:disable-next Metrics/AbcSize
     def merge(base_hash, derived_hash, **opts)
       result = base_hash.merge(derived_hash)
       keys_appearing_in_both = base_hash.keys & derived_hash.keys
@@ -132,7 +135,6 @@ module RuboCop
       end
       result
     end
-    # rubocop:enable Metrics/AbcSize
 
     # An `Enabled: true` setting in user configuration for a cop overrides an
     # `Enabled: false` setting for its department.
@@ -167,7 +169,46 @@ module RuboCop
       end
     end
 
+    # A cop's entry in the default configuration may carry a `Preview` section
+    # with the defaults it is expected to adopt in the next major release. Under
+    # `Preview` those replace the current defaults. The section is dropped either
+    # way, so the resolved configuration only ever shows what is in effect.
+    def apply_preview_defaults(default_configuration, preview)
+      transform(default_configuration) do |params|
+        next params unless params['Preview'].is_a?(Hash)
+
+        params = params.dup
+        preview_params = params.delete('Preview')
+        preview ? params.merge(preview_params) : params
+      end
+    end
+
     private
+
+    def inherit_mode_for_default(config)
+      with_preview_exclude_merge(config['inherit_mode'] || {}, config)
+    end
+
+    # Under `Preview`, `Exclude` is merged rather than replaced, so that excluding
+    # one directory does not silently drop the excludes it would have inherited -
+    # from the default configuration or from a file named in `inherit_from`. An
+    # explicit `inherit_mode` still wins, in either direction.
+    def with_preview_exclude_merge(mode, config)
+      return mode unless preview?(config)
+      return mode if Array(mode['override']).include?('Exclude')
+      return mode if Array(mode['merge']).include?('Exclude')
+
+      mode.merge('merge' => Array(mode['merge']) + ['Exclude'])
+    end
+
+    # `config` has already been through `handle_disabled_by_default` by this
+    # point, which returns a plain hash, so read `AllCops` directly rather than
+    # going through `Config#for_all_cops`.
+    def preview?(config)
+      return ConfigLoader.preview unless ConfigLoader.preview.nil?
+
+      (config['AllCops'] || {})['Preview'] == true
+    end
 
     def resolve_default_overrides(config)
       if ConfigLoader.disabled_by_default || ConfigLoader.enabled_by_default
@@ -211,7 +252,7 @@ module RuboCop
     def determine_inherit_mode(hash, key)
       cop_cfg = hash[key]
       local_inherit = cop_cfg['inherit_mode'] if cop_cfg.is_a?(Hash)
-      local_inherit || hash['inherit_mode'] || {}
+      with_preview_exclude_merge(local_inherit || hash['inherit_mode'] || {}, hash)
     end
 
     def should_union?(derived_hash, base_hash, root_mode, key)
@@ -277,7 +318,7 @@ module RuboCop
       file.is_a?(RemoteConfig)
     end
 
-    def handle_disabled_by_default(config, new_default_configuration)
+    def handle_disabled_by_default(config, new_default_configuration, base_defaults)
       department_config = config.to_hash.reject { |cop| cop.include?('/') }
       department_config.each do |dept, dept_params|
         next unless dept_params['Enabled']
@@ -286,7 +327,7 @@ module RuboCop
           next unless cop.start_with?("#{dept}/")
 
           # Retain original default configuration for cops in the department.
-          params['Enabled'] = ConfigLoader.default_configuration[cop]['Enabled']
+          params['Enabled'] = base_defaults[cop]['Enabled']
         end
       end
 

@@ -24,7 +24,7 @@ RSpec.describe RuboCop::Cop::Cop, :config do
       describe 'for a builtin cop class' do
         let(:cop_class) { RuboCop::Cop::Layout::BlockEndNewline }
 
-        it { is_expected.to eq 'https://docs.rubocop.org/rubocop/cops_layout.html#layoutblockendnewline' } # rubocop:disable Layout/LineLength
+        it { is_expected.to eq 'https://docs.rubocop.org/rubocop/cops_layout.html#layoutblockendnewline' } # rubocop:disable Layout/LineLength -- the expected URL is verbatim
       end
 
       describe 'for a custom cop class without DocumentationBaseURL', :restore_registry do
@@ -55,7 +55,7 @@ RSpec.describe RuboCop::Cop::Cop, :config do
       describe 'for a builtin cop class' do
         let(:cop_class) { RuboCop::Cop::Layout::BlockEndNewline }
 
-        it { is_expected.to eq 'https://docs.rubocop.org/rubocop/cops_layout.html#layoutblockendnewline' } # rubocop:disable Layout/LineLength
+        it { is_expected.to eq 'https://docs.rubocop.org/rubocop/cops_layout.html#layoutblockendnewline' } # rubocop:disable Layout/LineLength -- the expected URL is verbatim
       end
 
       describe 'for a custom cop class without DocumentationBaseURL', :restore_registry do
@@ -213,6 +213,21 @@ RSpec.describe RuboCop::Cop::Cop, :config do
     expect(cop.offenses.first.severity).to eq(:convention)
   end
 
+  { 'Lint' => :warning, 'Security' => :warning, 'Metrics' => :refactor,
+    'Style' => :convention }.each do |department, severity|
+    context "for a #{department} cop", :restore_registry do
+      # Inherits from `Base` rather than the deprecated class under test, whose
+      # inheritance warning would fail the run under strict warnings.
+      let(:cop_class) { stub_cop_class("RuboCop::Cop::#{department}::TestCop") }
+
+      it "defaults to #{severity} severity" do
+        cop.add_offense(location, message: 'message')
+
+        expect(cop.send(:complete_investigation).offenses.first.severity).to eq(severity)
+      end
+    end
+  end
+
   it 'sets custom severity if present' do
     cop.config[cop.name] = { 'Severity' => 'warning' }
     cop.add_offense(nil, location: location, message: 'message')
@@ -233,7 +248,7 @@ RSpec.describe RuboCop::Cop::Cop, :config do
     end
 
     before do
-      allow(processed_source.comment_config).to receive(:cop_enabled_at_line?).and_return(false)
+      allow(processed_source.comment_config).to receive(:cop_enabled_at_lines?).and_return(false)
     end
 
     context 'ignore_disable_comments is false' do
@@ -575,6 +590,30 @@ RSpec.describe RuboCop::Cop::Cop, :config do
 
           it { is_expected.to be(true) }
         end
+      end
+    end
+  end
+
+  describe '#preview?' do
+    subject { cop.preview? }
+
+    it { is_expected.to be(false) }
+
+    context 'when the `--preview` option is given' do
+      let(:cop_options) { { preview: true } }
+
+      it { is_expected.to be(true) }
+    end
+
+    context 'when `AllCops: Preview` is set' do
+      let(:config) { RuboCop::Config.new('AllCops' => { 'Preview' => true }) }
+
+      it { is_expected.to be(true) }
+
+      context 'when the `--no-preview` option is given' do
+        let(:cop_options) { { preview: false } }
+
+        it { is_expected.to be(false) }
       end
     end
   end

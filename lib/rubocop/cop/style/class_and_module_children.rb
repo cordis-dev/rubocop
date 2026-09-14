@@ -23,9 +23,14 @@ module RuboCop
       #
       #   Moving from `compact` to `nested` children requires knowledge of whether the
       #   outer parent is a module or a class. Moving from `nested` to `compact` requires
-      #   verification that the outer parent is defined elsewhere. RuboCop does not
-      #   have the knowledge to perform either operation safely and thus requires
+      #   verification that the outer parent is defined elsewhere. By default RuboCop does
+      #   not have the knowledge to perform either operation safely and thus requires
       #   manual oversight.
+      #
+      #   When `AllCops/UseProjectIndex` is enabled and the `rubydex` gem is installed,
+      #   the project-wide index is consulted to resolve whether the outer parent is a
+      #   class or a module, and compacting is skipped when the outer parent is not
+      #   defined elsewhere.
       #
       # @example EnforcedStyle: nested (default)
       #   # bad
@@ -53,6 +58,7 @@ module RuboCop
       class ClassAndModuleChildren < Base
         include Alignment
         include ConfigurableEnforcedStyle
+        include ProjectIndexHelp
         include RangeHelp
         extend AutoCorrector
 
@@ -60,7 +66,7 @@ module RuboCop
         COMPACT_MSG = 'Use compact module/class definition instead of nested style.'
 
         def on_class(node)
-          return if node.parent_class && style != :nested
+          return if node.parent_class && style_for_classes != :nested
 
           check_style(node, node.body, style_for_classes)
         end
@@ -72,7 +78,7 @@ module RuboCop
         private
 
         def nest_or_compact(corrector, node)
-          style = node.class_type? ? style_for_classes : style_for_modules
+          style = style_for_kind(node.type)
 
           if style == :nested
             nest_definition(corrector, node)
@@ -82,21 +88,40 @@ module RuboCop
         end
 
         def nest_definition(corrector, node)
+          keyword = namespace_keyword(node)
+          # A namespace wrapper whose style resolves to `compact` would itself violate
+          # that style, making autocorrection ping-pong between the two forms.
+          return if style_for_kind(keyword.to_sym) == :compact
+
           padding = indentation(node) + leading_spaces(node)
           padding_for_trailing_end = padding.sub(' ' * node.loc.end.column, '')
 
-          replace_namespace_keyword(corrector, node)
+          corrector.replace(node.loc.keyword, keyword)
           split_on_double_colon(corrector, node, padding)
           add_trailing_end(corrector, node, padding_for_trailing_end)
         end
 
-        def replace_namespace_keyword(corrector, node)
+        def namespace_keyword(node)
+          indexed_namespace_keyword(node) || heuristic_namespace_keyword(node)
+        end
+
+        def indexed_namespace_keyword(node)
+          return nil unless project_index
+
+          declaration = resolve_constant_in_index(node.identifier.namespace)
+
+          case declaration
+          when Rubydex::Class then 'class'
+          when Rubydex::Module then 'module'
+          end
+        end
+
+        def heuristic_namespace_keyword(node)
           class_definition = node.left_sibling&.each_node(:class)&.find do |class_node|
             class_node.identifier == node.identifier.namespace
           end
-          namespace_keyword = class_definition ? 'class' : 'module'
 
-          corrector.replace(node.loc.keyword, namespace_keyword)
+          class_definition ? 'class' : 'module'
         end
 
         def split_on_double_colon(corrector, node, padding)
@@ -114,9 +139,39 @@ module RuboCop
         end
 
         def compact_definition(corrector, node)
+          # Compacting produces a definition whose type's style resolves to `nested`,
+          # making autocorrection ping-pong between the two forms.
+          return if style_for_kind(node.body.type) == :nested
+          return unless compactible_namespace?(node)
+
           compact_node(corrector, node)
           remove_end(corrector, node.body)
           unindent(corrector, node)
+        end
+
+        # Compacting removes this definition of the namespace, so the result raises
+        # `NameError` at load time unless the namespace is also defined somewhere else.
+        # With the project index this is verified before correcting; without it the
+        # correction is performed regardless (the cop's autocorrection is unsafe).
+        def compactible_namespace?(node)
+          return true unless project_index
+
+          declaration = resolve_constant_in_index(node.identifier)
+          return false unless declaration.is_a?(Rubydex::Namespace)
+
+          declaration.definitions.any? { |definition| definition_elsewhere?(definition, node) }
+        end
+
+        def definition_elsewhere?(definition, node)
+          location = definition.location
+          return true unless location.uri.start_with?(FILE_URI_PREFIX)
+
+          !same_file?(location.to_file_path, processed_source.file_path) ||
+            location.to_display.start_line != node.first_line
+        rescue StandardError
+          # A path that cannot be converted or compared cannot prove the
+          # namespace is defined elsewhere; err on not correcting.
+          false
         end
 
         def compact_node(corrector, node)
@@ -139,7 +194,7 @@ module RuboCop
             "#{node.body.children.first.const_name}"
         end
 
-        # rubocop:disable Metrics/AbcSize
+        # rubocop:disable-next Metrics/AbcSize
         def remove_end(corrector, body)
           remove_begin_pos = if same_line?(body.loc.name, body.loc.end)
                                body.loc.name.end_pos
@@ -151,7 +206,6 @@ module RuboCop
 
           corrector.remove(range)
         end
-        # rubocop:enable Metrics/AbcSize
 
         def unindent(corrector, node)
           return unless node.body.children.last
@@ -162,21 +216,22 @@ module RuboCop
           column_delta = configured_indentation_width - spaces_size(last_child_leading_spaces)
           return if column_delta.zero?
 
-          AlignmentCorrector.correct(corrector, processed_source, node, column_delta)
+          AlignmentCorrector.correct(
+            corrector, processed_source, node, column_delta, tab_indentation: true
+          )
         end
 
         def leading_spaces(node)
           node.source_range.source_line[/\A\s*/]
         end
 
+        # A tab counts as `configured_indentation_width` columns, matching the
+        # width `AlignmentCorrector` uses to convert `column_delta` back into
+        # tabs. Using `Layout/IndentationStyle`'s own `IndentationWidth` here
+        # would make the delta and the correction disagree.
         def spaces_size(spaces_string)
-          mapping = { "\t" => tab_indentation_width }
+          mapping = { "\t" => configured_indentation_width }
           spaces_string.chars.sum { |character| mapping.fetch(character, 1) }
-        end
-
-        def tab_indentation_width
-          config.for_cop('Layout/IndentationStyle')['IndentationWidth'] ||
-            configured_indentation_width
         end
 
         def check_style(node, body, style)
@@ -218,7 +273,7 @@ module RuboCop
         end
 
         def autocorrect(corrector, node)
-          return if node.class_type? && node.parent_class && style != :nested
+          return if node.class_type? && node.parent_class && style_for_classes != :nested
 
           nest_or_compact(corrector, node)
         end
@@ -231,12 +286,16 @@ module RuboCop
           node.identifier.source.include?('::')
         end
 
+        def style_for_kind(kind)
+          kind == :class ? style_for_classes : style_for_modules
+        end
+
         def style_for_classes
-          cop_config['EnforcedStyleForClasses'] || style
+          cop_config['EnforcedStyleForClasses']&.to_sym || style
         end
 
         def style_for_modules
-          cop_config['EnforcedStyleForModules'] || style
+          cop_config['EnforcedStyleForModules']&.to_sym || style
         end
       end
     end

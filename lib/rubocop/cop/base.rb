@@ -49,7 +49,12 @@ module RuboCop
       InvestigationReport = Struct.new(:cop, :processed_source, :offenses, :corrector)
 
       # List of methods names to restrict calls for `on_send` / `on_csend`
-      RESTRICT_ON_SEND = Set[].freeze # rubocop:disable InternalAffairs/UselessRestrictOnSend
+      RESTRICT_ON_SEND = Set[].freeze # rubocop:disable InternalAffairs/UselessRestrictOnSend -- the base class default, which cops override
+
+      # Departments whose cops report above `convention` unless a cop says
+      # otherwise. The exceptions live in `config/default.yml` as an explicit
+      # `Severity`, such as the lint-like cops in `Bundler` and `Gemspec`.
+      DEPARTMENT_SEVERITIES = { Lint: :warning, Security: :warning, Metrics: :refactor }.freeze
 
       # List of cops that should not try to autocorrect at the same
       # time as this cop
@@ -127,6 +132,8 @@ module RuboCop
       # in the `on_new_investigation` callback.
       # If your cop does autocorrections, be aware that your instance may be called
       # multiple times with the same `processed_source.path` but different content.
+      # Note that under `--parallel` each worker process has its own cop
+      # instances, so state persists only within a worker's share of the files.
       def self.support_multiple_source?
         false
       end
@@ -208,13 +215,15 @@ module RuboCop
         severity = find_severity(range_to_pass, severity)
         message = find_message(range_to_pass, message)
 
-        status, corrector = enabled_line?(range.line) ? correct(range, &block) : :disabled
+        status, corrector = enabled_lines?(range) ? correct(range, &block) : :disabled
+        justification = suppression_reason(range) if status == :disabled
 
         # Since this range may be generated from Ruby code embedded in some
         # template file, we convert it to location info in the original file.
         range = range_for_original(range)
 
-        current_offenses << Offense.new(severity, range, message, name, status, corrector)
+        current_offenses << Offense.new(severity, range, message, name, status, corrector,
+                                        justification: justification)
       end
 
       # This method should be overridden when a cop's behavior depends
@@ -284,6 +293,13 @@ module RuboCop
         @config.string_literals_frozen_by_default?
       end
 
+      # Whether the user opted in to unstable behavior, with `--preview` or
+      # `AllCops: Preview`. Cops branch on this to ship a change that is not
+      # ready to be the default yet.
+      def preview?
+        @config.preview?(@options)
+      end
+
       def relevant_file?(file)
         return false unless target_satisfies_all_gem_version_requirements?
         return true unless @config.clusivity_config_for_badge?(self.class.badge)
@@ -322,7 +338,7 @@ module RuboCop
 
       ### Reserved for Commissioner
 
-      # rubocop:disable Layout/ClassStructure
+      # rubocop:disable Layout/ClassStructure -- grouped under the Commissioner heading above
       # @api private
       def callbacks_needed
         self.class.callbacks_needed
@@ -331,12 +347,11 @@ module RuboCop
       # @api private
       def self.callbacks_needed
         @callbacks_needed ||= public_instance_methods.select do |m|
-          # OPTIMIZE: Check method existence first to make fewer `start_with?` calls.
-          # At the time of writing this comment, this excludes 98 of ~104 methods.
-          # `start_with?` with two string arguments instead of a regex is faster
-          # in this specific case as well.
-          !Base.method_defined?(m) && # exclude standard "callbacks" like 'on_begin_investigation'
-            m.start_with?('on_', 'after_')
+          # OPTIMIZE: `start_with?` with two string arguments instead of a regex
+          # is faster in this specific case.
+          m.start_with?('on_', 'after_') &&
+            # exclude standard "callbacks" like 'on_new_investigation' unless refined
+            instance_method(m).owner != Base
         end
       end
       # rubocop:enable Layout/ClassStructure
@@ -373,6 +388,12 @@ module RuboCop
 
       private
 
+      ### Reserved for Commissioner
+
+      private_class_method def self.restrict_on_send
+        @restrict_on_send ||= self::RESTRICT_ON_SEND.to_a.freeze
+      end
+
       ### Reserved for Cop::Cop
 
       def callback_argument(range)
@@ -399,10 +420,6 @@ module RuboCop
 
       def current_offenses
         @current_offenses ||= []
-      end
-
-      private_class_method def self.restrict_on_send
-        @restrict_on_send ||= self::RESTRICT_ON_SEND.to_a.freeze
       end
 
       EMPTY_OFFENSES = [].freeze
@@ -444,6 +461,10 @@ module RuboCop
       def use_corrector(range, corrector)
         if autocorrect?
           attempt_correction(range, corrector)
+        elsif skipped_unsafe_correction_with_disable_uncorrectable?
+          # The unsafe correction will not run, so the offense is
+          # uncorrectable for this run and gets a todo comment.
+          attempt_correction(range, nil)
         elsif corrector && (always_autocorrect? || (contextual_autocorrect? && !LSP.enabled?))
           :uncorrected
         else
@@ -523,12 +544,36 @@ module RuboCop
         @processed_source.comment_config.cop_enabled_at_line?(self, line_number)
       end
 
+      # A multi-line offense is suppressed by a directive on any line of its
+      # range, not only its first line, matching the intuition that the
+      # directive is attached to the offending code.
+      def enabled_lines?(range)
+        return true if @options[:ignore_disable_comments] || !@processed_source
+
+        comment_config = @processed_source.comment_config
+        comment_config.cop_enabled_at_lines?(self, range.first_line, range.last_line)
+      end
+
+      # The `--` reason on the directive that suppresses offenses on this
+      # range, or `nil` when the directive carries none.
+      def suppression_reason(range)
+        covering = covering_disabled_range(range)
+        covering.directive.reason if covering.respond_to?(:directive)
+      end
+
+      def covering_disabled_range(range)
+        disabled_ranges = @processed_source.comment_config.cop_disabled_line_ranges[cop_name]
+        disabled_ranges&.find do |disabled_range|
+          disabled_range.end >= range.first_line && disabled_range.begin <= range.last_line
+        end
+      end
+
       def find_severity(_range, severity)
         custom_severity || severity || default_severity
       end
 
       def default_severity
-        self.class.lint? ? :warning : :convention
+        DEPARTMENT_SEVERITIES.fetch(self.class.department, :convention)
       end
 
       def custom_severity
@@ -545,15 +590,21 @@ module RuboCop
       end
 
       def range_for_original(range)
+        buffer = @current_original.buffer
+        return range if @current_offset.zero? && range.source_buffer.equal?(buffer)
+
         ::Parser::Source::Range.new(
-          @current_original.buffer,
+          buffer,
           range.begin_pos + @current_offset,
           range.end_pos + @current_offset
         )
       end
 
       def target_satisfies_all_gem_version_requirements?
-        self.class.gem_requirements.all? do |gem_name, version_req|
+        gem_requirements = self.class.gem_requirements
+        return true if gem_requirements.empty?
+
+        gem_requirements.all? do |gem_name, version_req|
           all_gem_versions_in_target = @config.gem_versions_in_target
           next false unless all_gem_versions_in_target
 

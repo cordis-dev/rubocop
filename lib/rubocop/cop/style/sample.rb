@@ -7,6 +7,10 @@ module RuboCop
       # `shuffle.last`, and `shuffle[]` and change them to use
       # `sample` instead.
       #
+      # NOTE: An offense involving a `random:` argument is registered but not autocorrected:
+      # `shuffle` and `sample` consume the given generator differently, so for a seeded generator
+      # the correction would select different elements.
+      #
       # @example
       #   # bad
       #   [1, 2, 3].shuffle.first
@@ -45,10 +49,12 @@ module RuboCop
             range = source_range(shuffle_node, node)
             message = message(shuffle_arg, method, method_args, range)
 
-            add_offense(range, message: message) do |corrector|
-              corrector.replace(
-                source_range(shuffle_node, node), correction(shuffle_arg, method, method_args)
-              )
+            if shuffle_arg.empty?
+              add_offense(range, message: message) do |corrector|
+                corrector.replace(range, correction(shuffle_arg, method, method_args))
+              end
+            else
+              add_offense(range, message: message)
             end
           end
         end
@@ -92,7 +98,7 @@ module RuboCop
           second.int_type? ? second.to_a.first : :unknown
         end
 
-        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:disable-next Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def range_size(range_node)
           vals = range_node.to_a
           return :unknown unless vals.all? { |val| val.nil? || val.int_type? }
@@ -107,7 +113,6 @@ module RuboCop
             (low..high).size
           end
         end
-        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def source_range(shuffle_node, node)
           shuffle_node.loc.selector.join(node.source_range.end)

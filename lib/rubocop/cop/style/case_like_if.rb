@@ -98,7 +98,7 @@ module RuboCop
             node.elsif_conditional? && min_branches_count?(node)
         end
 
-        # rubocop:disable Metrics/MethodLength
+        # rubocop:disable-next Metrics/MethodLength
         def find_target(node)
           case node.type
           when :begin
@@ -106,7 +106,7 @@ module RuboCop
           when :or
             find_target(node.lhs)
           when :match_with_lvasgn
-            lhs, rhs = *node # rubocop:disable InternalAffairs/NodeDestructuring
+            lhs, rhs = *node # rubocop:disable InternalAffairs/NodeDestructuring -- `match_with_lvasgn` has no named operand accessors
             if lhs.regexp_type?
               rhs
             elsif rhs.regexp_type?
@@ -116,7 +116,6 @@ module RuboCop
             find_target_in_send_node(node)
           end
         end
-        # rubocop:enable Metrics/MethodLength
 
         def find_target_in_send_node(node)
           case node.method_name
@@ -172,7 +171,7 @@ module RuboCop
               return collect_conditions(node.lhs, target, conditions) &&
                      collect_conditions(node.rhs, target, conditions)
             when :match_with_lvasgn
-              lhs, rhs = *node # rubocop:disable InternalAffairs/NodeDestructuring
+              lhs, rhs = *node # rubocop:disable InternalAffairs/NodeDestructuring -- `match_with_lvasgn` has no named operand accessors
               condition_from_binary_op(lhs, rhs, target)
             when :send
               condition_from_send_node(node, target)
@@ -181,7 +180,7 @@ module RuboCop
           conditions << condition if condition
         end
 
-        # rubocop:disable Metrics/CyclomaticComplexity
+        # rubocop:disable-next Metrics/CyclomaticComplexity
         def condition_from_send_node(node, target)
           case node.method_name
           when :is_a?
@@ -196,7 +195,6 @@ module RuboCop
             condition_from_include_or_cover_node(node, target)
           end
         end
-        # rubocop:enable Metrics/CyclomaticComplexity
 
         def condition_from_equality_node(node, target)
           condition = condition_from_binary_op(node.receiver, node.first_argument, target)
@@ -260,7 +258,7 @@ module RuboCop
         def regexp_with_working_captures?(node)
           case node.type
           when :match_with_lvasgn
-            lhs, _rhs = *node # rubocop:disable InternalAffairs/NodeDestructuring
+            lhs, _rhs = *node # rubocop:disable InternalAffairs/NodeDestructuring -- `match_with_lvasgn` has no named operand accessors
             node.loc.selector.source == '=~' && regexp_with_named_captures?(lhs)
           when :send
             node.method?(:match) &&

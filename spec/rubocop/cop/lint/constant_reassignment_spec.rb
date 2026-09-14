@@ -479,6 +479,81 @@ RSpec.describe RuboCop::Cop::Lint::ConstantReassignment, :config do
     RUBY
   end
 
+  it 'does not register an offense for the same constant in a compact and a top-level namespace' do
+    expect_no_offenses(<<~RUBY)
+      module Matcher
+        FOO = :bar
+      end
+
+      module Documentation::Matcher
+        FOO = :baz
+      end
+    RUBY
+  end
+
+  it 'does not register an offense for the same constant in two compact namespaces' do
+    expect_no_offenses(<<~RUBY)
+      module A::Matcher
+        FOO = :bar
+      end
+
+      module B::Matcher
+        FOO = :baz
+      end
+    RUBY
+  end
+
+  it 'does not register an offense for the same constant in a compact class and a top-level class' do
+    expect_no_offenses(<<~RUBY)
+      class Matcher
+        FOO = :bar
+      end
+
+      class Documentation::Matcher
+        FOO = :baz
+      end
+    RUBY
+  end
+
+  it 'registers an offense when reassigning a constant inside a compact namespace' do
+    expect_offense(<<~RUBY)
+      module A::B
+        FOO = :bar
+        FOO = :baz
+        ^^^^^^^^^^ Constant `FOO` is already assigned in this namespace.
+      end
+    RUBY
+  end
+
+  it 'registers an offense when a compact namespace reopens a nested namespace' do
+    expect_offense(<<~RUBY)
+      module A
+        module B
+          FOO = :bar
+        end
+      end
+
+      module A::B
+        FOO = :baz
+        ^^^^^^^^^^ Constant `FOO` is already assigned in this namespace.
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when an absolute compact namespace escapes the enclosing namespace' do
+    expect_no_offenses(<<~RUBY)
+      module Outer
+        FOO = :bar
+      end
+
+      module Outer
+        module ::Other::Outer
+          FOO = :baz
+        end
+      end
+    RUBY
+  end
+
   it 'does not register an offense when class keyword reopens after constant assignment' do
     expect_no_offenses(<<~RUBY)
       FooError = Class.new(StandardError)
@@ -633,6 +708,25 @@ RSpec.describe RuboCop::Cop::Lint::ConstantReassignment, :config do
       expect(offenses.map { |o| o['message'] }).to all(include('already assigned in'))
     end
 
+    it 'reports a cross-file collision when only one file is inspected' do
+      Dir.mktmpdir do |tmpdir|
+        stage_fixture(tmpdir)
+        write_rubocop_config(
+          tmpdir,
+          'AllCops' => { 'UseProjectIndex' => true },
+          'Lint/ConstantReassignment' => { 'Enabled' => true }
+        )
+
+        # The index covers the whole project even when a single file is
+        # inspected, so the offense set does not depend on the run's scope.
+        offenses = project_index_offenses(tmpdir, paths: [File.join(tmpdir, 'a.rb')])
+                   .select { |offense| offense['cop_name'] == 'Lint/ConstantReassignment' }
+
+        expect(offenses).not_to be_empty
+        expect(offenses.map { |o| o['message'] }).to all(include('already assigned in'))
+      end
+    end
+
     it 'does not report any offense when UseProjectIndex is disabled' do
       offenses = run_with_config(
         'AllCops' => { 'UseProjectIndex' => false },
@@ -640,6 +734,24 @@ RSpec.describe RuboCop::Cop::Lint::ConstantReassignment, :config do
       )
 
       expect(offenses).to be_empty
+    end
+
+    it 'does not error when a built-in constant name is assigned' do
+      Dir.mktmpdir do |tmpdir|
+        # `Module` has a built-in (non-file) definition in the index; scanning
+        # for a prior definition must not trip over its `rubydex:built-in` URI.
+        File.write(File.join(tmpdir, 'built_in.rb'), "Module = 1\n")
+        write_rubocop_config(
+          tmpdir,
+          'AllCops' => { 'UseProjectIndex' => true },
+          'Lint/ConstantReassignment' => { 'Enabled' => true }
+        )
+
+        offenses = nil
+        expect { offenses = cop_offenses(tmpdir) }.not_to output(/An error occurred/).to_stderr
+
+        expect(offenses).to be_empty
+      end
     end
 
     it 'invalidates the cache when an indexed file changes' do

@@ -25,7 +25,7 @@ module RuboCop
         MSG = 'Remove the redundant double splat and braces, use keyword arguments directly.'
         MERGE_METHODS = %i[merge merge!].freeze
 
-        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:disable-next Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def on_hash(node)
           return if node.pairs.empty? || node.pairs.any?(&:hash_rocket?)
           return unless (parent = node.parent)
@@ -38,7 +38,6 @@ module RuboCop
             autocorrect(corrector, node, kwsplat)
           end
         end
-        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         private
 
@@ -109,7 +108,7 @@ module RuboCop
 
           node.arguments.map do |arg|
             if arg.hash_type?
-              arg.source
+              hash_argument_source(arg)
             else
               "**#{arg.source}"
             end
@@ -122,6 +121,15 @@ module RuboCop
           return true unless (parent = node.parent)
 
           mergeable?(parent)
+        end
+
+        # A braced hash literal passed to `merge` must have its braces stripped so
+        # its pairs join the surrounding keyword arguments. Keeping the braces would
+        # produce a positional hash after keyword arguments, which is invalid Ruby.
+        def hash_argument_source(hash)
+          return hash.source unless hash.braces?
+
+          hash.pairs.map(&:source).join(', ')
         end
       end
     end

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'io/wait'
+
 module RuboCop
   class Runner
     attr_writer :errors # Needed only for testing.
@@ -23,15 +25,12 @@ RSpec.describe RuboCop::Runner, :isolated_environment do
       Process.kill 'INT', pid
     end
 
-    def wait_for_input(io)
-      line = nil
-
-      until line
-        line = io.gets
-        sleep 0.1
+    def wait_for_input(io, timeout: 30)
+      unless io.wait_readable(timeout)
+        raise "the forked runner produced no output within #{timeout}s"
       end
 
-      line
+      io.gets or raise 'the forked runner exited without writing a line'
     end
 
     around do |example|
@@ -40,21 +39,65 @@ RSpec.describe RuboCop::Runner, :isolated_environment do
       Signal.trap('INT', old_handler)
     end
 
+    context 'when a formatter raises while starting' do
+      let(:interrupting_formatter) do
+        Class.new(RuboCop::Formatter::ProgressFormatter) do
+          def started(_target_files)
+            raise Interrupt
+          end
+        end
+      end
+
+      it 'aborts cleanly instead of raising from the formatter' do
+        runner = described_class.new({ formatters: [[interrupting_formatter]] },
+                                     RuboCop::ConfigStore.new)
+
+        expect(runner.run(['example.rb'])).to be(false)
+        expect(runner).to be_aborting
+      end
+
+      it 'does not replace an error raised by an earlier formatter' do
+        failing_formatter = Class.new(RuboCop::Formatter::ProgressFormatter) do
+          def started(_target_files)
+            raise 'formatter boom'
+          end
+        end
+        runner = described_class.new(
+          { formatters: [[failing_formatter], ['progress', formatter_output_path]] },
+          RuboCop::ConfigStore.new
+        )
+
+        expect { runner.run(['example.rb']) }.to raise_error(RuntimeError, 'formatter boom')
+      end
+    end
+
     context 'with SIGINT' do
       it 'returns false' do
         skip '`Process` does not respond to `fork` method.' unless Process.respond_to?(:fork)
 
-        # Make sure the runner works slowly and thus is interruptible
-        allow(runner).to receive(:process_file) do
-          sleep 99
-        end
-
         rd, wr = IO.pipe
+
+        # Make sure the runner works slowly and thus is interruptible, and signal when
+        # the forked child is inside `Runner#run`, whose `rescue Interrupt` turns
+        # the interrupt into an abort. An interrupt delivered before that point kills
+        # the child before it can write anything.
+        allow(runner).to receive(:process_file) do
+          wr.puts 'PROCESSING'
+          # The duration only has to outlast `wait_for_input`'s timeout, so that an interrupt
+          # that never arrives is reported there instead of letting the run finish on its own
+          # and write `true`.
+          sleep 99
+          []
+        end
 
         pid = Process.fork do
           rd.close
           wr.puts 'READY'
-          wr.puts runner.run(['example.rb'])
+          begin
+            wr.puts runner.run(['example.rb'])
+          rescue Exception => e # rubocop:disable Lint/RescueException -- all the deaths are unexpected, so we want to report it
+            wr.puts "EXCEPTION #{e.class}: #{e.message} (cause: #{e.cause.class})"
+          end
           wr.close
         end
 
@@ -64,12 +107,25 @@ RSpec.describe RuboCop::Runner, :isolated_environment do
         line = wait_for_input(rd)
         expect(line.chomp).to eq('READY')
 
+        # Wait until the runner is inside its interrupt-protected region.
+        line = wait_for_input(rd)
+        expect(line.chomp).to eq('PROCESSING')
+
         # Interrupt the runner
         interrupt(pid)
 
         # Make sure the runner returns false
         line = wait_for_input(rd)
         expect(line.chomp).to eq('false')
+      ensure
+        if pid
+          begin
+            Process.kill('KILL', pid)
+            Process.waitpid(pid)
+          rescue Errno::ESRCH, Errno::ECHILD
+            nil
+          end
+        end
       end
     end
   end
@@ -89,6 +145,34 @@ RSpec.describe RuboCop::Runner, :isolated_environment do
       RUBY
 
       it 'returns true' do
+        expect(runner.run([])).to be true
+      end
+    end
+
+    context 'with a cop supporting multiple sources', :restore_registry do
+      let(:source) { '' }
+      let!(:persisting_cop_class) do
+        stub_cop_class('Custom::Persisting') do
+          def self.support_multiple_source?
+            true
+          end
+        end
+      end
+      let(:options) do
+        super().merge(cache: 'false', only: ['Custom/Persisting'])
+      end
+
+      before do
+        create_empty_file('example2.rb')
+        create_file('.rubocop.yml', <<~YAML)
+          Custom/Persisting:
+            Enabled: true
+        YAML
+      end
+
+      it 'uses the same cop instance for every file' do
+        expect(persisting_cop_class).to receive(:new).once.and_call_original
+
         expect(runner.run([])).to be true
       end
     end
@@ -137,7 +221,7 @@ RSpec.describe RuboCop::Runner, :isolated_environment do
       end
 
       context 'when the extractor matches' do
-        # rubocop:disable Layout/LineLength
+        # rubocop:disable-next Layout/LineLength -- the source under test is what it is
         let(:custom_ruby_extractor) do
           lambda do |_processed_source|
             [
@@ -156,7 +240,6 @@ RSpec.describe RuboCop::Runner, :isolated_environment do
             ]
           end
         end
-        # rubocop:enable Layout/LineLength
 
         let(:source) do
           <<~RUBY

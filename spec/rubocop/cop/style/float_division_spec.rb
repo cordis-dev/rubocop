@@ -226,6 +226,41 @@ RSpec.describe RuboCop::Cop::Style::FloatDivision, :config do
       RUBY
     end
 
+    it 'registers an offense and corrects when the divisor is a parenthesized division' do
+      expect_offense(<<~RUBY)
+        a.to_f / (b.to_f / 2)
+        ^^^^^^^^^^^^^^^^^^^^^ Prefer using `fdiv` for float divisions.
+                  ^^^^^^^^^^ Prefer using `fdiv` for float divisions.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        a.fdiv(b.fdiv(2))
+      RUBY
+    end
+
+    it 'registers an offense and corrects when the dividend is a parenthesized division' do
+      expect_offense(<<~RUBY)
+        (a.to_f / b) / c.to_f
+        ^^^^^^^^^^^^^^^^^^^^^ Prefer using `fdiv` for float divisions.
+         ^^^^^^^^^^ Prefer using `fdiv` for float divisions.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        (a.fdiv(b)).fdiv(c)
+      RUBY
+    end
+
+    it 'registers an offense and corrects when the divisor is a method call with arguments' do
+      expect_offense(<<~RUBY)
+        a.to_f / foo(1)
+        ^^^^^^^^^^^^^^^ Prefer using `fdiv` for float divisions.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        a.fdiv(foo(1))
+      RUBY
+    end
+
     it 'does not register offense on usage of fdiv' do
       expect_no_offenses('a.fdiv(b)')
     end

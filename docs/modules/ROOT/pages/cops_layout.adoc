@@ -163,6 +163,19 @@ foo :bar,
 | Integer
 |===
 
+[#preview-defaults-layoutargumentalignment]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `with_first_argument`
+| `with_fixed_indentation`
+|===
+
 [#references-layoutargumentalignment]
 === References
 
@@ -243,7 +256,7 @@ array = [1, 2, 3,
 [#references-layoutarrayalignment]
 === References
 
-* https://rubystyle.guide#no-double-indent
+* https://rubystyle.guide#align-multiline-arrays
 
 [#layoutassignmentindentation]
 == Layout/AssignmentIndentation
@@ -669,6 +682,19 @@ end
 | Integer
 |===
 
+[#preview-defaults-layoutcaseindentation]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `case`
+| `end`
+|===
+
 [#references-layoutcaseindentation]
 === References
 
@@ -684,7 +710,7 @@ end
 | Yes
 | Always (Unsafe)
 | 0.52
-| 1.53
+| 1.89
 |===
 
 Checks if the code style follows the `ExpectedOrder` configuration:
@@ -876,7 +902,7 @@ end
 | 
 
 | ExpectedOrder
-| `module_inclusion`, `constants`, `public_class_methods`, `initializer`, `public_methods`, `protected_methods`, `private_methods`
+| `module_inclusion`, `constants`, `public_class_methods`, `initializer`, `public_methods`, `protected_methods`, `private_class_methods`, `private_methods`
 | Array
 |===
 
@@ -1524,6 +1550,19 @@ def foo
 end
 ----
 
+[#preview-defaults-layoutemptylineafterguardclause]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
+|===
+
 [#layoutemptylineaftermagiccomment]
 == Layout/EmptyLineAfterMagicComment
 
@@ -1534,10 +1573,18 @@ end
 | Yes
 | Always
 | 0.49
-| -
+| 1.91
 |===
 
 Checks for a newline after the final magic comment.
+
+`NumberOfEmptyLines` configures the minimum number of empty lines required. Set it
+to `2` when using YARD, which otherwise treats the magic comments as documentation
+for the first module or class in the file.
+
+NOTE: `Layout/EmptyLines` has to be disabled for values greater than `1`, as it
+removes the extra empty lines this cop adds, and autocorrecting with both enabled
+loops between them.
 
 [#examples-layoutemptylineaftermagiccomment]
 === Examples
@@ -1559,6 +1606,47 @@ class Person
   # Some code
 end
 ----
+
+[#numberofemptylines_-1-_default_-layoutemptylineaftermagiccomment]
+==== NumberOfEmptyLines: 1 (default)
+
+[source,ruby]
+----
+# good
+# frozen_string_literal: true
+
+class Person
+end
+----
+
+[#numberofemptylines_-2-layoutemptylineaftermagiccomment]
+==== NumberOfEmptyLines: 2
+
+[source,ruby]
+----
+# bad
+# frozen_string_literal: true
+
+class Person
+end
+
+# good
+# frozen_string_literal: true
+
+class Person
+end
+----
+
+[#configurable-attributes-layoutemptylineaftermagiccomment]
+=== Configurable attributes
+
+|===
+| Name | Default value | Configurable values
+
+| NumberOfEmptyLines
+| `1`
+| Integer
+|===
 
 [#references-layoutemptylineaftermagiccomment]
 === References
@@ -2736,6 +2824,19 @@ variable =
 | String
 |===
 
+[#preview-defaults-layoutendalignment]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyleAlignWith
+| `keyword`
+| `variable`
+|===
+
 [#layoutendofline]
 == Layout/EndOfLine
 
@@ -3195,6 +3296,19 @@ and_now_for_something = [
 | Integer
 |===
 
+[#preview-defaults-layoutfirstarrayelementindentation]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `special_inside_parentheses`
+| `consistent`
+|===
+
 [#layoutfirstarrayelementlinebreak]
 == Layout/FirstArrayElementLineBreak
 
@@ -3346,10 +3460,10 @@ styles are 'consistent' and 'align_braces'. Here are examples:
 # bad
 hash = {
   key: :value
-}
-and_in_a_method_call({
-  no: :difference
-                     })
+       }
+in_a_method_call({
+  foo: :bar
+})
 takes_multi_pairs_hash(x: {
   a: 1,
   b: 2
@@ -3360,13 +3474,12 @@ takes_multi_pairs_hash(x: {
                        })
 
 # good
-special_inside_parentheses
 hash = {
   key: :value
 }
-but_in_a_method_call({
-                       its_like: :this
-                     })
+in_a_method_call({
+                   foo: :bar
+                 })
 takes_multi_pairs_hash(x: {
                          a: 1,
                          b: 2
@@ -3390,17 +3503,17 @@ takes_multi_pairs_hash(x: {
 # bad
 hash = {
   key: :value
-}
-but_in_a_method_call({
-                       its_like: :this
-                      })
+       }
+in_a_method_call({
+                  foo: :bar
+                })
 
 # good
 hash = {
   key: :value
 }
-and_in_a_method_call({
-  no: :difference
+in_a_method_call({
+  foo: :bar
 })
 ----
 
@@ -3452,6 +3565,19 @@ takes_multi_pairs_hash(x: {
 | IndentationWidth
 | `<none>`
 | Integer
+|===
+
+[#preview-defaults-layoutfirsthashelementindentation]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `special_inside_parentheses`
+| `consistent`
 |===
 
 [#layoutfirsthashelementlinebreak]
@@ -4481,6 +4607,19 @@ class A
 end
 ----
 
+[source,ruby]
+----
+# bad
+value = (
+foo - bar
+)
+
+# good
+value = (
+  foo - bar
+)
+----
+
 [#allowedpatterns_-____s_module__-layoutindentationwidth]
 ==== AllowedPatterns: ['^\s*module']
 
@@ -4729,6 +4868,32 @@ end
 name = 'John'      #: String
 ----
 
+[#allowyardcommentblockseparator_-false-_default_-layoutleadingcommentspace]
+==== AllowYARDCommentBlockSeparator: false (default)
+
+[source,ruby]
+----
+# bad
+
+# Copyright (c) Example Corp
+#-
+class Client
+end
+----
+
+[#allowyardcommentblockseparator_-true-layoutleadingcommentspace]
+==== AllowYARDCommentBlockSeparator: true
+
+[source,ruby]
+----
+# good
+
+# Copyright (c) Example Corp
+#-
+class Client
+end
+----
+
 [#configurable-attributes-layoutleadingcommentspace]
 === Configurable attributes
 
@@ -4748,6 +4913,10 @@ name = 'John'      #: String
 | Boolean
 
 | AllowSteepAnnotation
+| `false`
+| Boolean
+
+| AllowYARDCommentBlockSeparator
 | `false`
 | Boolean
 |===
@@ -6078,6 +6247,19 @@ myvariable = Thing
 | Integer
 |===
 
+[#preview-defaults-layoutmultilinemethodcallindentation]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `aligned`
+| `indented`
+|===
+
 [#layoutmultilinemethoddefinitionbracelayout]
 == Layout/MultilineMethodDefinitionBraceLayout
 
@@ -6385,6 +6567,19 @@ end
 | Integer
 |===
 
+[#preview-defaults-layoutmultilineoperationindentation]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `aligned`
+| `indented`
+|===
+
 [#layoutparameteralignment]
 == Layout/ParameterAlignment
 
@@ -6489,6 +6684,19 @@ end
 | IndentationWidth
 | `<none>`
 | Integer
+|===
+
+[#preview-defaults-layoutparameteralignment]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `with_first_parameter`
+| `with_fixed_indentation`
 |===
 
 [#references-layoutparameteralignment]
@@ -6829,7 +7037,8 @@ x = 1; y = 2
 
 Checks the spacing inside and after block parameters pipes. Line breaks
 inside parameter pipes are checked by `Layout/MultilineBlockLayout` and
-not by this cop.
+not by this cop. Spaces inside a lambda's parameter parentheses are left
+to `Layout/SpaceInsideParens` when that cop enforces a conflicting style.
 
 [#examples-layoutspacearoundblockparameters]
 === Examples
@@ -7042,7 +7251,7 @@ RuboCop::Cop::Base
 | Yes
 | Always
 | 0.49
-| -
+| 1.90
 |===
 
 Checks that operators have space around them, except for ** which

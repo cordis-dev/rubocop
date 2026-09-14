@@ -105,6 +105,10 @@ module RuboCop
 
         MSG = 'Use %<style>s for method names.'
         MSG_FORBIDDEN = '`%<identifier>s` is forbidden, use another method name instead.'
+        RESTRICT_ON_SEND = %i[
+          define_method define_singleton_method new define alias_method
+          attr attr_reader attr_writer attr_accessor
+        ].freeze
 
         OPERATOR_METHODS = %i[| ^ & <=> == === =~ > >= < <= << >> + - * /
                               % ** ~ +@ -@ !@ ~@ [] []= ! != !~ `].to_set.freeze
@@ -209,7 +213,7 @@ module RuboCop
           forbidden_identifier?(name) || forbidden_pattern?(name)
         end
 
-        # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
+        # rubocop:disable-next Metrics/MethodLength, Metrics/AbcSize
         def register_forbidden_name(node)
           if node.any_def_type?
             name_node = node.loc.name
@@ -227,7 +231,6 @@ module RuboCop
           message = format(MSG_FORBIDDEN, identifier: method_name)
           add_offense(name_node, message: message)
         end
-        # rubocop:enable Metrics/MethodLength, Metrics/AbcSize
 
         def attr_name(name_item)
           sym_name(name_item) || str_name(name_item)

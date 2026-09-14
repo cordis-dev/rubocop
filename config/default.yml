@@ -60,6 +60,9 @@ AllCops:
     - '.git/**/*'
   # Default formatter will be used if no `-f/--format` option is given.
   DefaultFormatter: progress
+  # The lowest severity that makes a run fail. Offenses below it are still
+  # reported. Can be overridden by the `--fail-level` command line option.
+  FailLevel: refactor
   # Cop names are displayed in offense messages by default. Change behavior
   # by overriding DisplayCopNames, or by giving the `--no-display-cop-names`
   # option.
@@ -110,6 +113,21 @@ AllCops:
   # a warning is shown and the flag has no effect.
   # The default `false` preserves RuboCop's traditional file-local analysis.
   UseProjectIndex: false
+  # When the project index is enabled, also index the sources of the gems in
+  # the project's bundle. This lets index-aware cops resolve ancestry chains
+  # and members that live in gems (e.g. framework base classes), at the cost
+  # of extra memory proportional to the bundle's size. Has no effect when
+  # `UseProjectIndex` is `false` or when RuboCop does not run inside Bundler.
+  ProjectIndexIncludesGems: false
+  # Projects opt in to preview with `Preview: true` here, or with the `--preview`
+  # command line option. In this file the key instead holds the `AllCops`
+  # settings expected to change in the next major release: they apply under
+  # preview and are dropped otherwise, exactly like a cop's `Preview` section.
+  Preview:
+    # Style offenses are reported but stop failing the build; `Lint` and
+    # `Security` offenses still do.
+    FailLevel: warning
+
   # Enables the result cache if `true`. Can be overridden by the `--cache` command
   # line option.
   UseCache: true
@@ -165,6 +183,7 @@ AllCops:
     rubocop-capybara: [capybara]
     rubocop-factory_bot: [factory_bot, factory_bot_rails]
     rubocop-rspec_rails: [rspec-rails]
+    rubocop-i18n: [i18n, gettext]
   # Enable/Disable checking the methods extended by Active Support.
   ActiveSupportExtensionsEnabled: false
   # Future version of Ruby will freeze string literals by default.
@@ -255,6 +274,10 @@ Bundler/OrderedGems:
   Description: >-
                  Gems within groups in the Gemfile should be alphabetically sorted.
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Alphabetical Gemfiles are a preference; grouping gems by purpose is as common.
+  Preview:
+    Enabled: false
   VersionAdded: '0.46'
   VersionChanged: '0.47'
   TreatCommentsAsGroupSeparators: true
@@ -409,6 +432,10 @@ Layout/ArgumentAlignment:
   #     method_call(a,
   #       b)
   EnforcedStyle: with_first_argument
+  # Expected to become the default in the next major release.
+  # Same preference as `ParameterAlignment`.
+  Preview:
+    EnforcedStyle: with_fixed_indentation
   SupportedStyles:
     - with_first_argument
     - with_fixed_indentation
@@ -420,7 +447,7 @@ Layout/ArrayAlignment:
   Description: >-
                  Align the elements of an array literal if they span more than
                  one line.
-  StyleGuide: '#no-double-indent'
+  StyleGuide: '#align-multiline-arrays'
   Enabled: true
   VersionAdded: '0.49'
   VersionChanged: '0.77'
@@ -467,6 +494,7 @@ Layout/BeginEndAlignment:
   SupportedStylesAlignWith:
     - start_of_line
     - begin
+  # A misaligned `end` usually means a structural mistake, so this reports as a lint would.
   Severity: warning
 
 Layout/BlockAlignment:
@@ -496,6 +524,10 @@ Layout/CaseIndentation:
   VersionAdded: '0.49'
   VersionChanged: '1.16'
   EnforcedStyle: case
+  # Expected to become the default in the next major release.
+  # `when` aligned with `end` is the pick of nearly every project that sets this.
+  Preview:
+    EnforcedStyle: end
   SupportedStyles:
     - case
     - end
@@ -511,7 +543,7 @@ Layout/ClassStructure:
   Enabled: false
   SafeAutoCorrect: false
   VersionAdded: '0.52'
-  VersionChanged: '1.53'
+  VersionChanged: '1.89'
   Categories:
     module_inclusion:
       - include
@@ -524,6 +556,7 @@ Layout/ClassStructure:
     - initializer
     - public_methods
     - protected_methods
+    - private_class_methods
     - private_methods
 
 Layout/ClosingHeredocIndentation:
@@ -573,6 +606,7 @@ Layout/DefEndAlignment:
   SupportedStylesAlignWith:
     - start_of_line
     - def
+  # A misaligned `end` usually means a structural mistake, so this reports as a lint would.
   Severity: warning
 
 Layout/DotPosition:
@@ -602,6 +636,10 @@ Layout/EmptyComment:
 Layout/EmptyLineAfterGuardClause:
   Description: 'Add empty line after guard clause.'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Goes with `GuardClause`; a blank line after a guard is a preference.
+  Preview:
+    Enabled: false
   VersionAdded: '0.56'
   VersionChanged: '0.59'
 
@@ -610,6 +648,12 @@ Layout/EmptyLineAfterMagicComment:
   StyleGuide: '#separate-magic-comments-from-code'
   Enabled: true
   VersionAdded: '0.49'
+  VersionChanged: '1.91'
+  # The minimum number of empty lines required after the last magic comment. Set this
+  # to `2` when using YARD, which otherwise treats the magic comments as documentation
+  # for the first module or class in the file. `Layout/EmptyLines` has to be disabled
+  # for values greater than `1`.
+  NumberOfEmptyLines: 1
 
 Layout/EmptyLineAfterMultilineCondition:
   Description: 'Enforces empty line after multiline condition.'
@@ -746,10 +790,15 @@ Layout/EndAlignment:
   # The value `start_of_line` means that `end` should be aligned with the start
   # of the line which the matching keyword appears on.
   EnforcedStyleAlignWith: keyword
+  # Expected to become the default in the next major release.
+  # Aligning `end` with the variable is the pick of most projects that set this.
+  Preview:
+    EnforcedStyleAlignWith: variable
   SupportedStylesAlignWith:
     - keyword
     - variable
     - start_of_line
+  # A misaligned `end` usually means a structural mistake, so this reports as a lint would.
   Severity: warning
 
 Layout/EndOfLine:
@@ -825,6 +874,10 @@ Layout/FirstArrayElementIndentation:
   # The value `align_brackets` means that the indentation of the first element
   # shall always be relative to the position of the opening bracket.
   EnforcedStyle: special_inside_parentheses
+  # Expected to become the default in the next major release.
+  # Same preference as `FirstHashElementIndentation`.
+  Preview:
+    EnforcedStyle: consistent
   SupportedStyles:
     - special_inside_parentheses
     - consistent
@@ -859,6 +912,10 @@ Layout/FirstHashElementIndentation:
   # The value `align_braces` means that the indentation of the first key shall
   # always be relative to the position of the opening brace.
   EnforcedStyle: special_inside_parentheses
+  # Expected to become the default in the next major release.
+  # A consistent indent wins over the parentheses-sensitive rule by a wide margin.
+  Preview:
+    EnforcedStyle: consistent
   SupportedStyles:
     - special_inside_parentheses
     - consistent
@@ -1069,6 +1126,7 @@ Layout/LeadingCommentSpace:
   AllowGemfileRubyComment: false
   AllowRBSInlineAnnotation: false
   AllowSteepAnnotation: false
+  AllowYARDCommentBlockSeparator: false
 
 Layout/LeadingEmptyLines:
   Description: Checks for unnecessary blank lines at the beginning of a file.
@@ -1245,6 +1303,10 @@ Layout/MultilineMethodCallIndentation:
   Enabled: true
   VersionAdded: '0.49'
   EnforcedStyle: aligned
+  # Expected to become the default in the next major release.
+  # Indenting continuation lines wins over aligning them by a wide margin.
+  Preview:
+    EnforcedStyle: indented
   SupportedStyles:
     - aligned
     - indented
@@ -1284,6 +1346,10 @@ Layout/MultilineOperationIndentation:
   Enabled: true
   VersionAdded: '0.49'
   EnforcedStyle: aligned
+  # Expected to become the default in the next major release.
+  # Same preference as `MultilineMethodCallIndentation`.
+  Preview:
+    EnforcedStyle: indented
   SupportedStyles:
     - aligned
     - indented
@@ -1313,6 +1379,10 @@ Layout/ParameterAlignment:
   #     def method_foo(a,
   #       b)
   EnforcedStyle: with_first_parameter
+  # Expected to become the default in the next major release.
+  # A fixed indent wins over aligning with the first parameter.
+  Preview:
+    EnforcedStyle: with_fixed_indentation
   SupportedStyles:
     - with_first_parameter
     - with_fixed_indentation
@@ -1407,6 +1477,7 @@ Layout/SpaceAroundOperators:
   StyleGuide: '#spaces-operators'
   Enabled: true
   VersionAdded: '0.49'
+  VersionChanged: '1.90'
   # When `true`, allows most uses of extra spacing if the intent is to align
   # with an operator on the previous or next line, not counting empty lines
   # or comment lines.
@@ -1615,7 +1686,7 @@ Lint/AmbiguousBlockAssociation:
                  parentheses.
   Enabled: true
   VersionAdded: '0.48'
-  VersionChanged: '1.13'
+  VersionChanged: '1.89'
   AllowedMethods: []
   AllowedPatterns: []
 
@@ -1649,6 +1720,13 @@ Lint/AmbiguousRegexpLiteral:
   Enabled: true
   VersionAdded: '0.17'
   VersionChanged: '0.83'
+
+Lint/ArgumentMismatch:
+  Description: >-
+    Checks for calls that pass the wrong number of positional arguments
+    to a method, using the project index.
+  Enabled: pending
+  VersionAdded: '1.90'
 
 Lint/ArrayLiteralInRegexp:
   Description: 'Checks for an array literal interpolated inside a regexp.'
@@ -1713,6 +1791,7 @@ Lint/ConstantReassignment:
 
 Lint/ConstantResolution:
   Description: 'Checks that constants are fully qualified with `::`.'
+  VersionChanged: '1.89'
   Enabled: false
   VersionAdded: '0.86'
   # Restrict this cop to only looking at certain names
@@ -1722,8 +1801,9 @@ Lint/ConstantResolution:
 
 Lint/CopDirectiveSyntax:
   Description: 'Checks that `# rubocop:` directives are strictly formatted.'
-  Enabled: pending
+  Enabled: true
   VersionAdded: '1.72'
+  VersionChanged: '1.91'
 
 Lint/DataDefineOverride:
   Description: 'Disallow overriding the `Data` built-in methods via `Data.define`.'
@@ -1829,8 +1909,17 @@ Lint/DeprecatedOpenSSLConstant:
   Enabled: true
   VersionAdded: '0.84'
 
+Lint/DeprecatedReference:
+  Description: >-
+                  Checks for references to methods and constants documented
+                  as deprecated with a YARD `@deprecated` tag.
+                  Requires `AllCops/UseProjectIndex` to be enabled.
+  Enabled: pending
+  VersionAdded: '1.89'
+
 Lint/DisjunctiveAssignmentInConstructor:
   Description: 'In constructor, plain assignment is preferred over disjunctive.'
+  StyleGuide: '#disjunctive-assignment-in-constructor'
   Enabled: true
   Safe: false
   VersionAdded: '0.62'
@@ -1875,6 +1964,22 @@ Lint/DuplicateMethods:
   Description: 'Checks for duplicate method definitions.'
   Enabled: true
   VersionAdded: '0.29'
+  VersionChanged: '1.90'
+  # Methods that define instance methods by delegation, in the style of
+  # Active Support's `delegate` (`delegate :foo, :bar, to: :target`). Register
+  # a project's own `delegate`-shaped macros here so the cop recognizes the
+  # methods they define. Only takes effect when `AllCops/ActiveSupportExtensionsEnabled`
+  # is `true`.
+  DelegatingMethods:
+    - delegate
+  # Cross-file duplicates (detected with `AllCops/UseProjectIndex`) whose other
+  # definition lives in a file matching one of these patterns are not reported.
+  # Useful for files that redefine application methods but are never loaded
+  # together with them, such as standalone scripts. Patterns follow the same
+  # glob (or regexp) semantics as `Exclude` and are matched against the other
+  # file's path relative to the directory of the config file; absolute patterns
+  # are matched against the absolute path.
+  AllowedCrossFilePaths: []
 
 Lint/DuplicateRegexpCharacterClassElement:
   Description: 'Checks for duplicate elements in Regexp character classes.'
@@ -2057,7 +2162,7 @@ Lint/InheritException:
   Enabled: true
   SafeAutoCorrect: false
   VersionAdded: '0.41'
-  VersionChanged: '1.26'
+  VersionChanged: '1.89'
   # The default base class in favour of `Exception`.
   EnforcedStyle: standard_error
   SupportedStyles:
@@ -2110,11 +2215,18 @@ Lint/Loop:
   VersionChanged: '1.3'
   Safe: false
 
+Lint/MisplacedMagicComment:
+  Description: 'Checks for magic comments placed where Ruby silently ignores them.'
+  StyleGuide: '#magic-comments-first'
+  Enabled: pending
+  SafeAutoCorrect: false
+  VersionAdded: '1.91'
+
 Lint/MissingCopEnableDirective:
   Description: 'Checks for a `# rubocop:enable` after `# rubocop:disable`.'
   Enabled: true
   VersionAdded: '0.52'
-  VersionChanged: '1.88'
+  VersionChanged: '1.90'
   # Maximum number of consecutive lines the cop can be disabled for.
   # 0 allows only single-line disables
   # 1 would mean the maximum allowed is the following:
@@ -2130,7 +2242,7 @@ Lint/MissingSuper:
                   without calls to `super`.
   Enabled: true
   VersionAdded: '0.89'
-  VersionChanged: '1.4'
+  VersionChanged: '1.89'
   AllowedParentClasses: []
 
 Lint/MixedCaseRange:
@@ -2141,6 +2253,7 @@ Lint/MixedCaseRange:
 
 Lint/MixedRegexpCaptureTypes:
   Description: 'Do not mix named captures and numbered captures in a Regexp literal.'
+  StyleGuide: '#do-not-mix-named-and-numbered-captures'
   Enabled: true
   VersionAdded: '0.85'
 
@@ -2149,6 +2262,16 @@ Lint/MultipleComparison:
   Enabled: true
   VersionAdded: '0.47'
   VersionChanged: '1.1'
+
+Lint/NameTypo:
+  Description: >-
+    Checks for probable typos in constant and method names,
+    using the project index.
+  Enabled: pending
+  CheckConstants: true
+  CheckMethods: true
+  AllowedNames: []
+  VersionAdded: '1.89'
 
 Lint/NestedMethodDefinition:
   Description: 'Do not use nested method definitions.'
@@ -2213,7 +2336,9 @@ Lint/NumberedParameterAssignment:
 Lint/NumericOperationWithConstantResult:
   Description: 'Checks for numeric operations with constant results.'
   Enabled: pending
+  SafeAutoCorrect: false
   VersionAdded: '1.69'
+  VersionChanged: '1.88'
 
 Lint/OrAssignmentToConstant:
   Description: 'Checks unintended or-assignment to constant.'
@@ -2226,7 +2351,7 @@ Lint/OrderedMagicComments:
   Enabled: true
   SafeAutoCorrect: false
   VersionAdded: '0.53'
-  VersionChanged: '1.37'
+  VersionChanged: '1.91'
 
 Lint/OutOfRangeRegexpRef:
   Description: 'Checks for out of range reference for Regexp because it always returns nil.'
@@ -2285,6 +2410,7 @@ Lint/RedundantCopEnableDirective:
   Description: Checks for rubocop:enable comments that can be removed.
   Enabled: true
   VersionAdded: '0.76'
+  VersionChanged: '1.90'
 
 Lint/RedundantDirGlobSort:
   Description: 'Checks for redundant `sort` method to `Dir.glob` and `Dir[]`.'
@@ -2407,8 +2533,9 @@ Lint/ReturnInVoidContext:
 Lint/SafeNavigationChain:
   Description: 'Do not chain ordinary method call after safe navigation operator.'
   Enabled: true
+  SafeAutoCorrect: false
   VersionAdded: '0.47'
-  VersionChanged: '0.77'
+  VersionChanged: '1.89'
   AllowedMethods:
     - present?
     - blank?
@@ -2466,6 +2593,7 @@ Lint/ShadowedException:
   Description: >-
                   Avoid rescuing a higher level exception
                   before a lower level exception.
+  StyleGuide: '#exception-ordering'
   Enabled: true
   VersionAdded: '0.41'
 
@@ -2487,6 +2615,13 @@ Lint/StructNewOverride:
   Description: 'Disallow overriding the `Struct` built-in methods via `Struct.new`.'
   Enabled: true
   VersionAdded: '0.81'
+
+Lint/SuperArgumentMismatch:
+  Description: >-
+    Checks for `super` calls that pass the wrong number of positional
+    arguments to the overridden implementation, using the project index.
+  Enabled: pending
+  VersionAdded: '1.90'
 
 Lint/SuppressedException:
   Description: "Don't suppress exceptions."
@@ -2578,6 +2713,7 @@ Lint/UnexpectedBlockArity:
 
 Lint/UnifiedInteger:
   Description: 'Use Integer instead of Fixnum or Bignum.'
+  StyleGuide: '#integer-type-checking'
   Enabled: true
   VersionAdded: '0.43'
 
@@ -2630,6 +2766,21 @@ Lint/UnusedMethodArgument:
   NotImplementedExceptions:
     - NotImplementedError
 
+Lint/UnusedPrivateMethod:
+  Description: >-
+                  Checks for private instance methods that are not referenced
+                  anywhere in the project. Requires `AllCops/UseProjectIndex`
+                  to be enabled.
+  # This cop is disabled by default because symbol-based references from other
+  # files (e.g. Rails callbacks declared in a concern) cannot be detected and
+  # would be reported as false positives. It is intended for occasional
+  # dead-code sweeps rather than permanent enforcement.
+  Enabled: false
+  AllowedNames: []
+  AllowedPatterns: []
+  VersionAdded: '1.89'
+  VersionChanged: '1.90'
+
 Lint/UriEscapeUnescape:
   Description: >-
                  `URI.escape` method is obsolete and should not be used. Instead, use
@@ -2667,6 +2818,7 @@ Lint/UselessConstantScoping:
   Description: 'Checks for useless constant scoping.'
   Enabled: pending
   VersionAdded: '1.72'
+  VersionChanged: '1.90'
 
 Lint/UselessDefaultValueArgument:
   Description: 'Checks for usage of `fetch` or `Array.new` with default value argument and block.'
@@ -2748,6 +2900,10 @@ Metrics/AbcSize:
     - https://wiki.c2.com/?AbcMetric
     - https://en.wikipedia.org/wiki/ABC_Software_Metric
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Rejected by more than a third of projects; those that keep it split evenly between 20 and 30.
+  Preview:
+    Enabled: false
   VersionAdded: '0.27'
   VersionChanged: '1.5'
   # The ABC size is a calculated magnitude, so this number can be an Integer or
@@ -2760,6 +2916,10 @@ Metrics/AbcSize:
 Metrics/BlockLength:
   Description: 'Avoid long blocks with many lines.'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Rejected by nearly a third of projects; the raised limits range from 30 to 300.
+  Preview:
+    Enabled: false
   VersionAdded: '0.44'
   VersionChanged: '1.5'
   CountComments: false  # count full line comments?
@@ -2777,6 +2937,10 @@ Metrics/BlockNesting:
   Description: 'Avoid excessive block nesting.'
   StyleGuide: '#three-is-the-number-thou-shalt-count'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Rejected by a fifth of projects; almost nobody adjusts the limit instead.
+  Preview:
+    Enabled: false
   VersionAdded: '0.25'
   VersionChanged: '1.65'
   CountBlocks: false
@@ -2786,6 +2950,10 @@ Metrics/BlockNesting:
 Metrics/ClassLength:
   Description: 'Avoid classes longer than 100 lines of code.'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Rejected by a third of projects; those that keep it set the limit three times higher.
+  Preview:
+    Enabled: false
   VersionAdded: '0.25'
   VersionChanged: '0.87'
   CountComments: false  # count full line comments?
@@ -2803,6 +2971,10 @@ Metrics/CollectionLiteralLength:
 Metrics/CyclomaticComplexity:
   Description: 'Checks that the cyclomatic complexity of methods is not higher than the configured maximum.'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Rejected by a third of projects; those that keep it raise the limit to 10 or more.
+  Preview:
+    Enabled: false
   VersionAdded: '0.25'
   VersionChanged: '0.81'
   AllowedMethods: []
@@ -2813,6 +2985,10 @@ Metrics/MethodLength:
   Description: 'Avoid methods longer than 10 lines of code.'
   StyleGuide: '#short-methods'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Rejected outright by a third of projects; the ones that keep it disagree on the limit.
+  Preview:
+    Enabled: false
   VersionAdded: '0.25'
   VersionChanged: '1.5'
   CountComments: false  # count full line comments?
@@ -2824,6 +3000,10 @@ Metrics/MethodLength:
 Metrics/ModuleLength:
   Description: 'Avoid modules longer than 100 lines of code.'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Same story as `ClassLength`.
+  Preview:
+    Enabled: false
   VersionAdded: '0.31'
   VersionChanged: '0.87'
   CountComments: false  # count full line comments?
@@ -2834,6 +3014,10 @@ Metrics/ParameterLists:
   Description: 'Avoid parameter lists longer than three or four parameters.'
   StyleGuide: '#too-many-params'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Rejected by a fifth of projects, more than raise the limit.
+  Preview:
+    Enabled: false
   VersionAdded: '0.25'
   VersionChanged: '1.5'
   Max: 5
@@ -2843,8 +3027,12 @@ Metrics/ParameterLists:
 Metrics/PerceivedComplexity:
   Description: 'Checks that the perceived complexity of methods is not higher than the configured maximum.'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Same story as `CyclomaticComplexity`.
+  Preview:
+    Enabled: false
   VersionAdded: '0.25'
-  VersionChanged: '<<next>>'
+  VersionChanged: '1.88'
   AllowedMethods: []
   AllowedPatterns: []
   Max: 8
@@ -2861,6 +3049,7 @@ Migration/DepartmentName:
 Naming/AccessorMethodName:
   Description: Checks the naming of accessor methods for get_/set_.
   StyleGuide: '#accessor_mutator_method_names'
+  VersionChanged: '1.89'
   Enabled: true
   VersionAdded: '0.50'
 
@@ -3014,6 +3203,10 @@ Naming/HeredocDelimiterNaming:
   Description: 'Use descriptive heredoc delimiters.'
   StyleGuide: '#heredoc-delimiters'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Heredoc delimiter names are rarely worth policing.
+  Preview:
+    Enabled: false
   VersionAdded: '0.50'
   ForbiddenDelimiters:
     - !ruby/regexp '/(^|\s)(EO[A-Z]{1}|END)(\s|$)/i'
@@ -3137,7 +3330,7 @@ Naming/PredicatePrefix:
   StyleGuide: '#bool-methods-qmark'
   Enabled: true
   VersionAdded: '0.50'
-  VersionChanged: '1.75'
+  VersionChanged: '1.89'
   # Predicate name prefixes.
   NamePrefix:
     - is_
@@ -3191,6 +3384,10 @@ Naming/VariableNumber:
   Description: 'Use the configured style when numbering symbols, methods and variables.'
   StyleGuide: '#snake-case-symbols-methods-vars-with-numbers'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # A naming convention few projects want enforced.
+  Preview:
+    Enabled: false
   VersionAdded: '0.50'
   VersionChanged: '1.4'
   EnforcedStyle: normalcase
@@ -3308,6 +3505,10 @@ Style/Alias:
   VersionAdded: '0.9'
   VersionChanged: '0.36'
   EnforcedStyle: prefer_alias
+  # Expected to become the default in the next major release.
+  # `alias_method` is the pick of most projects that set this.
+  Preview:
+    EnforcedStyle: prefer_alias_method
   SupportedStyles:
     - prefer_alias
     - prefer_alias_method
@@ -3363,6 +3564,7 @@ Style/ArrayCoercion:
 
 Style/ArrayFirstLast:
   Description: 'Use `arr.first` and `arr.last` instead of `arr[0]` and `arr[-1]`.'
+  StyleGuide: '#first-and-last'
   References:
     - '#first-and-last'
   Enabled: false
@@ -3453,6 +3655,10 @@ Style/BlockDelimiters:
                 Prefer {...} over do...end for single-line blocks.
   StyleGuide: '#single-line-blocks'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Brace-versus-`do` rules by line count are widely overridden or switched off.
+  Preview:
+    Enabled: false
   VersionAdded: '0.30'
   VersionChanged: '0.35'
   EnforcedStyle: line_count_based
@@ -3605,13 +3811,18 @@ Style/ClassAndModuleChildren:
   StyleGuide: '#namespace-definition'
   # Moving from compact to nested children requires knowledge of whether the
   # outer parent is a module or a class. Moving from nested to compact requires
-  # verification that the outer parent is defined elsewhere. RuboCop does not
-  # have the knowledge to perform either operation safely and thus requires
-  # manual oversight.
+  # verification that the outer parent is defined elsewhere. By default RuboCop
+  # does not have the knowledge to perform either operation safely and thus
+  # requires manual oversight. When `AllCops/UseProjectIndex` is enabled, the
+  # project-wide index is consulted for both operations.
   SafeAutoCorrect: false
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Fights Rails autoloading conventions, and the autocorrect is unsafe.
+  Preview:
+    Enabled: false
   VersionAdded: '0.19'
-  VersionChanged: '1.74'
+  VersionChanged: '1.89'
   #
   # Basically there are two different styles:
   #
@@ -3825,6 +4036,7 @@ Style/ConditionalAssignment:
                  Use the return value of `if` and `case` statements for
                  assignment to a variable and variable comparison instead
                  of assigning that variable inside of each branch.
+  StyleGuide: '#use-if-case-returns'
   Enabled: true
   VersionAdded: '0.36'
   VersionChanged: '0.47'
@@ -3885,7 +4097,7 @@ Style/DataInheritance:
 
 Style/DateTime:
   Description: 'Use Time over DateTime.'
-  StyleGuide: '#date-time'
+  StyleGuide: '#no-datetime'
   Enabled: false
   VersionAdded: '0.51'
   VersionChanged: '0.92'
@@ -3918,13 +4130,33 @@ Style/DirEmpty:
   Enabled: pending
   VersionAdded: '1.48'
 
+Style/DirectiveScope:
+  Description: >-
+                 Checks for directive scopes that can be expressed with the
+                 tighter `disable-next` form.
+  Enabled: pending
+  SafeAutoCorrect: false
+  VersionAdded: '1.90'
+  VersionChanged: '1.91'
+
 Style/DisableCopsWithinSourceCodeDirective:
   Description: >-
                  Forbids disabling/enabling cops within source code.
   Enabled: false
   VersionAdded: '0.82'
-  VersionChanged: '1.9'
+  VersionChanged: '<<next>>'
+  # Cop or department names. A directive is exempt only when everything it
+  # disables is listed here.
   AllowedCops: []
+  # Cop or department names. When set, only directives touching these are
+  # flagged.
+  DisallowedCops: []
+  # Permit a directive that carries a `-- reason` justification, instead of
+  # forbidding directives outright.
+  AllowWithReason: false
+  # Directive forms this cop ignores entirely. One or more of `disable`,
+  # `todo`, `disable-next`, `todo-next`, `push`, `next`.
+  AllowedDirectives: []
 
 Style/DocumentDynamicEvalDefinition:
   Description: >-
@@ -3938,7 +4170,12 @@ Style/DocumentDynamicEvalDefinition:
 Style/Documentation:
   Description: 'Document classes and non-namespace modules.'
   Enabled: true
+  # Turned off by over half of the projects that configure RuboCop at all, so it
+  # is expected to be disabled by default in the next major release.
+  Preview:
+    Enabled: false
   VersionAdded: '0.9'
+  VersionChanged: '1.89'
   AllowedConstants: []
   Exclude:
     - 'spec/**/*'
@@ -3954,15 +4191,14 @@ Style/DocumentationMethod:
     - 'test/**/*'
   RequireForNonPublicMethods: false
 
-Style/DoubleCopDisableDirective:
-  Description: 'Checks for double rubocop:disable comments on a single line.'
-  Enabled: true
-  VersionAdded: '0.73'
-
 Style/DoubleNegation:
   Description: 'Checks for uses of double negation (!!).'
   StyleGuide: '#no-bang-bang'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # `!!` is the idiomatic boolean coercion.
+  Preview:
+    Enabled: false
   VersionAdded: '0.19'
   VersionChanged: '1.2'
   EnforcedStyle: allowed_in_returns
@@ -3996,6 +4232,7 @@ Style/EmptyCaseCondition:
 
 Style/EmptyClassDefinition:
   Description: 'Enforces consistent style for empty class definitions.'
+  StyleGuide: '#single-line-classes'
   Enabled: pending
   VersionAdded: '1.84'
   VersionChanged: '1.86'
@@ -4049,6 +4286,10 @@ Style/EmptyMethod:
   VersionAdded: '0.46'
   VersionChanged: '1.61'
   EnforcedStyle: compact
+  # Expected to become the default in the next major release.
+  # Expanded empty methods are the pick of nearly every project that sets this.
+  Preview:
+    EnforcedStyle: expanded
   SupportedStyles:
     - compact
     - expanded
@@ -4161,12 +4402,14 @@ Style/FileEmpty:
 
 Style/FileNull:
   Description: 'Use `File::NULL` instead of hardcoding "dev/null".'
+  StyleGuide: '#null-devices'
   Enabled: pending
   SafeAutoCorrect: false
   VersionAdded: '1.69'
 
 Style/FileOpen:
   Description: 'Checks for `File.open` without a block, which can leak file descriptors.'
+  StyleGuide: '#auto-release-resources'
   Enabled: pending
   Safe: false
   VersionAdded: '1.85'
@@ -4221,6 +4464,10 @@ Style/FormatString:
   Description: 'Enforce the use of Kernel#sprintf, Kernel#format or String#%.'
   StyleGuide: '#sprintf'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # A pure preference between `format`, `sprintf` and `%`.
+  Preview:
+    Enabled: false
   VersionAdded: '0.19'
   VersionChanged: '0.49'
   EnforcedStyle: format
@@ -4231,7 +4478,12 @@ Style/FormatString:
 
 Style/FormatStringToken:
   Description: 'Use a consistent style for format string tokens.'
+  StyleGuide: '#named-format-tokens'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Most real format strings use `%s`, which is what the cop flags.
+  Preview:
+    Enabled: false
   VersionAdded: '0.49'
   VersionChanged: '1.74'
   EnforcedStyle: annotated
@@ -4260,6 +4512,10 @@ Style/FrozenStringLiteralComment:
                  Add the frozen_string_literal comment to the top of files
                  to help transition to frozen string literals by default.
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Ruby is moving towards frozen string literals by default.
+  Preview:
+    Enabled: false
   VersionAdded: '0.36'
   VersionChanged: '0.79'
   EnforcedStyle: always
@@ -4301,6 +4557,10 @@ Style/GuardClause:
   Description: 'Checks for conditionals that can be replaced with guard clauses.'
   StyleGuide: '#no-nested-conditionals'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Same objection as `IfUnlessModifier`, and among the most inline-suppressed cops.
+  Preview:
+    Enabled: false
   VersionAdded: '0.20'
   VersionChanged: '1.31'
   # `MinBodyLength` defines the number of lines of the a body of an `if` or `unless`
@@ -4420,6 +4680,7 @@ Style/HashSyntax:
 
 Style/HashTransformKeys:
   Description: 'Prefer `transform_keys` over `each_with_object`, `map`, or `to_h`.'
+  StyleGuide: '#hash-transform-methods'
   Enabled: true
   VersionAdded: '0.80'
   VersionChanged: '0.90'
@@ -4427,6 +4688,7 @@ Style/HashTransformKeys:
 
 Style/HashTransformValues:
   Description: 'Prefer `transform_values` over `each_with_object`, `map`, or `to_h`.'
+  StyleGuide: '#hash-transform-methods'
   Enabled: true
   VersionAdded: '0.80'
   VersionChanged: '0.90'
@@ -4455,6 +4717,10 @@ Style/IfUnlessModifier:
                  single-line body.
   StyleGuide: '#if-as-a-modifier'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Forces a shape on control flow that a quarter of configured projects switch off.
+  Preview:
+    Enabled: false
   VersionAdded: '0.9'
   VersionChanged: '0.30'
 
@@ -4597,7 +4863,7 @@ Style/KeywordArgumentsMerging:
 
 Style/KeywordParametersOrder:
   Description: 'Enforces that optional keyword parameters are placed at the end of the parameters list.'
-  StyleGuide: '#keyword-parameters-order'
+  StyleGuide: '#keyword-arguments-order'
   Enabled: true
   VersionAdded: '0.90'
   VersionChanged: '1.7'
@@ -4606,6 +4872,10 @@ Style/Lambda:
   Description: 'Use the new lambda literal syntax for single-line blocks.'
   StyleGuide: '#lambda-multi-line'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # A pure preference between `->` and `lambda`.
+  Preview:
+    Enabled: false
   VersionAdded: '0.9'
   VersionChanged: '0.40'
   EnforcedStyle: line_count_dependent
@@ -4630,6 +4900,7 @@ Style/LineEndConcatenation:
   Description: >-
                  Use \ instead of + or << to concatenate two string literals at
                  line end.
+  StyleGuide: '#heredoc-long-strings'
   Enabled: true
   SafeAutoCorrect: false
   VersionAdded: '0.18'
@@ -4639,6 +4910,7 @@ Style/MagicCommentFormat:
   Description: 'Use a consistent style for magic comments.'
   Enabled: pending
   VersionAdded: '1.35'
+  VersionChanged: '1.91'
   EnforcedStyle: snake_case
   SupportedStyles:
     # `snake` will enforce the magic comment is written
@@ -4658,7 +4930,9 @@ Style/MagicCommentFormat:
 Style/MapCompactWithConditionalBlock:
   Description: 'Prefer `select` or `reject` over `map { ... }.compact`.'
   Enabled: pending
+  SafeAutoCorrect: false
   VersionAdded: '1.30'
+  VersionChanged: '1.88'
 
 Style/MapIntoArray:
   Description: 'Checks for usages of `each` with `<<`, `push`, or `append` which can be replaced by `map`.'
@@ -4774,6 +5048,7 @@ Style/MissingRespondToMissing:
   StyleGuide: '#no-method-missing'
   Enabled: true
   VersionAdded: '0.56'
+  VersionChanged: '1.89'
 
 Style/MixinGrouping:
   Description: 'Checks for grouping of mixins in `class` and `module` bodies.'
@@ -4797,6 +5072,10 @@ Style/ModuleFunction:
   Description: 'Checks for usage of `extend self` in modules.'
   StyleGuide: '#module-function'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # `module_function` versus `extend self` is a preference, and the autocorrect is unsafe.
+  Preview:
+    Enabled: false
   VersionAdded: '0.11'
   VersionChanged: '0.65'
   EnforcedStyle: module_function
@@ -4904,6 +5183,10 @@ Style/NegatedIf:
                  (or control flow or).
   StyleGuide: '#unless-for-negatives'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # `if !x` versus `unless x` is a preference, and `unless` is contested on its own.
+  Preview:
+    Enabled: false
   VersionAdded: '0.20'
   VersionChanged: '0.48'
   EnforcedStyle: both
@@ -4924,7 +5207,7 @@ Style/NegatedIfElseCondition:
 
 Style/NegatedUnless:
   Description: 'Favor if over unless for negative conditions.'
-  StyleGuide: '#if-for-negatives'
+  StyleGuide: '#unless-for-negatives'
   Enabled: true
   VersionAdded: '0.69'
   EnforcedStyle: both
@@ -4998,6 +5281,10 @@ Style/Next:
   Description: 'Use `next` to skip iteration instead of a condition at the end.'
   StyleGuide: '#no-nested-conditionals'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Same objection as `IfUnlessModifier`: it forces a shape on loop bodies.
+  Preview:
+    Enabled: false
   VersionAdded: '0.22'
   VersionChanged: '1.75'
   # With `always` all conditions at the end of an iteration needs to be
@@ -5081,6 +5368,10 @@ Style/NumericLiterals:
                  readability.
   StyleGuide: '#underscores-in-numerics'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # Underscores in long numbers are a preference, and generated tables trip it constantly.
+  Preview:
+    Enabled: false
   VersionAdded: '0.9'
   VersionChanged: '0.48'
   MinDigits: 5
@@ -5099,6 +5390,10 @@ Style/NumericPredicate:
   # of the variables which rubocop doesn't have.
   Safe: false
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # A pure preference between `x > 0` and `x.positive?`.
+  Preview:
+    Enabled: false
   VersionAdded: '0.42'
   VersionChanged: '0.59'
   EnforcedStyle: predicate
@@ -5127,6 +5422,7 @@ Style/ObjectThen:
 
 Style/OneClassPerFile:
   Description: 'Checks that each source file defines at most one top-level class or module.'
+  StyleGuide: '#one-class-per-file'
   Enabled: pending
   VersionAdded: '1.85'
   VersionChanged: '1.86'
@@ -5210,6 +5506,10 @@ Style/ParallelAssignment:
                   matches on both sides of the assignment.
   StyleGuide: '#parallel-assignment'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # `a, b = 1, 2` is often the clearer form.
+  Preview:
+    Enabled: false
   VersionAdded: '0.32'
 
 Style/ParenthesesAroundCondition:
@@ -5261,6 +5561,10 @@ Style/PerlBackrefs:
   Description: 'Avoid Perl-style regex back references.'
   StyleGuide: '#no-perl-regexp-last-matchers'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # `$1` is idiomatic Ruby.
+  Preview:
+    Enabled: false
   VersionAdded: '0.13'
 
 Style/PredicateWithKind:
@@ -5302,6 +5606,10 @@ Style/RaiseArgs:
   Description: 'Checks the arguments passed to raise/fail.'
   StyleGuide: '#exception-class-messages'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # A pure preference between `raise Foo, msg` and `raise Foo.new(msg)`.
+  Preview:
+    Enabled: false
   Safe: false
   VersionAdded: '0.14'
   VersionChanged: '1.61'
@@ -5393,6 +5701,7 @@ Style/RedundantConditional:
 
 Style/RedundantConstantBase:
   Description: Avoid redundant `::` prefix on constant.
+  VersionChanged: '1.89'
   Enabled: pending
   VersionAdded: '1.40'
 
@@ -5491,6 +5800,7 @@ Style/RedundantInterpolationUnfreeze:
 
 Style/RedundantLineContinuation:
   Description: 'Checks for redundant line continuation.'
+  StyleGuide: '#no-trailing-backslash'
   Enabled: pending
   VersionAdded: '1.49'
 
@@ -5527,6 +5837,7 @@ Style/RedundantRegexpConstructor:
 
 Style/RedundantRegexpEscape:
   Description: 'Checks for redundant escapes in Regexps.'
+  StyleGuide: '#limit-escapes'
   Enabled: true
   VersionAdded: '0.85'
 
@@ -5587,6 +5898,10 @@ Style/RegexpLiteral:
   Description: 'Use / or %r around regular expressions.'
   StyleGuide: '#percent-r'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # A pure preference between `//` and `%r{}`.
+  Preview:
+    Enabled: false
   VersionAdded: '0.9'
   VersionChanged: '0.30'
   EnforcedStyle: slashes
@@ -5619,6 +5934,10 @@ Style/RescueStandardError:
   Enabled: true
   VersionAdded: '0.52'
   EnforcedStyle: explicit
+  # Expected to become the default in the next major release.
+  # A bare `rescue` is the pick of most projects that set this.
+  Preview:
+    EnforcedStyle: implicit
   # implicit: Do not include the error class, `rescue`
   # explicit: Require an error class `rescue StandardError`
   SupportedStyles:
@@ -5742,6 +6061,10 @@ Style/SignalException:
   Description: 'Checks for proper usage of fail and raise.'
   StyleGuide: '#prefer-raise-over-fail'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # `raise` versus `fail` stopped being a meaningful distinction long ago.
+  Preview:
+    Enabled: false
   VersionAdded: '0.11'
   VersionChanged: '0.37'
   EnforcedStyle: only_raise
@@ -5803,6 +6126,10 @@ Style/SpecialGlobalVars:
   Description: 'Avoid Perl-style global variables.'
   StyleGuide: '#no-cryptic-perlisms'
   Enabled: true
+  # Expected to be disabled by default in the next major release.
+  # The long names need `require 'English'`; the short ones are idiomatic.
+  Preview:
+    Enabled: false
   VersionAdded: '0.13'
   VersionChanged: '0.36'
   SafeAutoCorrect: false
@@ -5826,6 +6153,7 @@ Style/StabbyLambdaParentheses:
 Style/StaticClass:
   Description: 'Prefer modules to classes with only class methods.'
   StyleGuide: '#modules-vs-classes'
+  VersionChanged: '1.89'
   Enabled: false
   Safe: false
   VersionAdded: '1.3'
@@ -5867,6 +6195,10 @@ Style/StringLiterals:
   VersionAdded: '0.9'
   VersionChanged: '0.36'
   EnforcedStyle: single_quotes
+  # Expected to become the default in the next major release.
+  # Double quotes are what most Ruby is written with; Standard and omakase pick them too.
+  Preview:
+    EnforcedStyle: double_quotes
   SupportedStyles:
     - single_quotes
     - double_quotes
@@ -5881,6 +6213,10 @@ Style/StringLiteralsInInterpolation:
   Enabled: true
   VersionAdded: '0.27'
   EnforcedStyle: single_quotes
+  # Expected to become the default in the next major release.
+  # Follows `Style/StringLiterals`.
+  Preview:
+    EnforcedStyle: double_quotes
   SupportedStyles:
     - single_quotes
     - double_quotes
@@ -5937,6 +6273,10 @@ Style/SymbolArray:
   VersionAdded: '0.9'
   VersionChanged: '0.49'
   EnforcedStyle: percent
+  # Expected to become the default in the next major release.
+  # Bracketed arrays are the pick of nearly every project that sets this; Standard turns the cop off instead.
+  Preview:
+    EnforcedStyle: brackets
   MinSize: 2
   SupportedStyles:
     - percent
@@ -5973,11 +6313,21 @@ Style/TernaryParentheses:
   VersionAdded: '0.42'
   VersionChanged: '0.46'
   EnforcedStyle: require_no_parentheses
+  # Expected to become the default in the next major release.
+  # Parentheses only around complex conditions is the pick of nearly every project that sets this.
+  Preview:
+    EnforcedStyle: require_parentheses_when_complex
   SupportedStyles:
     - require_parentheses
     - require_no_parentheses
     - require_parentheses_when_complex
   AllowSafeAssignment: true
+
+Style/TimeNow:
+  Description: 'Prefer `Time.now` over `Time.new` when retrieving the current system time.'
+  StyleGuide: '#time-now'
+  Enabled: pending
+  VersionAdded: '1.90'
 
 Style/TopLevelMethodDefinition:
   Description: 'Looks for top-level method definitions.'
@@ -6069,6 +6419,7 @@ Style/TrailingUnderscoreVariable:
   Description: >-
                  Checks for the usage of unneeded trailing underscores at the
                  end of parallel variable assignment.
+  StyleGuide: '#trailing-underscore-variables'
   Enabled: true
   VersionAdded: '0.31'
   VersionChanged: '0.35'
@@ -6183,6 +6534,10 @@ Style/WordArray:
   VersionAdded: '0.9'
   VersionChanged: '1.19'
   EnforcedStyle: percent
+  # Expected to become the default in the next major release.
+  # Same preference as `SymbolArray`, and the two are configured together in practice.
+  Preview:
+    EnforcedStyle: brackets
   SupportedStyles:
     # percent style: %w(word1 word2)
     - percent

@@ -20,6 +20,12 @@ module RuboCop
       # to prevent conflicting rules. This is because it respects user configurations
       # that want to enable this cop which is disabled by default.
       #
+      # When `AllCops/UseProjectIndex` is enabled and the `rubydex` gem is
+      # installed, only genuinely ambiguous constants are reported: those
+      # that resolve to a different declaration through the surrounding
+      # nesting than they would fully qualified. This makes the cop practical
+      # to enable without `Only`/`Ignore` lists.
+      #
       # @example
       #   # By default checks every constant
       #
@@ -60,6 +66,8 @@ module RuboCop
       #   Login
       #
       class ConstantResolution < Base
+        include ProjectIndexHelp
+
         MSG = 'Fully qualify this constant to avoid possibly ambiguous resolution.'
 
         # @!method unqualified_const?(node)
@@ -69,11 +77,28 @@ module RuboCop
 
         def on_const(node)
           return if !unqualified_const?(node) || node.parent&.defined_module || node.loc.nil?
+          return if project_index && !ambiguous_resolution?(node)
 
           add_offense(node)
         end
 
         private
+
+        # When `AllCops/UseProjectIndex` is enabled, only genuinely ambiguous
+        # references are reported: the constant resolves to a different
+        # declaration through the lexical nesting than it would fully
+        # qualified. Names that resolve identically either way, or that the
+        # index cannot resolve at all (e.g. constants from gems), are not
+        # reported.
+        def ambiguous_resolution?(node)
+          name = node.short_name.to_s
+          relative = project_index.resolve_constant(name, lexical_nesting_of(node))
+          absolute = project_index.resolve_constant(name, [])
+
+          !relative.nil? && !absolute.nil? && relative.name != absolute.name
+        rescue StandardError
+          false
+        end
 
         def const_name?(name)
           name = name.to_s

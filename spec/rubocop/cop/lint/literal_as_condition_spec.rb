@@ -30,6 +30,24 @@ RSpec.describe RuboCop::Cop::Lint::LiteralAsCondition, :config do
       RUBY
     end
 
+    it "does not register an offense for truthy literal #{lit} in if with an empty body and an else branch" do
+      expect_no_offenses(<<~RUBY)
+        if #{lit}
+        else
+          foo
+        end
+      RUBY
+    end
+
+    it "does not register an offense for truthy literal #{lit} in if with an empty body and an elsif branch" do
+      expect_no_offenses(<<~RUBY)
+        if #{lit}
+        elsif condition
+          foo
+        end
+      RUBY
+    end
+
     it "registers an offense for truthy literal #{lit} in if-elsif" do
       expect_offense(<<~RUBY, lit: lit)
         if condition
@@ -45,6 +63,15 @@ RSpec.describe RuboCop::Cop::Lint::LiteralAsCondition, :config do
           top
         else
           foo
+        end
+      RUBY
+    end
+
+    it "does not register an offense for truthy literal #{lit} in elsif with an empty body" do
+      expect_no_offenses(<<~RUBY)
+        if condition
+          top
+        elsif #{lit}
         end
       RUBY
     end
@@ -139,6 +166,15 @@ RSpec.describe RuboCop::Cop::Lint::LiteralAsCondition, :config do
 
       expect_correction(<<~RUBY)
 
+      RUBY
+    end
+
+    it "does not register an offense for truthy literal #{lit} in unless with an empty else branch" do
+      expect_no_offenses(<<~RUBY)
+        unless #{lit}
+          top
+        else
+        end
       RUBY
     end
 
@@ -516,6 +552,25 @@ RSpec.describe RuboCop::Cop::Lint::LiteralAsCondition, :config do
       RUBY
     end
 
+    it "does not register an offense for falsey literal #{lit} in if with an empty else branch" do
+      expect_no_offenses(<<~RUBY)
+        if #{lit}
+          top
+        else
+        end
+      RUBY
+    end
+
+    it "does not register an offense for falsey literal #{lit} in elsif without else" do
+      expect_no_offenses(<<~RUBY)
+        if condition
+          top
+        elsif #{lit}
+          foo
+        end
+      RUBY
+    end
+
     it "registers an offense for falsey literal #{lit} in if-elsif" do
       expect_offense(<<~RUBY, lit: lit)
         if %{lit}
@@ -607,6 +662,15 @@ RSpec.describe RuboCop::Cop::Lint::LiteralAsCondition, :config do
 
       expect_correction(<<~RUBY)
         top
+      RUBY
+    end
+
+    it "does not register an offense for falsey literal #{lit} in unless with an empty body and an else branch" do
+      expect_no_offenses(<<~RUBY)
+        unless #{lit}
+        else
+          foo
+        end
       RUBY
     end
 
@@ -735,6 +799,28 @@ RSpec.describe RuboCop::Cop::Lint::LiteralAsCondition, :config do
         def foo
           puts nil || return if bar?
                ^^^ Literal `nil` appeared as a condition.
+        end
+      RUBY
+
+      expect_no_corrections
+    end
+
+    it 'registers an offense but does not autocorrect when a parenthesized `return` is used after `||`' do
+      expect_offense(<<~RUBY)
+        def clone(opts = nil || (return self))
+                         ^^^ Literal `nil` appeared as a condition.
+          super
+        end
+      RUBY
+
+      expect_no_corrections
+    end
+
+    it 'registers an offense but does not autocorrect when a parenthesized `return` is used after `&&`' do
+      expect_offense(<<~RUBY)
+        def foo(opts = 123 && (foo; return self))
+                       ^^^ Literal `123` appeared as a condition.
+          super
         end
       RUBY
 

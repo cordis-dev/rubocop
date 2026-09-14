@@ -8,7 +8,7 @@ gem 'asciidoctor'
 gem 'bump', require: false
 gem 'fiddle', platform: :windows if RUBY_VERSION >= '3.4'
 gem 'irb'
-gem 'mcp', '~> 0.16'
+gem 'mcp', '~> 1.0'
 gem 'memory_profiler', '!= 1.0.2', platform: :mri
 gem 'rake', '~> 13.0'
 # FIXME: rdoc 8.0+ depends on rbs, whose released C extension fails to build on JRuby.
@@ -17,7 +17,7 @@ gem 'rake', '~> 13.0'
 # https://github.com/ruby/rdoc/issues/1746
 gem 'rbs', '4.1.0.pre.2' if RUBY_ENGINE == 'jruby'
 gem 'rspec', '~> 3.7'
-gem 'rubocop-performance', '~> 1.26.0', require: false
+gem 'rubocop-performance', '~> 1.27.0', require: false
 gem 'rubocop-rake', '~> 0.7.0', require: false
 gem 'rubocop-rspec', '~> 3.10.1', require: false
 # Ruby LSP supports Ruby 3.0+.
@@ -28,7 +28,9 @@ gem 'ruby-lsp', '~> 0.24', platform: :mri if RUBY_VERSION >= '3.0'
 # native binaries for MRI on supported platforms, so we gate by `RUBY_ENGINE` to
 # keep JRuby and other engines unaffected.
 gem 'rubydex', require: false if RUBY_VERSION >= '3.2' && RUBY_ENGINE == 'ruby'
-gem 'simplecov', '~> 0.20'
+# SimpleCov 1.0 requires Ruby 3.2+. Coverage measurement is opt-in (`COVERAGE=1`)
+# and unnecessary on the older Rubies in the CI matrix.
+gem 'simplecov', '~> 1.0' if RUBY_VERSION >= '3.2'
 gem 'stackprof', platform: :mri
 gem 'test-queue'
 gem 'yard', '~> 0.9'

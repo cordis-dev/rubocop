@@ -38,7 +38,7 @@ module RuboCop
 
         private
 
-        # rubocop:disable Metrics/AbcSize
+        # rubocop:disable-next Metrics/AbcSize
         def autocorrect(corrector, node, begin_of_arguments)
           arguments = node.arguments
           joined_arguments = arguments.map(&:source).join(', ')
@@ -62,7 +62,6 @@ module RuboCop
           corrector.remove(arguments_range)
           corrector.insert_after(begin_of_arguments, joined_arguments)
         end
-        # rubocop:enable Metrics/AbcSize
 
         def last_line_source_of_arguments(arguments)
           processed_source[arguments.last_line - 1].strip
@@ -87,7 +86,12 @@ module RuboCop
         end
 
         def definition_width(node)
-          node.source_range.begin.join(node.arguments.source_range.end).length
+          # Measure the collapsed single-line width the autocorrect would
+          # produce, not the multi-line source length, so a signature that
+          # would fit on one line is not skipped.
+          signature = node.source_range.begin.join(node.arguments.source_range.end).source
+
+          signature.gsub(/\s+/, ' ').length
         end
       end
     end

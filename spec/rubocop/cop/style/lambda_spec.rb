@@ -1,6 +1,12 @@
 # frozen_string_literal: true
 
 RSpec.describe RuboCop::Cop::Style::Lambda, :config do
+  describe '.autocorrect_incompatible_with' do
+    it 'declares `Style::SymbolProc` as incompatible to avoid producing `->(x)(&:method)`' do
+      expect(described_class.autocorrect_incompatible_with).to include(RuboCop::Cop::Style::SymbolProc)
+    end
+  end
+
   context 'with enforced `lambda` style' do
     let(:cop_config) { { 'EnforcedStyle' => 'lambda' } }
 
@@ -14,6 +20,19 @@ RSpec.describe RuboCop::Cop::Style::Lambda, :config do
 
           expect_correction(<<~RUBY)
             f = lambda { |x| x }
+          RUBY
+        end
+      end
+
+      context 'with block-local (shadow) arguments' do
+        it 'preserves the shadow argument separator' do
+          expect_offense(<<~RUBY)
+            f = ->(x; y) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x; y| x }
           RUBY
         end
       end
@@ -108,6 +127,19 @@ RSpec.describe RuboCop::Cop::Style::Lambda, :config do
 
           expect_correction(<<~RUBY)
             f = -> { x }
+          RUBY
+        end
+      end
+
+      context 'with block-local (shadow) arguments' do
+        it 'preserves the shadow argument separator' do
+          expect_offense(<<~RUBY)
+            f = lambda { |x; y| x }
+                ^^^^^^ Use the `-> { ... }` lambda literal syntax for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = ->(x; y) { x }
           RUBY
         end
       end

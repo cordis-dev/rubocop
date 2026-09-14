@@ -167,13 +167,14 @@ module RuboCop
         PATTERN
 
         # rubocop:disable Metrics/AbcSize
-        # rubocop:disable Metrics/MethodLength
+        # rubocop:disable-next Metrics/MethodLength
         def on_or_asgn(node)
           lhs = node.lhs
           return unless lhs.ivasgn_type?
 
           method_node, method_name = find_definition(node)
           return unless method_node
+          return unless nameable_method?(method_name)
 
           body = method_node.body
           return unless body == node || body.children.last == node
@@ -191,7 +192,6 @@ module RuboCop
             corrector.replace(lhs.loc.name, "@#{suggested_var}")
           end
         end
-        # rubocop:enable Metrics/MethodLength
         # rubocop:enable Metrics/AbcSize
 
         # @!method defined_memoized?(node, ivar)
@@ -202,13 +202,14 @@ module RuboCop
             $(ivasgn %1 _))
         PATTERN
 
-        # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+        # rubocop:disable-next Metrics/AbcSize, Metrics/MethodLength
         def on_defined?(node)
           arg = node.first_argument
           return false unless arg.ivar_type?
 
           method_node, method_name = find_definition(node)
           return false unless method_node
+          return false unless nameable_method?(method_name)
 
           defined_memoized?(method_node.body, arg.name) do |defined_ivar, return_ivar, ivar_assign|
             return false if matches?(method_name, ivar_assign)
@@ -231,7 +232,6 @@ module RuboCop
             end
           end
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
         private
 
@@ -248,6 +248,13 @@ module RuboCop
           end
 
           nil
+        end
+
+        # Operator and other non-word method names (e.g. `[]`, `+`, `<=>`) cannot form a
+        # valid instance variable name, so there is no matching ivar to enforce and a
+        # suggested correction like `@[]` would be invalid Ruby.
+        def nameable_method?(method_name)
+          /\A[a-zA-Z_]\w*\z/.match?(method_name.to_s.delete('!?='))
         end
 
         def matches?(method_name, ivar_assign)

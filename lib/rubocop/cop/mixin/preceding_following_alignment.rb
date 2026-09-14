@@ -4,7 +4,7 @@ module RuboCop
   module Cop
     # Common functionality for checking whether an AST node/token is aligned
     # with something on a preceding or following line
-    # rubocop:disable Metrics/ModuleLength
+    # rubocop:disable-next Metrics/ModuleLength
     module PrecedingFollowingAlignment
       # Tokens that end with an `=`, as well as `<<`, that can be aligned together:
       # `=`, `==`, `===`, `!=`, `<=`, `>=`, `<<` and operator assignment (`+=`, etc).
@@ -69,7 +69,15 @@ module RuboCop
           line = processed_source.lines[lineno]
           index = line =~ /\S/
           next unless index
-          next if indent && indent != index
+
+          if indent
+            # When searching for the nearest line with the same indentation,
+            # more deeply indented lines are nested content of the current group
+            # and are skipped, but a less deeply indented line ends the enclosing block:
+            # an alignment anchor beyond it would be coincidental.
+            break if index < indent
+            next if index > indent
+          end
 
           return yield(range, line, lineno + 1)
         end
@@ -174,20 +182,69 @@ module RuboCop
       # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity
       # rubocop:disable Metrics/PerceivedComplexity, Metrics/MethodLength
       def relevant_assignment_lines(line_range)
+        relevant_lines(line_range, interrupting_operator_lines) do |line_number|
+          assignment_lines.include?(line_number)
+        end
+      end
+
+      def interrupting_operator_lines
+        @interrupting_operator_lines ||=
+          processed_source.tokens.each_with_object(Set.new) do |token, lines|
+            next unless ASSIGNMENT_OR_COMPARISON_TOKENS.include?(token.type)
+
+            lines << token.line unless assignment_lines.include?(token.line)
+          end
+      end
+
+      def alignment_lines(line_number)
+        @alignment_lines_by_line ||= {}
+        return @alignment_lines_by_line[line_number] if @alignment_lines_by_line.key?(line_number)
+
+        lines = alignment_line_ranges(line_number).flatten.uniq.sort.freeze
+
+        lines.each { |line| @alignment_lines_by_line[line] = lines }
+      end
+
+      def alignment_line_ranges(line_number)
+        last_line = processed_source.lines.length
+
+        [
+          relevant_lines(line_number.downto(1), definition_boundary_lines) do |line|
+            !aligned_comment_lines.include?(line)
+          end,
+          relevant_lines(line_number.upto(last_line), definition_boundary_lines) do |line|
+            !aligned_comment_lines.include?(line)
+          end
+        ]
+      end
+
+      def definition_boundary_lines
+        @definition_boundary_lines ||= begin
+          nodes = processed_source.ast&.each_node(:any_def) || []
+
+          nodes.each_with_object(Set.new) do |node, lines|
+            lines << node.first_line << node.last_line
+          end
+        end
+      end
+
+      def relevant_lines(line_range, boundary_lines = [])
         result                        = []
-        original_line_indent          = processed_source.line_indentation(line_range.first)
+        original_line                 = line_range.first
+        original_line_indent          = processed_source.line_indentation(original_line)
         relevant_line_indent_at_level = true
 
         line_range.each do |line_number|
           current_line_indent = processed_source.line_indentation(line_number)
           blank_line          = processed_source.lines[line_number - 1].blank?
 
-          if (current_line_indent < original_line_indent && !blank_line) ||
+          if (line_number != original_line && boundary_lines.include?(line_number)) ||
+             (current_line_indent < original_line_indent && !blank_line) ||
              (relevant_line_indent_at_level && blank_line)
             break
           end
 
-          result << line_number if assignment_lines.include?(line_number) &&
+          result << line_number if yield(line_number) &&
                                    current_line_indent == original_line_indent
 
           unless blank_line
@@ -214,6 +271,5 @@ module RuboCop
         asgn_tokens.reject { |t| eqls_to_ignore.include?(t.begin_pos) }
       end
     end
-    # rubocop:enable Metrics/ModuleLength
   end
 end

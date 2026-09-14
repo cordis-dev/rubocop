@@ -86,7 +86,9 @@ module RuboCop
 
       def message(offense)
         message =
-          if offense.corrected_with_todo?
+          if offense.disabled?
+            magenta('[Suppressed] ')
+          elsif offense.corrected_with_todo?
             green('[Todo] ')
           elsif offense.corrected?
             green('[Corrected] ')
@@ -104,7 +106,7 @@ module RuboCop
         include Colorizable
         include TextUtil
 
-        # rubocop:disable Metrics/ParameterLists
+        # rubocop:disable-next Metrics/ParameterLists
         def initialize(
           file_count, offense_count, correction_count, correctable_count, rainbow,
           safe_autocorrect: false
@@ -116,7 +118,6 @@ module RuboCop
           @rainbow = rainbow
           @safe_autocorrect = safe_autocorrect
         end
-        # rubocop:enable Metrics/ParameterLists
 
         def summary
           if @correction_count.positive?

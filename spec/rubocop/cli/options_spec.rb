@@ -731,6 +731,86 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
           end
         end
 
+        context 'when specifying `NewCops` for the Style department in .rubocop.yml' do
+          let(:output) { `ruby -I . "#{rubocop}" --require redirect.rb` }
+          let(:all_cops_config) { '' }
+          let(:cli_option) { '' }
+
+          before do
+            create_file('rubocop_ext.rb', <<~RUBY)
+              module RuboCop
+                module Cop
+                  module Style
+                    class SomeCop < Base
+                      def on_new_investigation
+                        add_global_offense('Some message')
+                      end
+                    end
+                  end
+                end
+              end
+            RUBY
+
+            create_file('.rubocop.yml', <<~YAML)
+              require: rubocop_ext
+
+              #{all_cops_config}
+
+              Style:
+                NewCops: #{new_cops_value}
+
+              Style/SomeCop:
+                Description: Something
+                Enabled: pending
+                VersionAdded: '0.80'
+            YAML
+          end
+
+          context 'when the cop was added after the specified version' do
+            let(:new_cops_value) { "'0.79'" }
+
+            it 'displays a pending cop warning and does not run the cop' do
+              expect(output).to start_with(pending_cop_warning)
+              expect(output).to include("Style/SomeCop: # new in 0.80\n  Enabled: true")
+              expect(output).not_to include('Some message')
+            end
+          end
+
+          context 'when the cop was added in the specified version' do
+            let(:new_cops_value) { "'0.80'" }
+
+            it 'does not include the cop in the pending cop warning and runs the cop' do
+              expect(output).not_to include('Style/SomeCop: # new in 0.80')
+              expect(output).to include('Some message')
+            end
+          end
+
+          context 'when `AllCops` has `NewCops: disable`' do
+            let(:new_cops_value) { "'0.80'" }
+            let(:all_cops_config) { <<~YAML }
+              AllCops:
+                NewCops: disable
+            YAML
+
+            it 'does not include the cop in the pending cop warning and runs the cop because ' \
+               'the department takes precedence over `AllCops`' do
+              expect(output).not_to include('Style/SomeCop: # new in 0.80')
+              expect(output).to include('Some message')
+            end
+          end
+
+          context 'when using `--disable-pending-cops` command-line option' do
+            let(:new_cops_value) { 'enable' }
+            let(:output) { `ruby -I . "#{rubocop}" --require redirect.rb --disable-pending-cops` }
+
+            it 'does not display a pending cop warning and does not run the cop because ' \
+               'the command-line option takes precedence over .rubocop.yml' do
+              expect(output).not_to start_with(pending_cop_warning)
+              expect(output).not_to include('Some message')
+            end
+          end
+        end
+
         context 'when Style department is disabled' do
           before do
             create_file('.rubocop.yml', <<~YAML)
@@ -1296,7 +1376,7 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
 
       expect(cli.run(['--format', 'emacs', '--display-style-guide', 'example1.rb'])).to eq(1)
 
-      output = "#{file}:1:6: C: [Correctable] Security/JSONLoad: " \
+      output = "#{file}:1:6: W: [Correctable] Security/JSONLoad: " \
                "Prefer `JSON.parse` over `JSON.load`. (#{urls})"
       expect($stdout.string.lines.to_a[-1]).to eq([output, ''].join("\n"))
     end
@@ -1323,7 +1403,7 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
         printed_config = if defined?(YAML.unsafe_load) # RUBY_VERSION >= '3.1.0'
                            YAML.unsafe_load(out.join)
                          else
-                           YAML.load(out.join) # rubocop:disable Security/YAMLLoad
+                           YAML.load(out.join) # rubocop:disable Security/YAMLLoad -- the input is written by this spec
                          end
 
         expected_cop_names.each do |cop_name|
@@ -1691,7 +1771,7 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
         end
       end
 
-      # rubocop:disable Layout/LineContinuationLeadingSpace
+      # rubocop:disable-next Layout/LineContinuationLeadingSpace -- the source under test is what it is
       context 'when clang format is specified' do
         it 'outputs with clang format' do
           create_file('example1.rb', ['x= 0 ', '#' * 130, 'y ', 'puts x'])
@@ -1786,7 +1866,6 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
           ].join("\n"))
         end
       end
-      # rubocop:enable Layout/LineContinuationLeadingSpace
 
       context 'when emacs format is specified' do
         it 'outputs with emacs format' do
@@ -2565,7 +2644,18 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
   end
 
   describe '--mcp' do
-    let(:initialize_request) { { jsonrpc: '2.0', id: '1', method: 'initialize' }.to_json }
+    let(:initialize_request) do
+      {
+        jsonrpc: '2.0',
+        id: '1',
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          clientInfo: { name: 'test_client', version: '1.0.0' }
+        }
+      }.to_json
+    end
 
     it 'starts MCP server and responds to initialize request' do
       # Using `cli.run` would not detect missing requires because spec_helper.rb

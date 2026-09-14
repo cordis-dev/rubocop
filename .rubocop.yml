@@ -36,6 +36,18 @@ Naming/PredicatePrefix:
     - def_node_matcher
     - def_node_search
 
+Style/DisableCopsWithinSourceCodeDirective:
+  Enabled: true
+  AllowWithReason: true
+  AllowedCops:
+    - Metrics
+    - RSpec
+  Exclude:
+    # Its own `@example` blocks show unjustified directives, which is the whole
+    # point of them. The cop cannot be silenced by a directive once it is
+    # explicitly enabled, so the file has to be excluded here.
+    - 'lib/rubocop/cop/style/disable_cops_within_source_code_directive.rb'
+
 Style/FormatStringToken:
   # Because we parse a lot of source codes from strings. Percent arrays
   # look like unannotated format string tokens to this cop.
@@ -73,6 +85,13 @@ Layout/RedundantLineBreak:
 Layout/TrailingWhitespace:
   AllowInHeredoc: false
 
+# The deprecated module itself is under test there; whether the reference
+# resolves depends on rubydex availability, so an inline disable would be
+# flagged as redundant in environments without the index.
+Lint/DeprecatedReference:
+  Exclude:
+    - 'spec/rubocop/cop/mixin/enforce_superclass_spec.rb'
+
 Lint/AmbiguousBlockAssociation:
   Exclude:
     - 'spec/**/*.rb'
@@ -89,6 +108,7 @@ Layout/LineLength:
   Max: 100
   AllowedPatterns:
     - !ruby/regexp /\A +(it|describe|context|shared_examples|include_examples|it_behaves_like) ["']/
+    - !ruby/regexp /\A +register_cop :/
 
 Lint/InterpolationCheck:
   Exclude:
@@ -113,11 +133,16 @@ Metrics/BlockLength:
 Metrics/ClassLength:
   Exclude:
     - lib/rubocop/config_obsoletion.rb
+    - lib/rubocop/lsp/routes.rb
     - lib/rubocop/options.rb
 
 Metrics/ModuleLength:
   Exclude:
     - 'spec/**/*.rb'
+    # Department modules are generated lists of `register_cop` directives.
+    - lib/rubocop/cop/layout.rb
+    - lib/rubocop/cop/lint.rb
+    - lib/rubocop/cop/style.rb
 
 Naming/InclusiveLanguage:
   Enabled: true
@@ -207,6 +232,7 @@ RSpec/SpecFilePathFormat:
     RedundantLetRuboCopConfigNew: redundant_let_rubocop_config_new
   Exclude:
     - spec/rubocop/cop/mixin/enforce_superclass_spec.rb
+    - spec/rubocop/cop/mixin/project_index_help_spec.rb
 
 RSpec/MessageSpies:
   EnforcedStyle: receive

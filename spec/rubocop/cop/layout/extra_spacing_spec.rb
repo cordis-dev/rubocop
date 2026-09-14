@@ -366,6 +366,164 @@ RSpec.describe RuboCop::Cop::Layout::ExtraSpacing, :config do
         end
       RUBY
     end
+
+    it 'registers offenses and corrects repeated extra spacing' do
+      expect_offense(<<~RUBY)
+        RSpec.describe 'Test' do
+          let(:low_group)   { create(:low_group) }
+                         ^^ Unnecessary spacing detected.
+          let(:medium_group)   { create(:medium_group) }
+                            ^^ Unnecessary spacing detected.
+          let(:normal_group)   { create(:normal_group) }
+                            ^^ Unnecessary spacing detected.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        RSpec.describe 'Test' do
+          let(:low_group) { create(:low_group) }
+          let(:medium_group) { create(:medium_group) }
+          let(:normal_group) { create(:normal_group) }
+        end
+      RUBY
+    end
+
+    it 'accepts extra spacing that aligns repeated tokens' do
+      expect_no_offenses(<<~RUBY)
+        RSpec.describe 'Test' do
+          let(:low_group)      { create(:low_group) }
+          let(:medium_group)   { create(:medium_group) }
+          let(:normal_group)   { create(:normal_group) }
+        end
+      RUBY
+    end
+
+    it 'registers offenses when a differently spaced token is beyond a blank line' do
+      expect_offense(<<~RUBY)
+        foo(:a)   { bar }
+               ^^ Unnecessary spacing detected.
+        foo(:b)   { bar }
+               ^^ Unnecessary spacing detected.
+
+        foo(:abc) { bar }
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo(:a) { bar }
+        foo(:b) { bar }
+
+        foo(:abc) { bar }
+      RUBY
+    end
+
+    it 'registers offenses when a differently spaced token is beyond a method definition' do
+      expect_offense(<<~RUBY)
+        foo(:a)   { bar }
+               ^^ Unnecessary spacing detected.
+        foo(:b)   { bar }
+               ^^ Unnecessary spacing detected.
+        def unrelated
+          bar
+        end
+        foo(:abc) { bar }
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo(:a) { bar }
+        foo(:b) { bar }
+        def unrelated
+          bar
+        end
+        foo(:abc) { bar }
+      RUBY
+    end
+
+    it 'registers offenses when unrelated aligned code follows repeated extra spacing' do
+      expect_offense(<<~RUBY)
+        foo(:a)   { bar }
+               ^^ Unnecessary spacing detected.
+        foo(:b)   { bar }
+               ^^ Unnecessary spacing detected.
+        xy    = 1
+        abcde = 2
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo(:a) { bar }
+        foo(:b) { bar }
+        xy    = 1
+        abcde = 2
+      RUBY
+    end
+
+    it 'accepts uniformly padded tokens when another column on the same lines varies' do
+      expect_no_offenses(<<~RUBY)
+        it_behaves_like 'foo', 'var = if',     'test',  'end'
+        it_behaves_like 'foo', 'var = unless', 'test',  'end'
+      RUBY
+    end
+
+    it 'accepts extra spacing that aligns tokens of different kinds' do
+      expect_no_offenses(<<~RUBY)
+        register(:a,    1)
+        register(:bb,   :s)
+        register(:ccc,  2)
+      RUBY
+    end
+
+    it 'registers an offense and corrects when the only vertically aligned line is in a preceding sibling block' do
+      expect_offense(<<~RUBY)
+        foo do
+          bar(:abcd) { it.qux }
+        end
+
+        foo do
+          bar(:b) {  it }
+                   ^ Unnecessary spacing detected.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo do
+          bar(:abcd) { it.qux }
+        end
+
+        foo do
+          bar(:b) { it }
+        end
+      RUBY
+    end
+
+    it 'registers an offense and corrects when an assignment is aligned only with one in a preceding sibling block' do
+      expect_offense(<<~RUBY)
+        if foo
+          aaa  = 1
+             ^ Unnecessary spacing detected.
+        end
+        if bar
+          bbb  = 1
+             ^ Unnecessary spacing detected.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        if foo
+          aaa = 1
+        end
+        if bar
+          bbb = 1
+        end
+      RUBY
+    end
+
+    it 'allows extra spacing when aligned with an assignment beyond a nested multiline entry' do
+      expect_no_offenses(<<~RUBY)
+        foo  = {
+                 a: 1
+               }
+        bar  = 2
+      RUBY
+    end
   end
 
   context 'when AllowForAlignment is false' do
@@ -524,6 +682,23 @@ RSpec.describe RuboCop::Cop::Layout::ExtraSpacing, :config do
         @areas = params[:param].map do |ca_params|
                    ca_params = ActionController::Parameters.new(stuff)
                  end
+      RUBY
+    end
+
+    it 'does not register an offense when assignments are separated by a line ' \
+       'with another alignable operator' do
+      expect_no_offenses(<<~RUBY)
+        aaaa = b
+        e << f
+        g += h
+      RUBY
+    end
+
+    it 'does not register an offense when assignments are separated by a comparison' do
+      expect_no_offenses(<<~RUBY)
+        aaaa = b
+        raise if e == f
+        g += h
       RUBY
     end
 

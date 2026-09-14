@@ -41,7 +41,11 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
         result: {
           capabilities: {
             textDocumentSync: { openClose: true, change: 2 },
-            documentFormattingProvider: true
+            documentFormattingProvider: true,
+            codeActionProvider: { codeActionKinds: ['quickfix'] },
+            executeCommandProvider: {
+              commands: ['rubocop.formatAutocorrects', 'rubocop.formatAutocorrectsAll']
+            }
           }
         }
       )
@@ -168,7 +172,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
                 ],
                 correctable: true
               },
-              message: 'Layout/SpaceInsideArrayLiteralBrackets: Do not use space inside array brackets.', # rubocop:disable Layout/LineLength
+              message: 'Layout/SpaceInsideArrayLiteralBrackets: Do not use space inside array brackets.', # rubocop:disable Layout/LineLength -- the expected message is verbatim
               range: {
                 start: { character: 4, line: 2 },
                 end: { character: 6, line: 2 }
@@ -179,6 +183,88 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
           ], uri: 'file:///path/to/file.rb'
         }
       )
+    end
+  end
+
+  describe 'code action' do
+    let(:autocorrect_action) do
+      {
+        title: 'Autocorrect Style/FrozenStringLiteralComment',
+        kind: 'quickfix',
+        isPreferred: true,
+        edit: {
+          documentChanges: [{
+            textDocument: { uri: 'file:///path/to/file.rb', version: nil },
+            edits: [{
+              newText: "# frozen_string_literal: true\n",
+              range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } }
+            }]
+          }]
+        }
+      }
+    end
+    let(:disable_action) do
+      {
+        title: 'Disable Style/FrozenStringLiteralComment for this line',
+        kind: 'quickfix',
+        edit: {
+          documentChanges: [{
+            textDocument: { uri: 'file:///path/to/file.rb', version: nil },
+            edits: [{
+              newText: ' # rubocop:disable Style/FrozenStringLiteralComment',
+              range: { start: { line: 0, character: 6 }, end: { line: 0, character: 6 } }
+            }]
+          }]
+        }
+      }
+    end
+    let(:diagnostic) do
+      {
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+        data: { correctable: true, code_actions: [autocorrect_action, disable_action] }
+      }
+    end
+    let(:requests) do
+      [{
+        jsonrpc: '2.0',
+        id: 5,
+        method: 'textDocument/codeAction',
+        params: {
+          textDocument: { uri: 'file:///path/to/file.rb' },
+          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+          context: { diagnostics: [diagnostic], only: ['quickfix'] }
+        }
+      }]
+    end
+
+    it 'returns the quickfix actions the diagnostics carry' do
+      expect(stderr).to eq('')
+      expect(messages.count).to eq(1)
+      expect(messages.first).to eq(
+        jsonrpc: '2.0',
+        id: 5,
+        result: [autocorrect_action, disable_action]
+      )
+    end
+
+    context 'when the request restricts the kinds to ones the actions do not match' do
+      let(:requests) do
+        [{
+          jsonrpc: '2.0',
+          id: 6,
+          method: 'textDocument/codeAction',
+          params: {
+            textDocument: { uri: 'file:///path/to/file.rb' },
+            range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+            context: { diagnostics: [diagnostic], only: ['source.fixAll'] }
+          }
+        }]
+      end
+
+      it 'returns no actions' do
+        expect(stderr).to eq('')
+        expect(messages.first).to eq(jsonrpc: '2.0', id: 6, result: [])
+      end
     end
   end
 
@@ -295,7 +381,7 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
                 ],
                 correctable: false
               },
-              message: "Lint/Syntax: unexpected token tIDENTIFIER\n\nThis offense is not autocorrectable.\n", # rubocop:disable Layout/LineLength
+              message: "Lint/Syntax: unexpected token tIDENTIFIER\n\nThis offense is not autocorrectable.\n", # rubocop:disable Layout/LineLength -- the expected message is verbatim
               range: {
                 start: { character: 8, line: 0 },
                 end: { character: 9, line: 0 }
@@ -1373,6 +1459,61 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
     end
   end
 
+  describe 'execute command without arguments' do
+    let(:requests) do
+      [{
+        jsonrpc: '2.0',
+        id: 99,
+        method: 'workspace/executeCommand',
+        params: {
+          command: 'rubocop.formatAutocorrects'
+        }
+      }]
+    end
+
+    it 'handles requests' do
+      expect(stderr.chomp).to eq(
+        '[server] Missing document URI in arguments for rubocop.formatAutocorrects'
+      )
+      expect(messages.last).to eq(
+        jsonrpc: '2.0',
+        id: 99,
+        error: {
+          code: -32_602,
+          message: 'Missing document URI in arguments for rubocop.formatAutocorrects'
+        }
+      )
+    end
+  end
+
+  describe 'execute command with empty arguments' do
+    let(:requests) do
+      [{
+        jsonrpc: '2.0',
+        id: 99,
+        method: 'workspace/executeCommand',
+        params: {
+          command: 'rubocop.formatAutocorrectsAll',
+          arguments: []
+        }
+      }]
+    end
+
+    it 'handles requests' do
+      expect(stderr.chomp).to eq(
+        '[server] Missing document URI in arguments for rubocop.formatAutocorrectsAll'
+      )
+      expect(messages.last).to eq(
+        jsonrpc: '2.0',
+        id: 99,
+        error: {
+          code: -32_602,
+          message: 'Missing document URI in arguments for rubocop.formatAutocorrectsAll'
+        }
+      )
+    end
+  end
+
   describe 'did open on ignored path' do
     let(:requests) do
       [{
@@ -1639,11 +1780,44 @@ RSpec.describe RuboCop::LSP::Server, :isolated_environment do
     end
 
     it 'decodes URI-encoded paths for file system operations' do
-      # rubocop:disable RSpec/AnyInstance
+      # rubocop:disable-next RSpec/AnyInstance
       expect_any_instance_of(RuboCop::Runner).to receive(:run).with(
         ['/path/with spaces/file.rb']
       ).and_call_original
-      # rubocop:enable RSpec/AnyInstance
+
+      result
+    end
+  end
+
+  describe 'when a document is saved' do
+    let(:requests) do
+      [{
+        jsonrpc: '2.0',
+        method: 'textDocument/didSave',
+        params: { textDocument: { uri: 'file:///path/to/file.rb' } }
+      }]
+    end
+
+    it 'refreshes the project index' do
+      # rubocop:disable-next RSpec/AnyInstance
+      expect_any_instance_of(RuboCop::Lsp::StdinRunner).to receive(:reset_project_index)
+
+      result
+    end
+  end
+
+  describe 'when a watched source file changes' do
+    let(:requests) do
+      [{
+        jsonrpc: '2.0',
+        method: 'workspace/didChangeWatchedFiles',
+        params: { changes: [{ uri: 'file:///path/to/other.rb' }] }
+      }]
+    end
+
+    it 'refreshes the project index' do
+      # rubocop:disable-next RSpec/AnyInstance
+      expect_any_instance_of(RuboCop::Lsp::StdinRunner).to receive(:reset_project_index)
 
       result
     end

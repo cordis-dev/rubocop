@@ -236,6 +236,24 @@ RSpec.describe RuboCop::ConfigObsoletion do
       end
     end
 
+    context 'when the configuration includes a removed cop that only warns' do
+      let(:hash) { { 'Style/DoubleCopDisableDirective' => { Enabled: true } } }
+
+      let(:expected_warnings) do
+        [
+          <<~OUTPUT.chomp
+            The `Style/DoubleCopDisableDirective` cop has been removed since it has been superseded by `Lint/CopDirectiveSyntax`. Please use `Lint/CopDirectiveSyntax` instead.
+            (obsolete configuration found in example/.rubocop.yml, please update it)
+          OUTPUT
+        ]
+      end
+
+      it 'warns instead of failing' do
+        expect { config_obsoletion.reject_obsolete! }.not_to raise_error
+        expect(config_obsoletion.warnings).to eq(expected_warnings)
+      end
+    end
+
     context 'when the configuration includes any extracted cops' do
       let(:hash) do
         {
@@ -319,6 +337,12 @@ RSpec.describe RuboCop::ConfigObsoletion do
 
     context 'when the extensions are loaded via inherit_gem', :restore_registry do
       include_context 'mock console output'
+
+      # Resolving the inherited gem config requires `rubocop-performance` in-process,
+      # which may only lazily register its cops (rubocop-performance 1.27+). Load them while
+      # the temporary global registry is still in place, so that their deferred class definitions
+      # cannot fire later and enlist into the frozen global registry.
+      after { RuboCop::Cop::Registry.global.load_all_lazy_cops }
 
       let(:resolver) { RuboCop::ConfigLoaderResolver.new }
       let(:gem_root) { File.expand_path('gems') }

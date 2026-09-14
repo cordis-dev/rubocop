@@ -33,6 +33,8 @@ module RuboCop
 
       define_options.parse!(args)
 
+      imply_autocorrect_for_diff
+
       @validator.validate_compatibility
 
       if @options[:stdin]
@@ -51,7 +53,16 @@ module RuboCop
 
     private
 
-    # rubocop:disable Metrics/AbcSize
+    # `--diff` is a dry run of autocorrection, so it turns autocorrection on
+    # unless the user already picked a mode with `-a`, `-A` or `-x`.
+    def imply_autocorrect_for_diff
+      return unless @options[:diff] && !@options[:autocorrect]
+
+      @options[:safe_autocorrect] = true
+      @options[:autocorrect] = true
+    end
+
+    # rubocop:disable-next Metrics/AbcSize
     def define_options
       OptionParser.new do |opts|
         opts.banner = rainbow.wrap('Usage: rubocop [options] [file1, file2, ...]').bright
@@ -71,7 +82,6 @@ module RuboCop
         add_profile_options(opts) if RUBY_ENGINE == 'ruby' && !Platform.windows?
       end
     end
-    # rubocop:enable Metrics/AbcSize
 
     def add_check_options(opts) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       section(opts, 'Basic Options') do # rubocop:disable Metrics/BlockLength
@@ -93,12 +103,17 @@ module RuboCop
         option(opts, '--enable-pending-cops')
         option(opts, '--disable-all-cops')
         option(opts, '--enable-all-cops')
+        option(opts, '--[no-]preview')
         option(opts, '--ignore-disable-comments')
         option(opts, '--force-exclusion')
         option(opts, '--only-recognized-file-types')
         option(opts, '--ignore-parent-exclusion')
         option(opts, '--ignore-unrecognized-cops')
         option(opts, '--force-default-config')
+        option(opts, '--changed [REVISION]') do |revision|
+          @options[:changed] = revision || ChangedFiles::DEFAULT_REVISION
+          @validator.validate_changed_revision(revision)
+        end
         option(opts, '-s', '--stdin FILE')
         option(opts, '--editor-mode')
         option(opts, '-P', '--[no-]parallel')
@@ -132,10 +147,11 @@ module RuboCop
         option(opts, '--display-only-fail-level-offenses')
         option(opts, '--display-only-correctable')
         option(opts, '--display-only-safe-correctable')
+        option(opts, '--display-suppressed')
       end
     end
 
-    # rubocop:todo Naming/InclusiveLanguage
+    # rubocop:todo Naming/InclusiveLanguage -- `--auto-correct` is the deprecated flag name
     # the autocorrect command-line arguments map to the autocorrect @options values like so:
     #                            :fix_layout  :autocorrect  :safe_autocorrect  :autocorrect_all
     # -x, --fix-layout           true         true          -                  -
@@ -161,6 +177,8 @@ module RuboCop
         end
 
         option(opts, '--disable-uncorrectable')
+
+        option(opts, '--diff')
       end
     end
     # rubocop:enable Naming/InclusiveLanguage
@@ -172,6 +190,8 @@ module RuboCop
         option(opts, '--regenerate-todo') do
           @options.replace(ConfigRegeneration.new.options.merge(@options))
         end
+
+        option(opts, '--report-unused-todo-entries')
 
         option(opts, '--exclude-limit COUNT') { @validator.validate_exclude_limit_option }
         option(opts, '--no-exclude-limit')
@@ -382,7 +402,7 @@ module RuboCop
       %i[only except].each { |opt| OptionsValidator.validate_cop_list(@options[opt]) }
     end
 
-    # rubocop:disable Metrics/AbcSize
+    # rubocop:disable-next Metrics/AbcSize
     def validate_compatibility # rubocop:disable Metrics/MethodLength
       if only_includes_redundant_disable?
         raise OptionArgumentError, 'Lint/RedundantCopDisableDirective cannot be used with --only.'
@@ -398,6 +418,8 @@ module RuboCop
       validate_display_only_failed_and_display_only_correctable
       validate_display_only_correctable_and_autocorrect
       validate_lsp_and_editor_mode
+      validate_diff
+      validate_changed_and_stdin
       validate_enable_all_cops_and_disable_all_cops
       disable_parallel_when_invalid_option_combo
 
@@ -405,7 +427,6 @@ module RuboCop
 
       raise OptionArgumentError, "Incompatible cli options: #{incompatible_options.inspect}"
     end
-    # rubocop:enable Metrics/AbcSize
 
     def validate_auto_gen_config
       return if @options.key?(:auto_gen_config)
@@ -444,6 +465,20 @@ module RuboCop
 
       raise OptionArgumentError,
             '--display-only-failed cannot be used together with other display options.'
+    end
+
+    # `--diff` promises not to write anything, and `--auto-gen-config` exists to
+    # write a file.
+    def validate_diff
+      return unless @options.key?(:diff) && @options.key?(:auto_gen_config)
+
+      raise OptionArgumentError, '--diff cannot be used with --auto-gen-config.'
+    end
+
+    def validate_changed_and_stdin
+      return unless @options.key?(:changed) && @options.key?(:stdin)
+
+      raise OptionArgumentError, '--changed cannot be used with --stdin.'
     end
 
     def validate_lsp_and_editor_mode
@@ -510,6 +545,17 @@ module RuboCop
       @incompatible_options ||= @options.keys & Options::EXITING_OPTIONS
     end
 
+    # OptionParser hands `--changed lib/` the path as the revision, which is a
+    # natural thing to type, so point at the fix rather than at git's error.
+    def validate_changed_revision(revision)
+      return unless revision && File.exist?(revision)
+
+      raise OptionArgumentError,
+            "--changed takes a git revision, but `#{revision}` is a path. Write the revision " \
+            "as `--changed=#{revision}` if that is really what you meant, or drop it to " \
+            'compare against HEAD.'
+    end
+
     def validate_exclude_limit_option
       return if /^\d+$/.match?(@options[:exclude_limit])
 
@@ -527,7 +573,7 @@ module RuboCop
 
   # This module contains help texts for command line options.
   # @api private
-  # rubocop:disable Metrics/ModuleLength
+  # rubocop:disable-next Metrics/ModuleLength
   module OptionsHelp
     MAX_EXCL = RuboCop::Options::DEFAULT_MAXIMUM_EXCLUSION_ITEMS.to_s
     FORMATTER_OPTION_LIST = RuboCop::Formatter::FormatterSet::BUILTIN_FORMATTERS_FOR_KEYS.keys
@@ -545,6 +591,8 @@ module RuboCop
       regenerate_todo:                  ['Regenerate the TODO configuration file using',
                                          'the last configuration. If there is no existing',
                                          'TODO file, acts like --auto-gen-config.'],
+      report_unused_todo_entries:       ['Also report TODO configuration file entries that',
+                                         'are no longer needed, and fail if any are found.'],
       offense_counts:                   ['Include offense counts in configuration',
                                          'file generated by --auto-gen-config.',
                                          'Default is true.'],
@@ -569,6 +617,10 @@ module RuboCop
       disable_uncorrectable:            ['Used with --autocorrect to annotate any',
                                          'offenses that do not support autocorrect',
                                          'with `rubocop:todo` comments.'],
+      diff:                             ['Print a unified diff of what autocorrection',
+                                         'would change, without writing any files.',
+                                         'Turns on safe autocorrection unless a mode',
+                                         'was already given with -a, -A or -x.'],
       no_exclude_limit:                 ['Do not set the limit for how many files to exclude.'],
       force_exclusion:                  ['Any files excluded by `Exclude` in configuration',
                                          'files will be excluded, even if given explicitly',
@@ -581,6 +633,10 @@ module RuboCop
       ignore_parent_exclusion:          ['Prevent from inheriting `AllCops/Exclude` from',
                                          'parent folders.'],
       ignore_unrecognized_cops:         ['Ignore unrecognized cops or departments in the config.'],
+      changed:                          ['Inspect only the files that differ from a git',
+                                         'revision, defaulting to HEAD. Untracked files',
+                                         'count as changed. Pass a revision with',
+                                         '`--changed=REVISION`.'],
       force_default_config:             ['Use default configuration even if configuration',
                                          'files are present in the directory tree.'],
       format:                           ['Choose an output formatter. This option',
@@ -595,6 +651,7 @@ module RuboCop
                                          'specified --format, or the default format',
                                          'if no format is specified.'],
       fail_level:                       ['Minimum severity for exit with error code.',
+                                         'Overrides `AllCops: FailLevel` in the configuration.',
                                          '  [A] autocorrect',
                                          '  [I] info',
                                          '  [R] refactor',
@@ -611,6 +668,8 @@ module RuboCop
       display_only_correctable:         ['Only output correctable offense messages.'],
       display_only_safe_correctable:    ['Only output safe-correctable offense messages',
                                          'when combined with --display-only-correctable.'],
+      display_suppressed:               ['Also output offenses suppressed by directive',
+                                         'comments. They do not affect the exit code.'],
       show_cops:                        ['Show the given cops, or all cops by',
                                          'default, and their configurations for the',
                                          'current directory.',
@@ -637,6 +696,10 @@ module RuboCop
                                          '`AllCops/DisabledByDefault` in config files.'],
       display_style_guide:              'Display style guide URLs in offense messages.',
       enable_pending_cops:              'Run with pending cops.',
+      preview:                          ['Opt in to unstable behavior: cops that are',
+                                         '`Enabled: preview`, and changes to existing',
+                                         'cops that are not the default yet.',
+                                         'Overrides `AllCops: Preview`.'],
       enable_all_cops:                  ['Run with all cops enabled, including those',
                                          'disabled by default. Overrides',
                                          '`AllCops/EnabledByDefault` and',
@@ -689,5 +752,4 @@ module RuboCop
       memory:                           'Profile rubocop memory usage.'
     }.freeze
   end
-  # rubocop:enable Metrics/ModuleLength
 end

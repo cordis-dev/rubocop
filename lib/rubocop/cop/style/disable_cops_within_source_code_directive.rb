@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# rubocop:disable Lint/RedundantCopDisableDirective
+# rubocop:disable Lint/RedundantCopDisableDirective -- the examples below read as real directives
 
 module RuboCop
   module Cop
@@ -11,6 +11,34 @@ module RuboCop
       #
       # Specific cops can be allowed with the `AllowedCops` configuration. Note that
       # if this configuration is set, `rubocop:disable all` is still disallowed.
+      #
+      # `AllowedCops` and `DisallowedCops` accept cop names and department names
+      # alike. Listing a cop does not cover its whole department: a directive
+      # disabling `Metrics` is broader than one disabling `Metrics/AbcSize`.
+      #
+      # Alternatively, specific cops can be disallowed with the `DisallowedCops`
+      # configuration. When `DisallowedCops` is set, only directives for the listed
+      # cops (and `all`) will be flagged. This is useful when you want
+      # to protect a small set of critical cops from being disabled rather than
+      # allowlisting all other cops. `AllowedCops` and `DisallowedCops` should not
+      # both be set at the same time; if `DisallowedCops` is set, it takes precedence.
+      #
+      # `AllowedDirectives` names directive forms - `disable`, `todo`,
+      # `disable-next`, `todo-next`, `push`, `next` - and exempts them from the
+      # cop entirely. `rubocop:todo` is the usual candidate, since
+      # `--disable-uncorrectable` generates those and they record debt rather
+      # than a decision someone should be asked to justify.
+      #
+      # With `AllowWithReason` set to `true`, a disable directive carrying
+      # a `--` trailing justification comment is allowed, so a team can require
+      # every disable to be documented instead of banning them outright. Enable
+      # directives are not checked in this mode, since they end a suppression
+      # rather than start one. Offenses in this mode are not autocorrected,
+      # since only a human can supply the missing justification.
+      #
+      # This cop cannot be disabled via directive comments when it is explicitly
+      # enabled with `Enabled: true`. This prevents users from bypassing the cop
+      # with `# rubocop:disable Style/DisableCopsWithinSourceCodeDirective`.
       #
       # @example
       #   # bad
@@ -30,17 +58,54 @@ module RuboCop
       #   end
       #   # rubocop:enable Metrics/AbcSize
       #
+      # @example DisallowedCops: [Lint/Void]
+      #   # bad
+      #   # rubocop:disable Lint/Void
+      #   foo
+      #   # rubocop:enable Lint/Void
+      #
+      #   # good
+      #   # rubocop:disable Metrics/AbcSize
+      #   foo
+      #   # rubocop:enable Metrics/AbcSize
+      #
+      # @example AllowedDirectives: [todo]
+      #   # good - the cop does not look at `todo` directives at all
+      #   x = 0 # rubocop:todo Layout/SpaceAroundOperators
+      #
+      #   # bad
+      #   x = 0 # rubocop:disable Layout/SpaceAroundOperators
+      #
+      # @example AllowedCops: [Metrics]
+      #   # good - every cop the directive disables is in an exempt department
+      #   # rubocop:disable Metrics/AbcSize
+      #   def foo
+      #   end
+      #   # rubocop:enable Metrics/AbcSize
+      #
+      # @example AllowWithReason: true
+      #   # bad
+      #   x = 0 # rubocop:disable Layout/SpaceAroundOperators
+      #
+      #   # good
+      #   x = 0 # rubocop:disable Layout/SpaceAroundOperators -- would misalign the table
+      #
       class DisableCopsWithinSourceCodeDirective < Base
         extend AutoCorrector
 
         # rubocop:enable Lint/RedundantCopDisableDirective
         MSG = 'RuboCop disable/enable directives are not permitted.'
         MSG_FOR_COPS = 'RuboCop disable/enable directives for %<cops>s are not permitted.'
+        MSG_MISSING_REASON = 'RuboCop disable directives without a `--` justification ' \
+                             'comment are not permitted.'
 
         def on_new_investigation
           processed_source.comments.each do |comment|
-            directive_cops = directive_cops(comment)
-            disallowed_cops = directive_cops - allowed_cops
+            directive = DirectiveComment.new(comment)
+            next if ignored?(directive)
+
+            directive_cops = directive_cops(directive)
+            disallowed_cops = compute_disallowed_cops(directive_cops)
 
             next unless disallowed_cops.any?
 
@@ -50,14 +115,25 @@ module RuboCop
 
         private
 
-        def register_offense(comment, directive_cops, disallowed_cops)
-          message = if any_cops_allowed?
-                      format(MSG_FOR_COPS, cops: "`#{disallowed_cops.join('`, `')}`")
-                    else
-                      MSG
-                    end
+        def compute_disallowed_cops(directive_cops)
+          if disallowed_cops_config.any?
+            if directive_cops.include?('all')
+              directive_cops
+            else
+              directive_cops.uniq.select { |cop| listed?(disallowed_cops_config, cop) }
+            end
+          else
+            directive_cops.reject { |cop| cop != 'all' && listed?(allowed_cops, cop) }
+          end
+        end
 
-          add_offense(comment, message: message) do |corrector|
+        def register_offense(comment, directive_cops, disallowed_cops)
+          add_offense(comment, message: offense_message(disallowed_cops)) do |corrector|
+            # The remedy in `AllowWithReason` mode is to write the missing `--` justification,
+            # which cannot be autocorrected. Removing the directive would also unsuppress
+            # the disabled cops and let their autocorrections rewrite the annotated code.
+            next if allow_with_reason?
+
             replacement = ''
 
             if directive_cops.length != disallowed_cops.length
@@ -69,17 +145,55 @@ module RuboCop
           end
         end
 
-        def directive_cops(comment)
-          match_captures = DirectiveComment.new(comment).match_captures
+        def offense_message(disallowed_cops)
+          if allow_with_reason?
+            MSG_MISSING_REASON
+          elsif any_cops_allowed? || disallowed_cops_config.any?
+            format(MSG_FOR_COPS, cops: "`#{disallowed_cops.join('`, `')}`")
+          else
+            MSG
+          end
+        end
+
+        def directive_cops(directive)
+          match_captures = directive.match_captures
           match_captures && match_captures[1] ? match_captures[1].split(',').map(&:strip) : []
         end
 
+        def ignored?(directive)
+          return true if exempt_mode?(directive)
+
+          allow_with_reason? && (directive.reason || directive.enabled?)
+        end
+
+        def exempt_mode?(directive)
+          allowed_directives.include?(directive.mode)
+        end
+
+        def allowed_directives
+          @allowed_directives ||= Array(cop_config['AllowedDirectives'])
+        end
+
+        def allow_with_reason?
+          cop_config['AllowWithReason']
+        end
+
         def allowed_cops
-          Array(cop_config['AllowedCops'])
+          @allowed_cops ||= Array(cop_config['AllowedCops']).to_set
+        end
+
+        # A name matches either outright or through its department, so
+        # `Metrics` covers `Metrics/AbcSize` but not the other way round.
+        def listed?(names, cop)
+          names.include?(cop) || names.include?(cop.split('/').first)
         end
 
         def any_cops_allowed?
           allowed_cops.any?
+        end
+
+        def disallowed_cops_config
+          @disallowed_cops_config ||= Array(cop_config['DisallowedCops']).to_set
         end
       end
     end

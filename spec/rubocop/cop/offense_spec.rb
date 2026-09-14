@@ -68,6 +68,18 @@ RSpec.describe RuboCop::Cop::Offense do
     end
   end
 
+  describe '#real_last_column' do
+    let(:location) do
+      source_buffer = Parser::Source::Buffer.new('test', 1)
+      source_buffer.source = "abc\n"
+      Parser::Source::Range.new(source_buffer, 0, 3)
+    end
+
+    it 'returns the 1-based column of the last character' do
+      expect(offense.real_last_column).to eq 3
+    end
+  end
+
   describe '#severity_level' do
     subject(:severity_level) do
       described_class.new(severity, location, 'message', 'CopName').severity.level
@@ -119,7 +131,7 @@ RSpec.describe RuboCop::Cop::Offense do
     end
 
     # We want a nice table layout, so we allow space inside empty hashes.
-    # rubocop:disable Layout/SpaceInsideHashLiteralBraces, Layout/ExtraSpacing
+    # rubocop:disable Layout/SpaceInsideHashLiteralBraces, Layout/ExtraSpacing -- the spacing under test is what it is
     [
       [{                           }, {                           }, 0],
 
@@ -230,10 +242,37 @@ RSpec.describe RuboCop::Cop::Offense do
       expect(offense.real_column).to eq 1
     end
 
+    it 'returns a real last column' do
+      expect(offense.real_last_column).to eq 1
+    end
+
     it 'returns a highlighted area' do
       expect(offense.highlighted_area).to be_a Parser::Source::Range
       expect(offense.highlighted_area.column).to eq 0
       expect(offense.highlighted_area.length).to eq 0
     end
+  end
+
+  context 'when the offense is suppressed by a directive' do
+    subject(:offense) do
+      described_class.new(:convention, location, 'message', 'CopName', :disabled, nil,
+                          justification: 'a good reason')
+    end
+
+    it 'exposes the directive justification' do
+      expect(offense.justification).to eq('a good reason')
+    end
+
+    it 'is not correctable' do
+      expect(offense).not_to be_correctable
+    end
+
+    it 'round-trips the justification through marshalling' do
+      expect(Marshal.load(Marshal.dump(offense)).justification).to eq('a good reason')
+    end
+  end
+
+  it 'defaults justification to nil' do
+    expect(offense.justification).to be_nil
   end
 end

@@ -65,6 +65,7 @@ module RuboCop
         include AllowedPattern
         include RangeHelp
         include LineLengthHelp
+        include EndlessMethodRewriter
         extend AutoCorrector
 
         exclude_limit 'Max'
@@ -92,10 +93,22 @@ module RuboCop
         alias on_hash on_potential_breakable_node
         alias on_send on_potential_breakable_node
         alias on_csend on_potential_breakable_node
-        alias on_def on_potential_breakable_node
-        alias on_defs on_potential_breakable_node
+
+        def on_def(node)
+          if node.endless?
+            track_endless_method(node)
+          else
+            check_for_breakable_node(node)
+          end
+        end
+        alias on_defs on_def
 
         def on_new_investigation
+          @breakable_range_by_line_index = {}
+          @breakable_string_delimiters = {}
+          @endless_methods_by_line = {}
+          @heredocs = nil
+
           return unless processed_source.raw_source.include?(';')
 
           check_for_breakable_semicolons(processed_source)
@@ -110,6 +123,70 @@ module RuboCop
         private
 
         attr_accessor :breakable_range
+
+        def track_endless_method(node)
+          line_index = node.first_line - processed_source.buffer.first_line
+          endless_methods_by_line[line_index] = node
+        end
+
+        def handle_endless_method_line(line, line_index)
+          if require_endless_methods?
+            return register_required_endless_method_offense(line, line_index)
+          end
+
+          register_endless_method_offense(line, line_index)
+        end
+
+        def require_endless_methods?
+          config.cop_enabled?('Style/EndlessMethod') &&
+            config.for_cop('Style/EndlessMethod')['EnforcedStyle'] == 'require_always'
+        end
+
+        def register_endless_method_offense(line, line_index)
+          message = format(MSG, length: line_length(line), max: max)
+          loc = excess_range(nil, line, line_index)
+
+          add_offense(loc, message: message) do |corrector|
+            self.max = line_length(line)
+
+            correct_to_multiline(corrector, endless_methods_by_line[line_index])
+          end
+        end
+
+        def register_required_endless_method_offense(line, line_index)
+          node = endless_methods_by_line[line_index]
+          loc = excess_range(nil, line, line_index)
+
+          add_offense(loc, message: format(MSG, length: line_length(line), max: max)) do |corrector|
+            self.max = line_length(line)
+
+            if correctable_endless_method_block?(node)
+              correct_endless_method_block_to_multiline(corrector, node)
+            end
+          end
+        end
+
+        def correctable_endless_method_block?(node)
+          block_node = node.body
+
+          block_node&.type?(:any_block) &&
+            block_node.braces? &&
+            block_node.single_line? &&
+            block_node.body &&
+            !receiver_contains_heredoc?(block_node)
+        end
+
+        def correct_endless_method_block_to_multiline(corrector, node)
+          block_node = node.body
+          block_arguments = block_node.arguments? ? " #{block_node.arguments.source}" : ''
+          replacement = [
+            "#{block_node.send_node.source} do#{block_arguments}",
+            "#{indent(node, offset: 2)}#{block_node.body.source}",
+            "#{indent(node)}end"
+          ].join("\n")
+
+          corrector.replace(block_node, replacement)
+        end
 
         def check_for_breakable_node(node)
           breakable_node = extract_breakable_node(node, max)
@@ -216,7 +293,7 @@ module RuboCop
           source_range = node.source_range
           relevant_substr = largest_possible_string(node)
 
-          if (space_pos = relevant_substr.rindex(/\s/))
+          if (space_pos = breakable_space_position(node, relevant_substr))
             source_range.resize(space_pos + 1)
           elsif (escape_pos = relevant_substr.rindex(/\\(u[\da-f]{0,4}|x[\da-f]{0,2})?\z/))
             source_range.resize(escape_pos)
@@ -228,6 +305,19 @@ module RuboCop
           end
         end
 
+        def breakable_space_position(node, substr)
+          limit = string_content_length(node) - 1
+          space_pos = substr.rindex(/\s/)
+          space_pos = substr[0, limit].rindex(/\s/) if space_pos && space_pos + 1 > limit
+          space_pos
+        end
+
+        def string_content_length(node)
+          content_end = node.loc?(:end) ? node.loc.end.begin_pos : node.source_range.end_pos
+
+          content_end - node.source_range.begin_pos
+        end
+
         def breakable_dstr_begin_position(node)
           source_range = node.source_range
           source_range.begin_pos if source_range.column < max && source_range.last_column >= max
@@ -235,6 +325,10 @@ module RuboCop
 
         def breakable_range_by_line_index
           @breakable_range_by_line_index ||= {}
+        end
+
+        def endless_methods_by_line
+          @endless_methods_by_line ||= {}
         end
 
         def breakable_string_delimiters
@@ -252,10 +346,15 @@ module RuboCop
           [max - indentation_difference(line), 0].max
         end
 
-        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:disable-next Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def check_line(line, line_index)
           return if line_length(line) <= max
           return if allowed_line?(line, line_index)
+
+          if endless_methods_by_line.key?(line_index)
+            return handle_endless_method_line(line, line_index)
+          end
+
           if allow_rbs_inline_annotation? && rbs_inline_annotation_on_source_line?(line_index)
             return
           end
@@ -267,7 +366,6 @@ module RuboCop
 
           register_offense(excess_range(nil, line, line_index), line, line_index)
         end
-        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def allowed_line?(line, line_index)
           matches_allowed_pattern?(line) ||
@@ -313,10 +411,6 @@ module RuboCop
         end
         alias max_line_length max
 
-        def allow_heredoc?
-          allowed_heredoc
-        end
-
         def allowed_heredoc
           cop_config['AllowHeredoc']
         end
@@ -342,10 +436,6 @@ module RuboCop
             range.cover?(line_number) &&
               (allowed_heredoc == true || allowed_heredoc.include?(delimiter))
           end
-        end
-
-        def line_in_heredoc?(line_number)
-          heredocs.any? { |range, _delimiter| range.cover?(line_number) }
         end
 
         def receiver_contains_heredoc?(node)
@@ -420,11 +510,16 @@ module RuboCop
           # The maximum allowed length of a string value is:
           # `Max` - end delimiter (quote) - continuation characters (space and slash)
           max_length = max - 3
-          # If the string is on the same line as its parent, offset by the column difference
-          # (Only apply when on same line to avoid negative offsets for multi-line dstr)
-          if same_line?(node, node.parent)
-            max_length -= column_offset_between(node.loc, node.parent.loc)
-          end
+          # Offset by the string's starting column so the broken line actually fits
+          # within `Max`. When on the same line as its parent, use the column difference;
+          # otherwise the string is indented on its own line, so subtract that indentation.
+          # (Without this, an indented string under a multi-line parent never shortens
+          # below `Max` and the autocorrect loops, inserting empty `"" \` fragments.)
+          max_length -= if same_line?(node, node.parent)
+                          column_offset_between(node.loc, node.parent.loc)
+                        else
+                          node.loc.column
+                        end
           node.source[0...(max_length)]
         end
       end

@@ -104,6 +104,17 @@ RSpec.describe RuboCop::Cop::Lint::MissingCopEnableDirective, :config do
         # Some other code
       RUBY
     end
+
+    it 'does not register an offense for a `disable-next` scope larger than the limit' do
+      expect_no_offenses(<<~RUBY)
+        # rubocop:disable-next Layout/SpaceAroundOperators
+        x =   0 +
+              1 +
+              2 +
+              3
+        # Some other code
+      RUBY
+    end
   end
 
   context 'when a `# rubocop:disable` is wrapped in `# rubocop:push` / `# rubocop:pop`' do
@@ -136,6 +147,14 @@ RSpec.describe RuboCop::Cop::Lint::MissingCopEnableDirective, :config do
         # rubocop:push
         # rubocop:disable Layout/SpaceAroundOperators
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Re-enable Layout/SpaceAroundOperators cop with `# rubocop:enable` after disabling it.
+        x =   0
+      RUBY
+    end
+
+    it 'suggests `# rubocop:pop` when a `push` with inline args has no matching `pop`' do
+      expect_offense(<<~RUBY)
+        # rubocop:push -Layout/SpaceAroundOperators
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Re-enable Layout/SpaceAroundOperators cop with `# rubocop:pop` after disabling it.
         x =   0
       RUBY
     end

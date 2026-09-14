@@ -86,24 +86,43 @@ module RuboCop
 
       NO_LOCATION = PseudoSourceRange.new(1, 0, '', 0, 0).freeze
 
+      # @api public
+      #
+      # @!attribute [r] justification
+      #
+      # @return [String, nil]
+      #   the reason given on the directive that suppressed this offense
+      #   (the text after `--`), or `nil` when the offense is not suppressed
+      #   or the directive carries no reason
+      attr_reader :justification
+
       # @api private
       def initialize(severity, location, message, cop_name, # rubocop:disable Metrics/ParameterLists
-                     status = :uncorrected, corrector = nil)
+                     status = :uncorrected, corrector = nil, justification: nil)
         @severity = RuboCop::Cop::Severity.new(severity)
         @location = location
+
+        # Pre-compute the position eagerly because the offense is frozen and
+        # `location.line` / `location.column` are expensive to compute; sorting
+        # many offenses calls them repeatedly through `#<=>`.
+        @line = location.line
+        @column = location.column
         @message = message.freeze
         @cop_name = cop_name.freeze
         @status = status
         @corrector = corrector
+        @justification = justification.freeze
         freeze
       end
 
       def marshal_dump
-        [@severity, @location, @message, @cop_name, @status]
+        [@severity, @location, @message, @cop_name, @status, @justification]
       end
 
       def marshal_load(array)
-        @severity, @location, @message, @cop_name, @status = array
+        @severity, @location, @message, @cop_name, @status, @justification = array
+        @line = @location.line
+        @column = @location.column
       end
 
       # @api public
@@ -113,8 +132,10 @@ module RuboCop
       # @return [Boolean]
       #   whether this offense can be automatically corrected via autocorrect.
       #   This includes todo comments, for example when requested with `--disable-uncorrectable`.
+      #   An offense suppressed by a directive comment is not correctable -
+      #   autocorrect will not touch it.
       def correctable?
-        @status != :unsupported
+        @status != :unsupported && @status != :disabled
       end
 
       # @api public
@@ -172,14 +193,10 @@ module RuboCop
       end
 
       # @api private
-      def line
-        location.line
-      end
+      attr_reader :line
 
       # @api private
-      def column
-        location.column
-      end
+      attr_reader :column
 
       # @api private
       def source_line
@@ -222,6 +239,16 @@ module RuboCop
       # reason is that editors, such as Emacs, expect this.
       def real_column
         column + 1
+      end
+
+      # @api private
+      #
+      # The minimum value of `real_column` is 1, so the minimum value of
+      # `real_last_column` is also 1. A non-zero `last_column` is used as is,
+      # because the 0-based end-exclusive column is the same as the 1-based
+      # column of the last character.
+      def real_last_column
+        last_column.zero? ? 1 : last_column
       end
 
       # @api public

@@ -2,7 +2,7 @@
 
 # The Lint/RedundantCopDisableDirective cop needs to be disabled so as
 # to be able to provide a (bad) example of a redundant disable.
-# rubocop:disable Lint/RedundantCopDisableDirective
+# rubocop:disable-next Lint/RedundantCopDisableDirective -- the examples below read as real directives
 module RuboCop
   module Cop
     module Lint
@@ -104,17 +104,35 @@ module RuboCop
         end
 
         def each_redundant_disable(&block)
+          each_detached_next_directive(&block)
+
           cop_disabled_line_ranges.each do |cop, line_ranges|
+            # A pending cop that is not enabled in this run produces no
+            # offenses, so its directives cannot be judged - they typically
+            # prepare the code for the moment the cop gets enabled.
+            next if pending_cop_not_run?(cop)
+
             each_already_disabled(cop, line_ranges, &block)
             each_line_range(cop, line_ranges, &block)
           end
+        end
+
+        def pending_cop_not_run?(cop)
+          # `Config#for_cop` corrects wrongly-namespaced names, but a name that
+          # is not registered as written never suppresses anything, so it is
+          # reported as unknown rather than exempted via the corrected cop.
+          return false unless all_cop_names.include?(cop)
+
+          cop_cfg = config.for_cop(cop)
+          cop_cfg['Enabled'] == 'pending' &&
+            !processed_source.registry.enabled_pending_cop?(cop_cfg, config, cop)
         end
 
         def each_line_range(cop, line_ranges)
           line_ranges.each_with_index do |line_range, line_range_index|
             next if should_skip_line_range?(cop, line_range)
 
-            comment = processed_source.comment_at_line(line_range.begin)
+            comment = directive_comment(line_range)
             next if skip_directive?(comment)
 
             next_range = line_ranges[line_range_index + 1]
@@ -127,9 +145,39 @@ module RuboCop
           ignore_offense?(line_range) || expected_final_disable?(cop, line_range)
         end
 
+        # A range opened by a `disable-next` directive starts at the statement,
+        # not at the directive comment above it, so ask the range itself.
+        def directive_comment(line_range)
+          if line_range.respond_to?(:directive)
+            line_range.directive.comment
+          else
+            processed_source.comment_at_line(line_range.begin)
+          end
+        end
+
+        # A next-statement directive with no statement attached (or misplaced
+        # at the end of a code line) affects nothing, so it is redundant by
+        # definition.
+        def each_detached_next_directive
+          processed_source.comment_config.detached_next_directives.each do |directive|
+            names = if directive.next?
+                      directive.signed_args.values.flatten
+                    else
+                      directive.raw_cop_names
+                    end
+            names.each { |cop| yield directive.comment, cop }
+          end
+        end
+
         def skip_directive?(comment)
+          # A cop disabled in the configuration is represented by a synthetic directive that
+          # has no comment in the source, so there is nothing to report or to remove.
+          # Its range starts at `CONFIG_DISABLED_LINE_RANGE_MIN` and runs to the end of the file,
+          # but a `pop` splits it, and the pieces in between are bounded on both sides.
+          return true if comment.is_a?(CommentConfig::ConfigDisabledCopDirectiveComment)
+
           directive = DirectiveComment.new(comment)
-          directive.push? || directive.pop?
+          directive.push? || directive.pop? || directive.next?
         end
 
         def find_redundant_directive(cop, comment, line_range, next_range)
@@ -142,7 +190,7 @@ module RuboCop
           end
         end
 
-        # rubocop:disable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:disable-next Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def each_already_disabled(cop, line_ranges)
           line_ranges.each_cons(2) do |previous_range, range|
             next if ignore_offense?(range)
@@ -152,13 +200,13 @@ module RuboCop
             # whether there are offenses or not.
             next unless followed_ranges?(previous_range, range)
 
-            comment = processed_source.comment_at_line(range.begin)
+            comment = directive_comment(range)
 
-            next unless comment
-            # Comments disabling all cops don't count since it's reasonable
-            # to disable a few select cops first and then all cops further
-            # down in the code.
-            next if all_disabled?(comment)
+            # `push`/`next` signed arguments are not analyzed for redundancy
+            # (yet), and comments disabling all cops don't count since it's
+            # reasonable to disable a few select cops first and then all cops
+            # further down in the code.
+            next if comment.nil? || skip_directive?(comment) || all_disabled?(comment)
 
             redundant =
               if department_disabled?(cop, comment)
@@ -170,7 +218,6 @@ module RuboCop
             yield comment, redundant if redundant
           end
         end
-        # rubocop:enable Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def find_redundant_cop(cop, range)
           cop_offenses = offenses_to_check.select { |offense| offense.cop_name == cop }
@@ -198,7 +245,11 @@ module RuboCop
         end
 
         def range_with_offense?(range, offenses = offenses_to_check)
-          offenses.none? { |offense| range.cover?(offense.line) }
+          # An offense is covered when the disabled range overlaps any line of
+          # its span, mirroring how offenses are suppressed.
+          offenses.none? do |offense|
+            offense.line <= range.end && offense.location.last_line >= range.begin
+          end
         end
 
         def all_disabled?(comment)
@@ -241,17 +292,33 @@ module RuboCop
         end
 
         def add_offense_for_entire_comment(comment, cops)
-          location = DirectiveComment.new(comment).range
+          directive = DirectiveComment.new(comment)
+          location = directive.range
           cop_names = cops.sort.map { |c| describe(c) }.join(', ')
 
-          add_offense(location, message: message(cop_names)) do |corrector|
-            range = comment_range_with_surrounding_space(location, comment.source_range)
+          # An unknown cop may just not be loaded in this run (e.g. a custom
+          # cop whose configuration failed to load) - removing its directive
+          # would destroy something that cannot be restored, so only report.
+          # A misplaced EOL `disable-next` should be moved, not deleted.
+          message = message(cop_names, enabling: directive.enable_next?)
+          if any_unknown_cop?(cops) || misplaced_next_directive?(comment)
+            return add_offense(location, message: message)
+          end
 
-            if leave_free_comment?(comment, range)
-              corrector.replace(range, ' # ')
-            else
-              corrector.remove(range)
-            end
+          add_offense(location, message: message) do |corrector|
+            remove_entire_comment(corrector, comment)
+          end
+        end
+
+        def remove_entire_comment(corrector, comment)
+          # Take the `--` reason with the directive; `leave_free_comment?` keeps anything else.
+          directive_range = DirectiveComment.new(comment).range_with_reason
+          range = comment_range_with_surrounding_space(directive_range, comment.source_range)
+
+          if leave_free_comment?(comment, range)
+            corrector.replace(range, ' # ')
+          else
+            corrector.remove(range)
           end
         end
 
@@ -261,12 +328,33 @@ module RuboCop
           ranges = cop_ranges.map { |_, r| r }
 
           cop_ranges.each do |cop, range|
-            cop_name = describe(cop)
-            add_offense(range, message: message(cop_name)) do |corrector|
-              range = directive_range_in_list(range, ranges)
-              corrector.remove(range)
-            end
+            add_offense_for_cop_in_list(cop, range, ranges)
           end
+        end
+
+        def add_offense_for_cop_in_list(cop, range, ranges)
+          cop_name = describe(cop)
+          return add_offense(range, message: message(cop_name)) if unknown_cop?(cop)
+
+          add_offense(range, message: message(cop_name)) do |corrector|
+            corrector.remove(directive_range_in_list(range, ranges))
+          end
+        end
+
+        def any_unknown_cop?(cops)
+          cops.any? { |cop| unknown_cop?(cop) }
+        end
+
+        def misplaced_next_directive?(comment)
+          directive = DirectiveComment.new(comment)
+          (directive.disable_next? || directive.next? || directive.enable_next?) &&
+            !processed_source.comment_config.comment_only_line?(directive.line_number)
+        end
+
+        def unknown_cop?(cop)
+          return false if cop == 'all' || department_marker?(cop)
+
+          !all_cop_names.include?(cop)
         end
 
         def leave_free_comment?(comment, range)
@@ -303,7 +391,13 @@ module RuboCop
 
         SIMILAR_COP_NAMES_CACHE = Hash.new do |hash, cop_name|
           hash[:all_cop_names] = Registry.global.names unless hash.key?(:all_cop_names)
-          hash[cop_name] = NameSimilarity.find_similar_name(cop_name, hash[:all_cop_names])
+          # A registered cop with the same base name is a better suggestion
+          # than anything spelling similarity can find - the most common
+          # mistake is qualifying a cop with the wrong department.
+          basename = "/#{cop_name.split('/').last}"
+          same_basename = hash[:all_cop_names].find { |name| name.end_with?(basename) }
+          hash[cop_name] =
+            same_basename || NameSimilarity.find_similar_name(cop_name, hash[:all_cop_names])
         end
         private_constant :SIMILAR_COP_NAMES_CACHE
 
@@ -316,8 +410,8 @@ module RuboCop
           similar ? "`#{cop}` (did you mean `#{similar}`?)" : "`#{cop}` (unknown cop)"
         end
 
-        def message(cop_names)
-          "Unnecessary disabling of #{cop_names}."
+        def message(cop_names, enabling: false)
+          "Unnecessary #{enabling ? 'enabling' : 'disabling'} of #{cop_names}."
         end
 
         def all_cop_names
@@ -344,4 +438,3 @@ module RuboCop
     end
   end
 end
-# rubocop:enable Lint/RedundantCopDisableDirective

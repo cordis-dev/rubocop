@@ -136,6 +136,10 @@ module RuboCop
         RequireFileInjector.new(source_path: source_path, root_file_path: root_file_path).inject
       end
 
+      def inject_registration
+        RegistrationInjector.new(source_path: source_path, badge: badge).inject
+      end
+
       def inject_config(config_file_path: 'config/default.yml',
                         version_added: '<<next>>')
         injector =
@@ -143,7 +147,7 @@ module RuboCop
                                     badge: badge,
                                     version_added: version_added)
 
-        injector.inject do # rubocop:disable Lint/UnexpectedBlockArity
+        injector.inject do # rubocop:disable Lint/UnexpectedBlockArity -- this `inject` is the injector API, not `Enumerable#inject`
           output.puts(format(CONFIGURATION_ADDED_MESSAGE,
                              configuration_file_path: config_file_path))
         end

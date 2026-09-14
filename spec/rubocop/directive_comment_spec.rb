@@ -115,6 +115,215 @@ RSpec.describe RuboCop::DirectiveComment do
     end
   end
 
+  describe '#disable_next?' do
+    subject { directive_comment.disable_next? }
+
+    context 'when disable-next' do
+      let(:text) { '# rubocop:disable-next Metrics/AbcSize, Metrics/MethodLength' }
+
+      it { is_expected.to be(true) }
+
+      it 'is a disabling directive with the listed cops' do
+        expect(directive_comment).to be_disabled
+        expect(directive_comment.raw_cop_names).to eq(%w[Metrics/AbcSize Metrics/MethodLength])
+      end
+    end
+
+    context 'when todo-next' do
+      let(:text) { '# rubocop:todo-next Metrics/AbcSize -- a reason' }
+
+      it { is_expected.to be(true) }
+
+      it 'is a disabling directive and keeps the reason' do
+        expect(directive_comment).to be_disabled
+        expect(directive_comment.reason).to eq('a reason')
+      end
+    end
+
+    context 'when a plain disable' do
+      let(:text) { '# rubocop:disable Metrics/AbcSize' }
+
+      it { is_expected.to be(false) }
+    end
+  end
+
+  describe '#next?' do
+    subject { directive_comment.next? }
+
+    context 'when a `next` directive with signed arguments' do
+      let(:text) { '# rubocop:next +Metrics/AbcSize -Style/For' }
+
+      it { is_expected.to be(true) }
+
+      it 'is neither disabling nor enabling as a whole and parses the signed arguments' do
+        expect(directive_comment).not_to be_disabled
+        expect(directive_comment).not_to be_enabled
+        expect(directive_comment).not_to be_malformed
+        expect(directive_comment.signed_args).to eq('+' => %w[Metrics/AbcSize],
+                                                    '-' => %w[Style/For])
+      end
+    end
+
+    context 'when a `next` directive with a reason' do
+      let(:text) { '# rubocop:next -Style/For -- clearer here' }
+
+      it 'keeps the reason' do
+        expect(directive_comment.reason).to eq('clearer here')
+        expect(directive_comment).not_to be_malformed
+      end
+    end
+
+    context 'when a `disable-next` directive' do
+      let(:text) { '# rubocop:disable-next Metrics/AbcSize' }
+
+      it { is_expected.to be(false) }
+    end
+  end
+
+  describe '#enable_next?' do
+    subject { directive_comment.enable_next? }
+
+    context 'when an `enable-next` directive' do
+      let(:text) { '# rubocop:enable-next Metrics/AbcSize -- settled' }
+
+      it { is_expected.to be(true) }
+
+      it 'is an enabling directive and keeps the reason' do
+        expect(directive_comment).to be_enabled
+        expect(directive_comment.reason).to eq('settled')
+      end
+    end
+
+    context 'when a plain `enable`' do
+      let(:text) { '# rubocop:enable Metrics/AbcSize' }
+
+      it { is_expected.to be(false) }
+    end
+  end
+
+  describe '#invalid_signed_args?' do
+    subject { directive_comment.invalid_signed_args? }
+
+    context 'when a `next` directive has unsigned cop names' do
+      let(:text) { '# rubocop:next Metrics/AbcSize' }
+
+      it 'is invalid and malformed' do
+        expect(directive_comment).to be_invalid_signed_args
+        expect(directive_comment).to be_malformed
+      end
+    end
+
+    context 'when a `next` directive has no arguments' do
+      let(:text) { '# rubocop:next' }
+
+      it 'is malformed' do
+        expect(directive_comment).to be_malformed
+      end
+    end
+
+    context 'when a `push` directive has unsigned cop names' do
+      let(:text) { '# rubocop:push Metrics/AbcSize' }
+
+      it { is_expected.to be(true) }
+    end
+
+    context 'when a `push` directive is bare' do
+      let(:text) { '# rubocop:push' }
+
+      it 'is neither invalid nor malformed' do
+        expect(directive_comment).not_to be_invalid_signed_args
+        expect(directive_comment).not_to be_malformed
+      end
+    end
+
+    context 'when a `pop` directive has arguments' do
+      let(:text) { '# rubocop:pop Metrics/AbcSize' }
+
+      it { is_expected.to be(true) }
+    end
+
+    context 'when a `pop` directive has a reason' do
+      let(:text) { '# rubocop:pop -- restore checks' }
+
+      it { is_expected.to be(false) }
+    end
+  end
+
+  describe '#reason' do
+    subject { directive_comment.reason }
+
+    context 'when there is a trailing comment' do
+      let(:text) { '# rubocop:disable Metrics/AbcSize -- this is a good reason' }
+
+      it { is_expected.to eq('this is a good reason') }
+    end
+
+    context 'when there is a trailing comment on an EOL directive' do
+      let(:text) { '# rubocop:todo Metrics/AbcSize, Lint/Void -- see #1234' }
+
+      it { is_expected.to eq('see #1234') }
+    end
+
+    context 'when there is no trailing comment' do
+      let(:text) { '# rubocop:disable Metrics/AbcSize' }
+
+      it { is_expected.to be_nil }
+    end
+
+    context 'when the trailing comment marker has no text after it' do
+      let(:text) { '# rubocop:disable Metrics/AbcSize --' }
+
+      it { is_expected.to be_nil }
+    end
+
+    context 'when trailing text does not start with the marker' do
+      let(:text) { '# rubocop:disable Metrics/AbcSize because reasons' }
+
+      it { is_expected.to be_nil }
+    end
+  end
+
+  describe '#range_with_reason' do
+    # Needs real source ranges, so build an actual comment rather than a double.
+    subject(:covered) { described_class.new(real_comment).range_with_reason.source }
+
+    let(:real_comment) do
+      RuboCop::ProcessedSource.new(source, RUBY_VERSION.to_f).comments.first
+    end
+
+    context 'when the directive carries a `--` reason' do
+      let(:source) { "x = 1 # rubocop:disable Style/StringLiterals -- a good reason\n" }
+
+      it 'covers the directive and the reason' do
+        expect(covered).to eq('# rubocop:disable Style/StringLiterals -- a good reason')
+      end
+    end
+
+    context 'when the marker has no text after it' do
+      let(:source) { "x = 1 # rubocop:disable Style/StringLiterals --\n" }
+
+      it 'still covers the marker, which is meaningless on its own' do
+        expect(covered).to eq('# rubocop:disable Style/StringLiterals --')
+      end
+    end
+
+    context 'when the trailing text is an ordinary comment' do
+      let(:source) { "x = 1 # rubocop:disable Style/StringLiterals - just a note\n" }
+
+      it 'covers only the directive' do
+        expect(covered).to eq('# rubocop:disable Style/StringLiterals')
+      end
+    end
+
+    context 'when there is no trailing text' do
+      let(:source) { "x = 1 # rubocop:disable Style/StringLiterals\n" }
+
+      it 'covers only the directive' do
+        expect(covered).to eq('# rubocop:disable Style/StringLiterals')
+      end
+    end
+  end
+
   describe '#single_line?' do
     subject { directive_comment.single_line? }
 

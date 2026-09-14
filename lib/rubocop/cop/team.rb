@@ -9,7 +9,7 @@ module RuboCop
     # For performance reasons, Team will first dispatch cops & forces in two groups,
     # first the ones needed for autocorrection (if any), then the rest
     # (unless autocorrections happened).
-    # rubocop:disable Metrics/ClassLength
+    # rubocop:disable-next Metrics/ClassLength
     class Team
       InvestigationResult = Struct.new(:report, :corrector)
       private_constant :InvestigationResult
@@ -29,8 +29,17 @@ module RuboCop
 
       # @return [Team] with cops assembled from the given `cop_classes`
       def self.mobilize(cop_classes, config, options = {})
-        cops = mobilize_cops(cop_classes, config, options)
-        new(cops, config, options)
+        if cop_classes.is_a?(Registry)
+          # Instantiate only the enabled cops so that disabled lazy-loaded cops are not loaded.
+          # The registry is kept on standby to mobilize a disabled cop when a comment directive
+          # opts it back in.
+          cops = cop_classes.enabled(config).map { |cop_class| cop_class.new(config, options) }
+          team = new(cops, config, options)
+          team.standby_registry = cop_classes
+          team
+        else
+          new(mobilize_cops(cop_classes, config, options), config, options)
+        end
       end
 
       # @return [Array<Cop::Base>]
@@ -59,12 +68,30 @@ module RuboCop
 
       attr_reader :errors, :warnings, :updated_source_file, :cops
 
+      # When set to true, the corrected source is not written back to the
+      # inspected file; it is exposed through `#updated_source` instead.
+      # @api private
+      attr_accessor :defer_corrections
+
+      # The corrected source of the last investigation, if corrections were
+      # made with `#defer_corrections` enabled.
+      # @api private
+      attr_reader :updated_source
+
+      # Registry used to mobilize cops that were not instantiated because they are disabled in
+      # the config, when a comment directive opts them back in for a file.
+      #
+      # @api private
+      attr_writer :standby_registry
+
       alias updated_source_file? updated_source_file
 
       def initialize(cops, config = nil, options = {})
         @cops = cops
         @config = config
         @options = options
+        @standby_registry = nil
+        @standby_cops = {}
         reset
         @ready = true
         @registry = Registry.new(cops, options.dup)
@@ -135,20 +162,24 @@ module RuboCop
 
       def autocorrect(processed_source, corrector)
         @updated_source_file = false
+        @updated_source = nil
         return unless autocorrect?
         return unless corrector
         return if corrector.empty?
 
-        new_source = corrector.rewrite
+        apply_correction(processed_source, corrector.rewrite)
+        @updated_source_file = true
+      end
 
+      def apply_correction(processed_source, new_source)
         if @options[:stdin]
           # holds source read in from stdin, when --stdin option is used
           @options[:stdin] = new_source
+        elsif defer_corrections
+          @updated_source = new_source
         else
-          filename = processed_source.file_path
-          File.open(filename, 'wb') { |f| f.write(new_source) }
+          File.open(processed_source.file_path, 'wb') { |f| f.write(new_source) }
         end
-        @updated_source_file = true
       end
 
       def be_ready
@@ -156,6 +187,7 @@ module RuboCop
 
         reset
         @cops.map!(&:ready)
+        @standby_cops.transform_values! { |cop| cop&.ready }
         @ready = true
       end
 
@@ -179,7 +211,7 @@ module RuboCop
         # run the other cops when no corrections are left
         on_duty = roundup_relevant_cops(processed_source)
 
-        autocorrect_cops, other_cops = on_duty.partition(&:autocorrect?)
+        autocorrect_cops, other_cops = partition_by_correcting(on_duty)
         report = investigate_partial(autocorrect_cops, processed_source,
                                      offset: offset, original: original)
 
@@ -219,14 +251,50 @@ module RuboCop
       end
 
       # @return [Array<cop>]
+      # A cop whose unsafe correction is skipped still inserts todo comments
+      # under `--disable-uncorrectable`, so it must run with the correcting
+      # cops - correctors of the later `other_cops` round are never applied.
+      def partition_by_correcting(cops)
+        cops.partition do |cop|
+          cop.autocorrect? || cop.skipped_unsafe_correction_with_disable_uncorrectable?
+        end
+      end
+
       def roundup_relevant_cops(processed_source)
-        cops.select do |cop|
+        (cops + opted_in_standby_cops(processed_source)).select do |cop|
           next false if cop.excluded_file?(processed_source.file_path)
           next true if processed_source.comment_config.cop_opted_in?(cop)
           next false unless @registry.enabled?(cop, @config)
 
           support_target_ruby_version?(cop) && support_target_rails_version?(cop)
         end
+      end
+
+      # Cops that were not mobilized because they are disabled in the config,
+      # but are opted back in for the given file by an `enable` comment directive.
+      # Their classes are loaded on demand.
+      #
+      # @return [Array<cop>]
+      def opted_in_standby_cops(processed_source)
+        return [] unless @standby_registry
+
+        opted_in_names = processed_source.comment_config.opt_in_cops
+        return [] if opted_in_names.empty?
+
+        @mobilized_cop_names ||= Set.new(cops.map(&:cop_name))
+        opted_in_names.filter_map do |cop_name|
+          next if @mobilized_cop_names.include?(cop_name)
+
+          standby_cop(cop_name)
+        end
+      end
+
+      def standby_cop(cop_name)
+        return @standby_cops[cop_name] if @standby_cops.key?(cop_name)
+
+        cop_class = @standby_registry.find_by_cop_name(cop_name)
+
+        @standby_cops[cop_name] = cop_class&.new(@config, @options)
       end
 
       def support_target_ruby_version?(cop)
@@ -336,6 +404,5 @@ module RuboCop
         end
       end
     end
-    # rubocop:enable Metrics/ClassLength
   end
 end

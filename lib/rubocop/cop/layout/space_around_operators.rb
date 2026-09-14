@@ -129,6 +129,12 @@ module RuboCop
           check_operator(:class, node.loc.operator, rhs)
         end
 
+        def on_def(node)
+          return unless node.endless?
+
+          check_operator(:assignment, node.loc.assignment, node.body)
+        end
+
         def on_binary(node)
           rhs = node.rhs
 
@@ -170,6 +176,7 @@ module RuboCop
         alias on_or_asgn  on_assignment
         alias on_and_asgn on_assignment
         alias on_op_asgn  on_assignment
+        alias on_defs     on_def
 
         private
 
@@ -204,10 +211,14 @@ module RuboCop
 
         def autocorrect(corrector, range, right_operand)
           range_source = range.source
+          # Match the operator exactly, not by substring, so compound assignments
+          # like `**=` and `/=` are not mistaken for `**` and `/` (which would drop
+          # the `=` and silently change the program's behavior).
+          operator = range_source.strip
 
-          if range_source.include?('**') && !space_around_exponent_operator?
+          if operator == '**' && !space_around_exponent_operator?
             corrector.replace(range, '**')
-          elsif range_source.include?('/') && !space_around_slash_operator?(right_operand)
+          elsif operator == '/' && !space_around_slash_operator?(right_operand)
             corrector.replace(range, '/')
           elsif range_source.end_with?("\n")
             corrector.replace(range, " #{range_source.strip}\n")
@@ -247,7 +258,7 @@ module RuboCop
           return false unless allow_for_alignment?
           return false unless with_space.source.start_with?(EXCESSIVE_SPACE)
 
-          return !aligned_with_operator?(operator) unless type == :assignment
+          return !aligned_with_operator?(operator) unless grouped_alignment_type?(type)
 
           token            = Token.new(operator, nil, operator.source)
           align_preceding  = aligned_with_preceding_equals_operator(token)
@@ -256,6 +267,10 @@ module RuboCop
                           aligned_with_subsequent_equals_operator(token) == :none
 
           aligned_with_subsequent_equals_operator(token) != :yes
+        end
+
+        def grouped_alignment_type?(type)
+          type == :assignment || (type == :special_asgn && force_equal_sign_alignment?)
         end
 
         def excess_trailing_space?(right_operand, with_space)

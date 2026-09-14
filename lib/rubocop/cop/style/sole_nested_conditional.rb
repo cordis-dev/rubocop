@@ -48,6 +48,7 @@ module RuboCop
       #   end if condition_a
       class SoleNestedConditional < Base
         include RangeHelp
+        include ReparsedEquivalence
         extend AutoCorrector
 
         MSG = 'Consider merging nested conditions into outer `%<conditional_type>s` conditions.'
@@ -57,11 +58,10 @@ module RuboCop
         end
 
         def on_if(node)
-          return if node.ternary? || node.else? || node.elsif?
+          return unless offending_conditional?(node)
 
           if_branch = node.if_branch
-          return if use_variable_assignment_in_condition?(node.condition, if_branch)
-          return unless offending_branch?(node, if_branch)
+          return unless correction_parses?(node)
 
           message = format(MSG, conditional_type: node.keyword)
           add_offense(if_branch.loc.keyword, message: message) do |corrector|
@@ -73,6 +73,23 @@ module RuboCop
         end
 
         private
+
+        def offending_conditional?(node)
+          return false if node.ternary? || node.else? || node.elsif?
+
+          if_branch = node.if_branch
+          return false if use_variable_assignment_in_condition?(node.condition, if_branch)
+
+          offending_branch?(node, if_branch)
+        end
+
+        # Merging the conditionals intentionally produces a different AST, so
+        # full equivalence cannot be checked, but the corrected source must at
+        # least remain parseable (see `ReparsedEquivalence#correction_parses?`),
+        # which suppresses the entire produces-invalid-code bug class.
+        def apply_reparse_correction(corrector, node)
+          autocorrect(corrector, node, node.if_branch)
+        end
 
         def use_variable_assignment_in_condition?(condition, if_branch)
           assigned_variables = assigned_variables(condition)
@@ -131,7 +148,7 @@ module RuboCop
           corrector.remove(range_with_surrounding_space(range, newlines: false))
         end
 
-        # rubocop:disable Metrics/AbcSize
+        # rubocop:disable-next Metrics/AbcSize
         def correct_for_basic_condition_style(corrector, node, if_branch)
           range = range_between(
             node.condition.source_range.end_pos, if_branch.condition.source_range.begin_pos
@@ -147,7 +164,6 @@ module RuboCop
                       end
           corrector.remove(end_range)
         end
-        # rubocop:enable Metrics/AbcSize
 
         def autocorrect_outer_condition_modify_form(corrector, node, if_branch)
           correct_node(corrector, if_branch)

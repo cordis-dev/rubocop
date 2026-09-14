@@ -3,7 +3,7 @@
 module RuboCop
   # Handles validation of configuration, for example cop names, parameter
   # names, and Ruby versions.
-  # rubocop:disable Metrics/ClassLength
+  # rubocop:disable-next Metrics/ClassLength
   class ConfigValidator
     extend SimpleForwardable
 
@@ -11,15 +11,17 @@ module RuboCop
     COMMON_PARAMS = %w[Exclude Include Severity inherit_mode AutoCorrect StyleGuide Details
                        Enabled Reference References Safe SafeAutoCorrect].freeze
     # @api private
-    INTERNAL_PARAMS = %w[Description StyleGuide
+    INTERNAL_PARAMS = %w[Description StyleGuide Preview
                          VersionAdded VersionChanged VersionRemoved
                          Reference References Safe SafeAutoCorrect].freeze
     # @api private
     NEW_COPS_VALUES = %w[pending disable enable].freeze
+    # @api private
+    NEW_COPS_VERSION_PATTERN = /\A\d+(\.\d+)*\z/.freeze
 
     # @api private
     CONFIG_CHECK_KEYS = %w[Enabled Safe SafeAutoCorrect AutoCorrect References].to_set.freeze
-    CONFIG_CHECK_DEPARTMENTS = %w[pending override_department].freeze
+    CONFIG_CHECK_DEPARTMENTS = %w[pending preview override_department].freeze
     CONFIG_CHECK_AUTOCORRECTS = %w[always contextual disabled].freeze
     private_constant :CONFIG_CHECK_KEYS, :CONFIG_CHECK_DEPARTMENTS
 
@@ -46,7 +48,7 @@ module RuboCop
 
       check_obsoletions
       alert_about_unrecognized_cops(invalid_cop_names)
-      validate_new_cops_parameter
+      validate_all_cops_parameters
       validate_parameter_names(valid_cop_names)
       validate_enforced_styles(valid_cop_names)
       validate_syntax_cop
@@ -164,14 +166,61 @@ module RuboCop
     end
 
     def validate_new_cops_parameter
+      validate_all_cops_new_cops_parameter
+      validate_department_new_cops_parameters
+    end
+
+    def validate_all_cops_parameters
+      validate_new_cops_parameter
+      validate_fail_level_parameter
+    end
+
+    def validate_fail_level_parameter
+      fail_level = @config.for_all_cops['FailLevel']
+      return if fail_level.nil? || Cop::Severity::NAMES.include?(fail_level.to_sym)
+
+      message = "invalid #{fail_level} for `FailLevel` found in #{smart_loaded_path}\n" \
+                "Valid choices are: #{Cop::Severity::NAMES.join(', ')}"
+
+      raise ValidationError, message
+    end
+
+    def validate_all_cops_new_cops_parameter
       new_cop_parameter = @config.for_all_cops['NewCops']
       return if new_cop_parameter.nil? || NEW_COPS_VALUES.include?(new_cop_parameter)
 
-      message = "invalid #{new_cop_parameter} for `NewCops` found in" \
+      message = "invalid #{new_cop_parameter} for `NewCops` found in " \
                 "#{smart_loaded_path}\n" \
                 "Valid choices are: #{NEW_COPS_VALUES.join(', ')}"
 
       raise ValidationError, message
+    end
+
+    def validate_department_new_cops_parameters
+      @config.each do |name, section|
+        value = new_cops_value_for_department(name, section)
+        next if value.nil? || NEW_COPS_VALUES.include?(value) || new_cops_version_value?(value)
+
+        raise ValidationError,
+              "invalid #{value} for `NewCops` found in #{smart_loaded_path}\n" \
+              "Valid choices for a department are: #{NEW_COPS_VALUES.join(', ')}, " \
+              "or a version string like '1.50'"
+      end
+    end
+
+    def new_cops_value_for_department(name, section)
+      return nil if name == 'AllCops' || !section.is_a?(Hash)
+      return nil unless Cop::Registry.global.department?(name)
+
+      section['NewCops']
+    end
+
+    def new_cops_version_value?(value)
+      case value
+      when Float, Integer then true
+      when String then NEW_COPS_VERSION_PATTERN.match?(value)
+      else false
+      end
     end
 
     def validate_parameter_shape(valid_cop_names)
@@ -207,6 +256,9 @@ module RuboCop
 
       @config[cop_name].each_key do |param|
         next if COMMON_PARAMS.include?(param) || default_config.key?(param)
+        # Departments shipped as top-level sections in an extension's default configuration accept
+        # `NewCops`, like any other department.
+        next if param == 'NewCops' && Cop::Registry.global.department?(cop_name)
 
         supported_params = default_config.keys - INTERNAL_PARAMS
 
@@ -287,5 +339,4 @@ module RuboCop
         "is supposed to be #{supposed_values} and #{Rainbow(value).yellow} is not."
     end
   end
-  # rubocop:enable Metrics/ClassLength
 end

@@ -45,11 +45,19 @@ module RuboCop
 
       def hash
         # Do hashing manually to reduce Array allocations.
-        department.hash ^ cop_name.hash # rubocop:disable Security/CompoundHash
+        department.hash ^ cop_name.hash # rubocop:disable Security/CompoundHash -- hashing manually avoids the Array allocation
       end
 
       def match?(other)
         cop_name == other.cop_name && (!qualified? || department == other.department)
+      end
+
+      # Returns true if the badge's qualified name or the badge's department
+      # matches any of the given names.
+      def match_name?(given_names)
+        return false unless given_names
+
+        given_names.include?(to_s) || given_names.include?(department_name)
       end
 
       def to_s

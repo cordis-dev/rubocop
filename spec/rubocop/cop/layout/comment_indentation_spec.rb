@@ -83,6 +83,33 @@ RSpec.describe RuboCop::Cop::Layout::CommentIndentation, :config do
       end
     end
 
+    it 'corrects same-column comment blocks separated by empty lines in a single pass' do
+      expect_offense(<<~RUBY)
+        class Foo
+        # a
+        # b
+
+        # c
+
+        # d
+        ^^^ Incorrect indentation detected (column 0 instead of 2).
+          def bar; end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY, loop: false)
+        class Foo
+          # a
+          # b
+
+          # c
+
+          # d
+          def bar; end
+        end
+      RUBY
+    end
+
     it 'registers offenses and corrects before __END__ but not after' do
       expect_offense(<<~RUBY)
          #
@@ -408,6 +435,29 @@ RSpec.describe RuboCop::Cop::Layout::CommentIndentation, :config do
           def foo
           end
           # rubocop:enable
+        private
+
+          def bar
+          end
+        end
+      RUBY
+    end
+
+    it 'does not register an offense for a comment above an inline access modifier' do
+      expect_no_offenses(<<~RUBY)
+        class A
+          # Explains what bar does.
+          private def bar
+          end
+        end
+      RUBY
+    end
+
+    it 'registers an offense for a comment above a bare access modifier aligned with the keyword' do
+      expect_offense(<<~RUBY)
+        class A
+        # Explains what bar does.
+        ^^^^^^^^^^^^^^^^^^^^^^^^^ Incorrect indentation detected (column 0 instead of 2).
         private
 
           def bar

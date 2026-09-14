@@ -80,6 +80,11 @@ removed:
       `Lint/BinaryOperatorWithIdenticalOperands`. Please use
       `Lint/BinaryOperatorWithIdenticalOperands` instead
   Style/BracesAroundHashParameters: true
+  Style/DoubleCopDisableDirective:
+    severity: warning
+    reason: >
+      it has been superseded by `Lint/CopDirectiveSyntax`. Please use
+      `Lint/CopDirectiveSyntax` instead
   Style/MethodMissingSuper:
     reason: >
       it has been superseded by `Lint/MissingSuper`. Please use
@@ -148,6 +153,10 @@ changed_parameters:
   - cops: Layout/LineLength
     parameters: IgnoreCopDirectives
     alternative: AllowCopDirectives
+    severity: warning
+  - cops: Style/DisableCopsWithinSourceCodeDirective
+    parameters: AllowTrailingComment
+    alternative: AllowWithReason
     severity: warning
   - cops:
       - Lint/BlockAlignment

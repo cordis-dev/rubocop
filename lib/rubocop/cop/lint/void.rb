@@ -16,11 +16,14 @@ module RuboCop
       # enumerator.each { |item| item >= 2 } #=> [2, 3]
       # ----
       #
-      # NOTE: Return values in assignment method definitions such as `def foo=(arg)` are
-      # detected because they are in a void context. However, autocorrection does not remove
-      # the return value, as that would change behavior. In such cases, whether to remove
-      # the return value or rename the method to something more appropriate should be left to
-      # the user.
+      # NOTE: The last expression in an assignment method definition such as `def foo=(arg)`
+      # is not flagged. Ruby discards it (the method returns its argument), but the method can
+      # still be called directly and its return value relied upon, so flagging it would be a
+      # false positive for this lint.
+      #
+      # NOTE: A constant used in a void context is flagged but not autocorrected, since
+      # referencing a constant can trigger autoloading side effects (e.g. forcing a file to
+      # load before a monkey-patch), so removing it may change behavior.
       #
       # @example CheckForMethodsWithNoSideEffects: false (default)
       #   # bad
@@ -109,7 +112,7 @@ module RuboCop
         def check_begin(node)
           expressions = *node
           inside_each_block = node.each_ancestor(:any_block).first&.method?(:each)
-          expressions.pop if !in_void_context?(node) || inside_each_block
+          expressions.pop if !in_void_context?(node) || inside_each_block || setter_method?(node)
           expressions.each do |expr|
             check_void_op(expr) { inside_each_block }
             check_expression(expr)
@@ -150,7 +153,7 @@ module RuboCop
           check_expression(case_node.else_branch) if case_node.else_branch
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:disable-next Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def check_void_op(node, &block)
           node = node.children.first while node&.begin_type?
           return unless node&.call_type? && OPERATORS.include?(node.method_name)
@@ -165,7 +168,6 @@ module RuboCop
             autocorrect_void_op(corrector, node)
           end
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         def check_var(node)
           return unless node.variable? || node.const_type?
@@ -212,7 +214,7 @@ module RuboCop
         end
 
         def check_nonmutating(node)
-          return unless node.type?(:send, :any_block)
+          return unless node.type?(:call, :any_block)
 
           method_name = node.method_name
           return unless NONMUTATING_METHODS.include?(method_name)
@@ -244,6 +246,10 @@ module RuboCop
           parent.respond_to?(:void_context?) && parent.void_context?
         end
 
+        def setter_method?(node)
+          node.parent&.any_def_type? && node.parent.assignment_method?
+        end
+
         def autocorrect_void_op(corrector, node)
           if node.arguments.empty?
             corrector.replace(node, node.receiver.source)
@@ -258,6 +264,10 @@ module RuboCop
         end
 
         def autocorrect_void_expression(corrector, node)
+          # Referencing a constant can trigger autoloading side effects (e.g. forcing a file
+          # to load before a monkey-patch), so removing it may change behavior. Flag but don't
+          # autocorrect, leaving it to the user.
+          return if node.const_type? && !node.special_keyword?
           return if node.parent.type?(:if, :case, :when, :case_match, :in_pattern)
           return if (def_node = node.each_ancestor(:any_def).first) && def_node.assignment_method?
 
@@ -265,7 +275,7 @@ module RuboCop
         end
 
         def autocorrect_nonmutating_send(corrector, node, suggestion)
-          send_node = if node.send_type?
+          send_node = if node.call_type?
                         node
                       else
                         node.send_node

@@ -119,6 +119,7 @@ module RuboCop
 
         def on_def(node)
           return if node.method?(:initialize)
+          return if allowed_methods.include?(node.method_name)
 
           parent = node.parent
           modifier_node?(parent) ? check(parent) : check(node)
@@ -130,17 +131,12 @@ module RuboCop
         def check(node)
           return if non_public?(node) && !require_for_non_public_methods?
           return if documentation_comment?(node)
-          return if method_allowed?(node)
 
           add_offense(node)
         end
 
         def require_for_non_public_methods?
           cop_config['RequireForNonPublicMethods']
-        end
-
-        def method_allowed?(node)
-          allowed_methods.include?(node.method_name)
         end
 
         def allowed_methods

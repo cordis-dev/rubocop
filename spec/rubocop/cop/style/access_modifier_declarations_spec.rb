@@ -719,6 +719,32 @@ RSpec.describe RuboCop::Cop::Style::AccessModifierDeclarations, :config do
   context 'when `inline` is configured' do
     let(:cop_config) { { 'EnforcedStyle' => 'inline' } }
 
+    it 'does not register an offense when the access modifier is the body of a modifier `if`' do
+      expect_no_offenses(<<~RUBY)
+        class Test
+          private if condition
+          def foo; end
+        end
+      RUBY
+    end
+
+    it 'does not register an offense when the access modifier is the body of an `if` without an `else`' do
+      expect_no_offenses(<<~RUBY)
+        class Test
+          if condition
+            private
+          end
+          def foo; end
+        end
+      RUBY
+    end
+
+    it 'does not register an offense when the access modifier is the body of a modifier `if` at the top level' do
+      expect_no_offenses(<<~RUBY)
+        private if condition
+      RUBY
+    end
+
     %w[private protected public module_function].each do |access_modifier|
       it "offends when #{access_modifier} is not inlined" do
         expect_offense(<<~RUBY, access_modifier: access_modifier)
@@ -981,6 +1007,30 @@ RSpec.describe RuboCop::Cop::Style::AccessModifierDeclarations, :config do
           expect_correction(<<~RUBY)
             class Test
               #{access_modifier} def foo; end # trailing
+            end
+          RUBY
+        end
+      end
+
+      context 'when a body repeats the same access modifier' do
+        let(:cop_config) { { 'EnforcedStyle' => 'inline' } }
+
+        it 'registers an offense for each and inlines them' do
+          expect_offense(<<~RUBY, access_modifier: access_modifier)
+            class A
+              %{access_modifier}
+              ^{access_modifier} `#{access_modifier}` should be inlined in method definitions.
+              def b; end
+              %{access_modifier}
+              ^{access_modifier} `#{access_modifier}` should be inlined in method definitions.
+              def c; end
+            end
+          RUBY
+
+          expect_correction(<<~RUBY)
+            class A
+              #{access_modifier} def b; end
+              #{access_modifier} def c; end
             end
           RUBY
         end

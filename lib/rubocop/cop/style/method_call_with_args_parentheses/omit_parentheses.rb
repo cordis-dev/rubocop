@@ -5,13 +5,28 @@ module RuboCop
     module Style
       class MethodCallWithArgsParentheses
         # Style omit_parentheses
-        # rubocop:disable Metrics/ModuleLength, Metrics/CyclomaticComplexity
+        # rubocop:disable-next Metrics/ModuleLength, Metrics/CyclomaticComplexity
         module OmitParentheses
           include RangeHelp
+          include ReparsedEquivalence
 
           TRAILING_WHITESPACE_REGEX = /\s+\Z/.freeze
           OMIT_MSG = 'Omit parentheses for method calls with arguments.'
           private_constant :OMIT_MSG
+
+          def on_investigation_end
+            # Each candidate's exact correction is verified by reparsing before
+            # the offense is registered, so an omission that would change how
+            # the code parses is never reported or offered.
+            verified_by_reparse(@pending_omit_offenses || []).each do |node|
+              add_offense(offense_range(node), message: OMIT_MSG) do |corrector|
+                autocorrect(corrector, node)
+              end
+            end
+            @pending_omit_offenses = []
+
+            super
+          end
 
           private
 
@@ -26,9 +41,11 @@ module RuboCop
             return if allowed_camel_case_method_call?(node)
             return if allowed_string_interpolation_method_call?(node)
 
-            add_offense(offense_range(node), message: OMIT_MSG) do |corrector|
-              autocorrect(corrector, node)
-            end
+            (@pending_omit_offenses ||= []) << node
+          end
+
+          def apply_reparse_correction(corrector, node)
+            autocorrect(corrector, node)
           end
 
           def autocorrect(corrector, node)
@@ -133,7 +150,7 @@ module RuboCop
             node.parent&.class_type? && node.parent.single_line?
           end
 
-          # rubocop:disable Metrics/PerceivedComplexity
+          # rubocop:disable-next Metrics/PerceivedComplexity
           def call_with_ambiguous_arguments?(node)
             call_with_braced_block?(node) ||
               call_in_argument_with_block?(node) ||
@@ -146,7 +163,6 @@ module RuboCop
                   ambiguous_literal?(n) || logical_operator?(n)
               end
           end
-          # rubocop:enable Metrics/PerceivedComplexity
 
           def call_with_braced_block?(node)
             node.type?(:call, :super) && node.block_node&.braces?
@@ -252,7 +268,6 @@ module RuboCop
             last_argument.hash_type? && last_argument.children.any?(&:forwarded_kwrestarg_type?)
           end
         end
-        # rubocop:enable Metrics/ModuleLength, Metrics/CyclomaticComplexity
       end
     end
   end

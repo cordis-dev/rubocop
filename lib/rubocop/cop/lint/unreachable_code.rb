@@ -52,10 +52,15 @@ module RuboCop
         def on_begin(node)
           expressions = *node
 
-          expressions.each_cons(2) do |expression1, expression2|
-            next unless flow_expression?(expression1)
-
-            add_offense(expression2)
+          # Once a flow-of-control statement is reached, every following statement
+          # in the block is unreachable, not just the one immediately after it.
+          flow_reached = false
+          expressions.each_with_index do |expression, index|
+            if flow_reached
+              add_offense(expression)
+            elsif index < expressions.size - 1 && flow_expression?(expression)
+              flow_reached = true
+            end
           end
         end
 
@@ -78,7 +83,7 @@ module RuboCop
           }
         PATTERN
 
-        # rubocop:disable Metrics/MethodLength
+        # rubocop:disable-next Metrics/MethodLength
         def flow_expression?(node)
           return report_on_flow_command?(node) if flow_command?(node)
 
@@ -97,7 +102,6 @@ module RuboCop
             false
           end
         end
-        # rubocop:enable Metrics/MethodLength
 
         def check_if(node)
           if_branch = node.if_branch

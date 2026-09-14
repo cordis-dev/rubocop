@@ -153,7 +153,7 @@ module RuboCop
         BLOCK_MSG = 'Use anonymous block arguments forwarding (`&`).'
 
         def self.autocorrect_incompatible_with
-          [Naming::BlockForwarding]
+          [Naming::BlockForwarding, Style::MethodDefParentheses]
         end
 
         def on_def(node)
@@ -197,12 +197,12 @@ module RuboCop
           send_classifications.all? { |_, c, _, _| all_classifications.include?(c) }
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+        # rubocop:disable-next Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
         def add_forward_all_offenses(node, send_classifications, forwardable_args)
           rest_arg, kwrest_arg, block_arg = *forwardable_args
           registered_block_arg_offense = false
 
-          send_classifications.each do |send_node, c, forward_rest, forward_kwrest, forward_block_arg| # rubocop:disable Layout/LineLength
+          send_classifications.each do |send_node, c, forward_rest, forward_kwrest, forward_block_arg| # rubocop:disable Layout/LineLength -- the block parameter list does not wrap
             if !forward_rest && !forward_kwrest && c != :all_anonymous
               if allow_anonymous_forwarding_in_block?(forward_block_arg)
                 register_forward_block_arg_offense(!forward_rest, node.arguments, block_arg)
@@ -220,20 +220,19 @@ module RuboCop
 
           register_forward_all_offense(node, node.arguments, rest_arg || kwrest_arg)
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
 
         def forward_all_first_argument(node)
           node.arguments.reverse_each.find(&:forwarded_restarg_type?)
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+        # rubocop:disable-next Metrics/AbcSize, Metrics/MethodLength
         def add_post_ruby_32_offenses(def_node, send_classifications, forwardable_args)
           return unless use_anonymous_forwarding?
           return unless all_forwarding_offenses_correctable?(send_classifications)
 
           rest_arg, kwrest_arg, block_arg = *forwardable_args
 
-          send_classifications.each do |send_node, _c, forward_rest, forward_kwrest, forward_block_arg| # rubocop:disable Layout/LineLength
+          send_classifications.each do |send_node, _c, forward_rest, forward_kwrest, forward_block_arg| # rubocop:disable Layout/LineLength -- the block parameter list does not wrap
             if allow_anonymous_forwarding_in_block?(forward_rest)
               register_forward_args_offense(def_node.arguments, rest_arg)
               register_forward_args_offense(send_node, forward_rest)
@@ -250,7 +249,6 @@ module RuboCop
             end
           end
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
         def non_splat_or_block_pass_lvar_references(body)
           body.each_descendant(:lvar, :lvasgn).filter_map do |lvar|
@@ -473,7 +471,7 @@ module RuboCop
 
           private
 
-          # rubocop:disable Metrics/CyclomaticComplexity
+          # rubocop:disable-next Metrics/CyclomaticComplexity
           def can_forward_all?
             return false if any_arg_referenced?
             return false if ruby_30_or_lower_optarg?
@@ -483,7 +481,6 @@ module RuboCop
 
             no_additional_args? || (target_ruby_version >= 3.0 && no_post_splat_args?)
           end
-          # rubocop:enable Metrics/CyclomaticComplexity
 
           # def foo(a = 41, ...) is a syntax error in 3.0.
           def ruby_30_or_lower_optarg?

@@ -49,6 +49,7 @@ module RuboCop
       class RedundantLineBreak < Base
         include CheckAssignment
         include CheckSingleLineSuitability
+        include ReparsedEquivalence
         extend AutoCorrector
 
         MSG = 'Redundant line break detected.'
@@ -76,16 +77,92 @@ module RuboCop
         end
 
         def check_assignment(node, _rhs)
-          return unless offense?(node)
+          return unless offense?(node) && !part_of_ignored_node?(node)
 
           register_offense(node)
         end
 
         def register_offense(node)
+          # The exact single-line correction is verified to parse equivalently
+          # before the offense is registered, so a join that would change how
+          # the code parses is never reported or offered.
+          return if verified_by_reparse([node], oversized: :verify).empty?
+
           add_offense(node) do |corrector|
             corrector.replace(node, to_single_line(node.source).strip)
           end
           ignore_node(node)
+        end
+
+        def apply_reparse_correction(corrector, node)
+          corrector.replace(node, to_single_line(node.source).strip)
+        end
+
+        # Joining lines shifts the value of any later `__LINE__`, exactly as
+        # any other line-removing correction does; neutralize it on both sides
+        # with an identifier, which stays valid in every position the keyword
+        # can appear in.
+        def preprocess_reparsed_source(source)
+          source.gsub(/\b__LINE__\b/, '__LINE0__')
+        end
+
+        def normalize_reparsed_ast(node)
+          fold_string_concatenation(node)
+        end
+
+        # Joining lines merges split string literals (`"a" \<newline> "b"` into
+        # `"ab"`) and turns mixed-quote pairs into `+` concatenation, which
+        # changes the tree but not the resulting string. Normalize all string
+        # concatenation to a canonical form before comparing: nested
+        # concatenations are flattened and adjacent literal parts merged.
+        def fold_string_concatenation(node)
+          return node unless node.is_a?(::Parser::AST::Node)
+
+          children = node.children.map { |child| fold_string_concatenation(child) }
+          node = node.updated(nil, children)
+
+          parts = string_concatenation_parts(node)
+          return node unless parts
+
+          merged = merge_string_parts(parts)
+          if merged.one? && merged.first.str_type?
+            node.updated(:str, merged.first.children)
+          else
+            node.updated(:dstr, merged)
+          end
+        end
+
+        def string_concatenation_parts(node)
+          case node.type
+          when :dstr
+            node.children
+          when :send
+            parts = [node.receiver, *node.arguments]
+            parts if node.method?(:+) && parts.all? { |part| stringish?(part) }
+          end
+        end
+
+        def merge_string_parts(parts)
+          flattened = parts.flat_map do |part|
+            part.is_a?(::Parser::AST::Node) && part.dstr_type? ? part.children : [part]
+          end
+
+          flattened.chunk_while { |left, right| plain_string?(left) && plain_string?(right) }
+                   .map { |chunk| merge_plain_strings(chunk) }
+        end
+
+        def merge_plain_strings(chunk)
+          return chunk.first if chunk.one?
+
+          chunk.first.updated(:str, [chunk.map { |part| part.children.first }.join])
+        end
+
+        def stringish?(node)
+          node.is_a?(::Parser::AST::Node) && %i[str dstr].include?(node.type)
+        end
+
+        def plain_string?(node)
+          node.is_a?(::Parser::AST::Node) && node.str_type? && node.children.one?
         end
 
         def offense?(node)

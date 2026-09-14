@@ -53,6 +53,8 @@ module RuboCop
         end
 
         def after_send(node)
+          return if backrefs_unaffected?(node)
+
           @valid_ref = nil
 
           if regexp_first_argument?(node)
@@ -111,6 +113,19 @@ module RuboCop
                        end
         end
 
+        # A call such as `hash[:key]` or `array[0]` cannot involve a regexp match:
+        # a non-string literal cannot act as a pattern (whereas `sub`, `gsub`,
+        # and `match` treat a string one as a pattern and do set backreferences),
+        # and `$~` is frame-local, so a user-defined method cannot change
+        # the caller's backreferences either.
+        def backrefs_unaffected?(send_node)
+          first_argument = send_node.first_argument
+          return false unless first_argument&.basic_literal?
+          return false if first_argument.str_type?
+
+          !regexp_receiver?(send_node)
+        end
+
         def regexp_first_argument?(send_node)
           send_node.first_argument&.regexp_type? \
             && REGEXP_ARGUMENT_METHODS.include?(send_node.method_name)
@@ -118,10 +133,6 @@ module RuboCop
 
         def regexp_receiver?(send_node)
           send_node.receiver&.regexp_type?
-        end
-
-        def nth_ref_receiver?(send_node)
-          send_node.receiver&.nth_ref_type?
         end
       end
     end

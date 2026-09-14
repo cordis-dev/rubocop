@@ -85,7 +85,7 @@ RSpec.describe 'RuboCop Project', type: :feature do
       configuration_keys.each_with_index { |key, idx| expect(key).to eq expected[idx] }
     end
 
-    # rubocop:disable RSpec/NoExpectationExample
+    # rubocop:disable-next RSpec/NoExpectationExample
     it 'has a SupportedStyles for all EnforcedStyle and EnforcedStyle is valid' do
       errors = []
       cop_names.each do |name|
@@ -107,9 +107,36 @@ RSpec.describe 'RuboCop Project', type: :feature do
 
       raise errors.join("\n") unless errors.empty?
     end
-    # rubocop:enable RSpec/NoExpectationExample
 
-    # rubocop:disable RSpec/NoExpectationExample
+    it 'does not restate the severity its department already implies' do
+      cop_names.each do |cop_name|
+        severity = config.dig(cop_name, 'Severity')
+        next if severity.nil?
+
+        department = cop_name.split('/').first.to_sym
+        implied = RuboCop::Cop::Base::DEPARTMENT_SEVERITIES.fetch(department, :convention)
+        expect(severity.to_sym).not_to eq(implied),
+                                       "`#{cop_name}` sets `Severity: #{severity}`, " \
+                                       'which is already the default for its department.'
+      end
+    end
+
+    it 'only overrides existing parameters in `Preview` sections' do
+      (cop_names + ['AllCops']).each do |name|
+        preview = config.dig(name, 'Preview')
+        next if preview.nil?
+
+        expect(preview).to be_a(Hash), "`#{name}: Preview` should be a section of defaults."
+        expect(preview).not_to be_empty, "`#{name}: Preview` should not be empty."
+
+        unknown = preview.keys - config[name].keys
+        expect(unknown).to be_empty,
+                           "`#{name}: Preview` overrides #{unknown.join(', ')}, " \
+                           "which `#{name}` does not have."
+      end
+    end
+
+    # rubocop:disable-next RSpec/NoExpectationExample
     it 'does not have any duplication' do
       fname = File.expand_path('../config/default.yml', __dir__)
       content = File.read(fname)
@@ -118,7 +145,6 @@ RSpec.describe 'RuboCop Project', type: :feature do
               "on line #{key1.start_line} and line #{key2.start_line}"
       end
     end
-    # rubocop:enable RSpec/NoExpectationExample
 
     %w[Safe SafeAutoCorrect AutoCorrect].each do |metadata|
       it "does not include `#{metadata}: true`" do
@@ -291,9 +317,8 @@ RSpec.describe 'RuboCop Project', type: :feature do
     let(:path) { File.expand_path('../CHANGELOG.md', __dir__) }
     let(:entries) { lines.grep(/^\*/).map(&:chomp) }
 
-    # rubocop:disable RSpec/IncludeExamples
+    # rubocop:disable-next RSpec/IncludeExamples
     include_examples 'has Changelog format'
-    # rubocop:enable RSpec/IncludeExamples
 
     context 'future entries' do
       let(:allowed_cop_names) do
@@ -321,9 +346,8 @@ RSpec.describe 'RuboCop Project', type: :feature do
         context "For #{path}" do
           let(:path) { path }
 
-          # rubocop:disable RSpec/IncludeExamples
+          # rubocop:disable-next RSpec/IncludeExamples
           include_examples 'has Changelog format'
-          # rubocop:enable RSpec/IncludeExamples
 
           it 'has a link to the issue or pull request address at the beginning' do
             repo = 'rubocop/rubocop'
@@ -393,6 +417,31 @@ RSpec.describe 'RuboCop Project', type: :feature do
                  .grep(%r{/lib/rubocop}) # ignore warnings from dependencies
 
       expect(warnings).to eq []
+    end
+  end
+
+  describe 'department cop registration' do
+    {
+      Bundler: 'bundler',
+      Gemspec: 'gemspec',
+      Layout: 'layout',
+      Lint: 'lint',
+      Metrics: 'metrics',
+      Migration: 'migration',
+      Naming: 'naming',
+      Security: 'security',
+      Style: 'style'
+    }.each do |department, dir|
+      it "registers every cop file in `lib/rubocop/cop/#{dir}` exactly once" do
+        cop_root = File.expand_path('../lib/rubocop/cop', __dir__)
+        files = Dir[File.join(cop_root, dir, '*.rb')].sort
+
+        registered = RuboCop::Cop::Registry.global.names_for_department(department).map do |name|
+          Object.const_source_location("RuboCop::Cop::#{name.sub('/', '::')}").first
+        end.sort
+
+        expect(registered).to eq(files)
+      end
     end
   end
 

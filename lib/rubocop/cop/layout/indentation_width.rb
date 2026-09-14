@@ -206,7 +206,9 @@ module RuboCop
         def autocorrect(corrector, node)
           return unless node
 
-          AlignmentCorrector.correct(corrector, processed_source, node, @column_delta)
+          AlignmentCorrector.correct(
+            corrector, processed_source, node, @column_delta, tab_indentation: true
+          )
         end
 
         # Returns a range at the first non-space column of the line the opening parenthesis is on,
@@ -398,7 +400,7 @@ module RuboCop
           if body_node.rescue_type?
             check_rescue?(body_node)
           elsif body_node.ensure_type?
-            block_body, = *body_node # rubocop:disable InternalAffairs/NodeDestructuring
+            block_body, = *body_node # rubocop:disable InternalAffairs/NodeDestructuring -- `EnsureNode` has no accessor for the protected body
             if block_body&.rescue_type?
               check_rescue?(block_body)
             else
@@ -438,7 +440,7 @@ module RuboCop
                   begin_pos - indentation
                 end
 
-          pos = indentation >= 0 ? ind..begin_pos : begin_pos..ind
+          pos = ind <= begin_pos ? ind..begin_pos : begin_pos..ind
           range_between(pos.begin, pos.end)
         end
 

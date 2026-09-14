@@ -33,7 +33,7 @@ module RuboCop
 
         MSG = 'Do not use parentheses for method calls with no arguments.'
 
-        # rubocop:disable Metrics/CyclomaticComplexity
+        # rubocop:disable-next Metrics/CyclomaticComplexity
         def on_send(node)
           return unless !node.arguments? && node.parenthesized?
           return if ineligible_node?(node)
@@ -44,15 +44,16 @@ module RuboCop
 
           register_offense(node)
         end
-        # rubocop:enable Metrics/CyclomaticComplexity
         alias on_csend on_send
 
         private
 
         def register_offense(node)
-          add_offense(offense_range(node)) do |corrector|
-            corrector.remove(node.loc.begin)
-            corrector.remove(node.loc.end)
+          range = offense_range(node)
+          return if processed_source.contains_comment?(range)
+
+          add_offense(range) do |corrector|
+            corrector.remove(range)
           end
         end
 

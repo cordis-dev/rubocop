@@ -116,6 +116,27 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
         end
       end
 
+      context 'an offense suppressed by a directive carrying a justification' do
+        let(:offense) do
+          RuboCop::Cop::Offense.new(
+            :warning, location, 'unused var', 'Lint/UselessAssignment', :disabled,
+            justification: 'kept for the vendored payload'
+          )
+        end
+
+        it 'serializes them with the justification' do
+          cache.save([offense])
+          expect(cache.load[0].justification).to eq('kept for the vendored payload')
+        end
+      end
+
+      context 'an offense that carries no justification' do
+        it 'serializes them with a nil justification' do
+          cache.save(offenses)
+          expect(cache.load[0].justification).to be_nil
+        end
+      end
+
       context 'a global offense' do
         let(:no_location) { RuboCop::Cop::Offense::NO_LOCATION }
         let(:global_offense) do
@@ -304,6 +325,36 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
     end
   end
 
+  describe 'when the file checksum cannot be computed' do
+    it 'neither writes nor reads the cache entry shared with other such files' do
+      missing_cache = described_class.new('nonexistent.rb', team, options, config_store, cache_root)
+      missing_cache.save(offenses)
+
+      other_missing_cache = described_class.new(
+        'other_nonexistent.rb', team, options, config_store, cache_root
+      )
+
+      expect(missing_cache).not_to be_valid
+      expect(other_missing_cache).not_to be_valid
+    end
+  end
+
+  describe 'when the file is not a regular file' do
+    let(:file) { File::NULL }
+
+    before do
+      skip 'Device files are not stat-able on Windows' if RuboCop::Platform.windows?
+
+      allow(config_store).to receive(:for_file).with(file).and_return(RuboCop::Config.new)
+    end
+
+    it 'is neither saved nor considered valid' do
+      cache.save(offenses)
+
+      expect(cache).not_to be_valid
+    end
+  end
+
   describe '#save' do
     context 'when the default internal encoding is UTF-8' do
       let(:offenses) do
@@ -354,7 +405,9 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
       cfg = RuboCop::Config.new('AllCops' => { 'MaxFilesInCache' => max_files_in_cache })
       allow(config_store).to receive(:for_pwd).and_return(cfg)
       allow(config_store).to receive(:for_file).with('other.rb').and_return(cfg)
+      allow(config_store).to receive(:for_file).with('some.rb').and_return(cfg)
       create_file('other.rb', ['x = 1'])
+      create_file('some.rb', ['y = 2'])
     end
 
     it 'removes the oldest files in the standard cache_root if needed' do

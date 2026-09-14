@@ -184,9 +184,8 @@ module RuboCop
           def accesses?(rhs, lhs)
             if lhs.method?(:[]=)
               # FIXME: Workaround `rubocop:disable` comment for JRuby.
-              # rubocop:disable Performance/RedundantEqualityComparisonBlock
+              # rubocop:disable-next Performance/RedundantEqualityComparisonBlock -- a JRuby workaround, as the comment above says
               matching_calls(rhs, lhs.receiver, :[]).any? { |args| args == lhs.arguments }
-              # rubocop:enable Performance/RedundantEqualityComparisonBlock
             else
               access_method = lhs.method_name.to_s.chop.to_sym
               matching_calls(rhs, lhs.receiver, access_method).any?
@@ -233,12 +232,21 @@ module RuboCop
           def source(node, loc)
             # __FILE__ is treated as a StrNode but has no begin
             if node.str_type? && loc.respond_to?(:begin) && loc.begin.nil?
-              "'#{node.source}'"
+              # `%w` elements have no per-element delimiter, so the value must be
+              # quoted and escaped to stay valid (e.g. `%w(it's)` -> `'it\'s'`).
+              quote(node.value)
             elsif node.sym_type? && !node.loc?(:begin)
-              ":#{node.source}"
+              # `%i` elements have no per-element delimiter, so a symbol that needs
+              # quoting must be emitted as `:"..."` (e.g. `%i(foo-bar)` -> `:"foo-bar"`),
+              # otherwise `:foo-bar` would parse as `:foo.-(bar)`.
+              node.value.inspect
             else
               node.source
             end
+          end
+
+          def quote(string)
+            "'#{string.gsub(/[\\']/) { |char| "\\#{char}" }}'"
           end
 
           def extract_sources(node)

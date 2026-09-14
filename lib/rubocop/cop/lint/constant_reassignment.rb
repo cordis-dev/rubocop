@@ -175,10 +175,19 @@ module RuboCop
         end
 
         def ancestor_namespaces(node)
-          node
-            .each_ancestor(:class, :module)
-            .map { |ancestor| ancestor.identifier.short_name }
-            .reverse
+          ancestors = node.each_ancestor(:class, :module).reverse_each
+
+          ancestors.with_object([]) do |ancestor, namespaces|
+            append_namespaces(namespaces, ancestor.identifier)
+          end
+        end
+
+        # Compact definitions (e.g. `module A::B`) contribute every path segment,
+        # and an absolute one (e.g. `module ::A::B`) discards the enclosing namespaces.
+        def append_namespaces(namespaces, identifier)
+          namespaces.clear if identifier.absolute?
+          namespaces.concat(identifier_namespaces(identifier))
+          namespaces << identifier.short_name
         end
 
         def unconditional_definition?(node)
@@ -188,14 +197,11 @@ module RuboCop
         end
 
         def definition_name(node)
-          identifier = node.identifier
+          namespaces = ancestor_namespaces(node)
+          append_namespaces(namespaces, node.identifier)
+          constant = namespaces.pop
 
-          if identifier.namespace&.cbase_type?
-            fully_qualified_name_for([], identifier.short_name)
-          else
-            namespaces = ancestor_namespaces(node) + identifier_namespaces(identifier)
-            fully_qualified_name_for(namespaces, identifier.short_name)
-          end
+          fully_qualified_name_for(namespaces, constant)
         end
 
         def identifier_namespaces(identifier)
@@ -209,20 +215,11 @@ module RuboCop
         def report_cross_file_collision(node, fully_qualified_name, display_name)
           return unless project_index
           return unless (declaration = project_index[fully_qualified_name.delete_prefix('::')])
-          return unless (prior = prior_definition_in_other_file(declaration))
+          return unless (prior = prior_definition_in_other_file(declaration.definitions))
 
           msg = format(CROSS_FILE_MSG, constant: display_name, path: prior.location.to_file_path)
 
           add_offense(node, message: msg)
-        end
-
-        def prior_definition_in_other_file(declaration)
-          current = processed_source.file_path
-
-          declaration.definitions.find do |definition|
-            other = definition.location.to_file_path
-            !File.identical?(other, current)
-          end
         end
       end
     end

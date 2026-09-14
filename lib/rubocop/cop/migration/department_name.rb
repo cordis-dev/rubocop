@@ -2,7 +2,7 @@
 
 # Lint/RedundantCopDisableDirective needs to be disabled so as
 # to be able to provide examples of rubocop:disable comments.
-# rubocop:disable Lint/RedundantCopDisableDirective
+# rubocop:disable-next Lint/RedundantCopDisableDirective -- the examples below read as real directives
 module RuboCop
   module Cop
     module Migration
@@ -50,10 +50,6 @@ module RuboCop
 
         private
 
-        def disable_comment_offset
-          Regexp.last_match(1).length
-        end
-
         def check_cop_name(name, comment, offset)
           start = comment.source_range.begin_pos + offset
           range = range_between(start, start + name.length)
@@ -89,4 +85,3 @@ module RuboCop
     end
   end
 end
-# rubocop:enable Lint/RedundantCopDisableDirective

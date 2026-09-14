@@ -827,6 +827,100 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
 
   it_behaves_like 'not on separate lines'
 
+  context 'when a value starts on the line below its key' do
+    let(:cop_config) do
+      {
+        'EnforcedHashRocketStyle' => 'separator',
+        'EnforcedColonStyle' => 'separator',
+        'EnforcedLastArgumentHashStyle' => 'always_inspect'
+      }
+    end
+
+    it 'does not register an offense for a hash rocket pair' do
+      expect_no_offenses(<<~RUBY)
+        f("aaaa" =>
+             foo,
+          "b" => 2)
+      RUBY
+    end
+
+    it 'does not register an offense for a colon pair' do
+      expect_no_offenses(<<~RUBY)
+        f(aaaa:
+             foo,
+          b: 2)
+      RUBY
+    end
+
+    it 'still checks a hash whose values all start on their key\'s line' do
+      expect_offense(<<~RUBY)
+        f("aaaa" => foo,
+          "b" => 2)
+          ^^^^^^^^ Align the separators of a hash literal if they span more than one line.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        f("aaaa" => foo,
+             "b" => 2)
+      RUBY
+    end
+  end
+
+  context 'when the first pair omits its value', :ruby31 do
+    let(:cop_config) { { 'EnforcedColonStyle' => 'separator' } }
+
+    it 'does not register an offense' do
+      expect_no_offenses(<<~RUBY)
+        f(
+          aa:,
+          b: nil
+        )
+      RUBY
+    end
+
+    it 'still checks a hash whose first pair has a value' do
+      expect_offense(<<~RUBY)
+        f(
+          aaa: nil,
+          bb:
+          ^^^ Align the separators of a hash literal if they span more than one line.
+        )
+      RUBY
+
+      expect_correction(<<~RUBY)
+        f(
+          aaa: nil,
+           bb:
+        )
+      RUBY
+    end
+  end
+
+  context 'when a later pair omits its value', :ruby31 do
+    let(:cop_config) do
+      { 'EnforcedHashRocketStyle' => 'table', 'EnforcedColonStyle' => 'separator' }
+    end
+
+    it 'does not shift the key past the start of its line' do
+      expect_offense(<<~RUBY)
+        f(
+          a: "x",
+          bbbbb:,
+          ^^^^^^ Align the separators of a hash literal if they span more than one line.
+          c: 1
+        )
+      RUBY
+
+      expect_correction(<<~RUBY)
+        f(
+          a: "x",
+        bbbbb:,
+          c: 1
+        )
+      RUBY
+    end
+  end
+
   context 'with table alignment configuration' do
     let(:cop_config) do
       {
@@ -880,6 +974,103 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
               { after:    %w( n o ) }
             ]
           end
+      RUBY
+    end
+
+    it 'accepts a hash rocket pair whose key spans multiple lines' do
+      expect_no_offenses(<<~RUBY)
+        delegate [
+          :allow_network_access!,
+          :deny_network_access!,
+          :network_access_allowed?,
+        ] => :"self.class"
+      RUBY
+    end
+
+    it 'registers an offense and corrects a hash rocket pair whose key spans multiple ' \
+       'lines to align it with the other, single-line-keyed pairs' do
+      expect_offense(<<~RUBY)
+        hash = {
+          'short' => 1,
+          [
+          ^ Align the keys and values of a hash literal if they span more than one line.
+            :a,
+            :b,
+          ] => :val,
+          'x' => 2,
+          ^^^^^^^^ Align the keys and values of a hash literal if they span more than one line.
+        }
+      RUBY
+
+      expect_correction(<<~RUBY)
+        hash = {
+          'short' => 1,
+          [
+            :a,
+            :b,
+          ]       => :val,
+          'x'     => 2,
+        }
+      RUBY
+    end
+
+    it 'aligns the other pairs to a multiline key instead of corrupting it, when the ' \
+       'multiline key\'s last line has content close to the operator' do
+      expect_offense(<<~RUBY)
+        hash = {
+          'short' => 1,
+          ^^^^^^^^^^^^ Align the keys and values of a hash literal if they span more than one line.
+          [ :a,
+            :a_very_long_hash_key, ] => :val,
+          'x'     => 2,
+          ^^^^^^^^^^^^ Align the keys and values of a hash literal if they span more than one line.
+        }
+      RUBY
+
+      expect_correction(<<~RUBY)
+        hash = {
+          'short'                    => 1,
+          [ :a,
+            :a_very_long_hash_key, ] => :val,
+          'x'                        => 2,
+        }
+      RUBY
+    end
+
+    it 'registers an offense and corrects a multiline key\'s separator when it has ' \
+       'excess whitespace' do
+      expect_offense(<<~RUBY)
+        hash = {
+          'short' => 1,
+          [
+          ^ Align the keys and values of a hash literal if they span more than one line.
+            :a,
+          ]         => :val,
+          'x'     => 2,
+        }
+      RUBY
+
+      expect_correction(<<~RUBY)
+        hash = {
+          'short' => 1,
+          [
+            :a,
+          ]       => :val,
+          'x'     => 2,
+        }
+      RUBY
+    end
+
+    it 'accepts a multiline hash with no single-line keys' do
+      expect_no_offenses(<<~RUBY)
+        hash = {
+          [
+            :a,
+          ] => 1,
+          [
+            :b,
+          ] => 2,
+        }
       RUBY
     end
 

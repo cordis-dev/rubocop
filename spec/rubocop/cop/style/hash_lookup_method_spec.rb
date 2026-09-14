@@ -58,15 +58,22 @@ RSpec.describe RuboCop::Cop::Style::HashLookupMethod, :config do
       expect_no_offenses('fetch(key) { default }')
     end
 
-    context 'when using safe navigation operator' do
-      it 'registers an offense for fetch with one argument' do
-        expect_offense(<<~RUBY)
-          hash&.fetch(key)
-                ^^^^^ Use `Hash#[]` instead of `Hash#fetch`.
-        RUBY
+    it 'registers an offense for the outer call when the key is itself a fetch' do
+      expect_offense(<<~RUBY)
+        a.fetch(b.fetch(:y))
+          ^^^^^ Use `Hash#[]` instead of `Hash#fetch`.
+      RUBY
 
-        expect_correction(<<~RUBY)
-          (hash[key])
+      expect_correction(<<~RUBY)
+        a[b[:y]]
+      RUBY
+    end
+
+    context 'when using safe navigation operator' do
+      it 'does not register an offense for fetch with one argument' do
+        # The bracket equivalent would be the unreadable `hash&.[](key)`.
+        expect_no_offenses(<<~RUBY)
+          hash&.fetch(key)
         RUBY
       end
     end
@@ -136,6 +143,77 @@ RSpec.describe RuboCop::Cop::Style::HashLookupMethod, :config do
           hash&.fetch(key)
         RUBY
       end
+    end
+  end
+
+  context 'with EnforcedStyle: fetch and a key that is itself a lookup' do
+    let(:cop_config) { { 'EnforcedStyle' => 'fetch' } }
+
+    it 'registers an offense for the outer call and corrects both' do
+      expect_offense(<<~RUBY)
+        a[b[:y]]
+        ^^^^^^^^ Use `Hash#fetch` instead of `Hash#[]`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        a.fetch(b.fetch(:y))
+      RUBY
+    end
+
+    it 'registers both offenses when the nesting is in the receiver' do
+      expect_offense(<<~RUBY)
+        a[:x][:y]
+        ^^^^^ Use `Hash#fetch` instead of `Hash#[]`.
+        ^^^^^^^^^ Use `Hash#fetch` instead of `Hash#[]`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        a.fetch(:x).fetch(:y)
+      RUBY
+    end
+  end
+
+  context 'with `EnforcedStyle: fetch` and a compound assignment' do
+    let(:cop_config) { { 'EnforcedStyle' => 'fetch' } }
+
+    it 'does not register an offense when the lookup is the target of `||=`' do
+      expect_no_offenses(<<~RUBY)
+        a[:x] ||= b
+      RUBY
+    end
+
+    it 'does not register an offense when the lookup is the target of `&&=`' do
+      expect_no_offenses(<<~RUBY)
+        a[:x] &&= b
+      RUBY
+    end
+
+    it 'does not register an offense when the lookup is the target of `+=`' do
+      expect_no_offenses(<<~RUBY)
+        a[:x] += b
+      RUBY
+    end
+
+    it 'registers an offense when the lookup is the value of `||=`' do
+      expect_offense(<<~RUBY)
+        a[:x] ||= b[:y]
+                  ^^^^^ Use `Hash#fetch` instead of `Hash#[]`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        a[:x] ||= b.fetch(:y)
+      RUBY
+    end
+
+    it 'registers an offense when the lookup is the value of a plain assignment' do
+      expect_offense(<<~RUBY)
+        x = a[:y]
+            ^^^^^ Use `Hash#fetch` instead of `Hash#[]`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x = a.fetch(:y)
+      RUBY
     end
   end
 

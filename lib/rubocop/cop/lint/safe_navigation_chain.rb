@@ -9,6 +9,13 @@ module RuboCop
       # safe navigation operator after a safe navigation operator.
       # This cop checks for the problem outlined above.
       #
+      # @safety
+      #   This cop's autocorrection is unsafe because it changes the behavior of
+      #   the code: `x&.foo.bar` raises `NoMethodError` when `x` or `x&.foo` is `nil`,
+      #   whereas the corrected `x&.foo&.bar` returns `nil` instead. The autocorrection
+      #   also assumes that extending safe navigation through the chain is intended,
+      #   while removing the first `&.` may be what was intended instead.
+      #
       # @example
       #
       #   # bad
@@ -38,7 +45,7 @@ module RuboCop
           }
         PATTERN
 
-        # rubocop:disable Metrics/AbcSize
+        # rubocop:disable-next Metrics/AbcSize
         def on_send(node)
           return unless require_safe_navigation?(node)
 
@@ -56,7 +63,6 @@ module RuboCop
             end
           end
         end
-        # rubocop:enable Metrics/AbcSize
 
         private
 

@@ -72,10 +72,8 @@ module RuboCop
       #     do_something
       #   end
       #
-      class IfUnlessModifier < Base # rubocop:disable Metrics/ClassLength
+      class IfUnlessModifier < Base
         include StatementModifier
-        include LineLengthHelp
-        include AllowedPattern
         include RangeHelp
         include CommentsHelp
         extend AutoCorrector
@@ -83,15 +81,19 @@ module RuboCop
         MSG_USE_MODIFIER = 'Favor modifier `%<keyword>s` usage when having a ' \
                            'single-line body. Another good alternative is ' \
                            'the usage of control flow `&&`/`||`.'
+        MSG_USE_MODIFIER_PARENS = 'Favor modifier `%<keyword>s` usage when having a ' \
+                                  'single-line body. Wrap the expression in parentheses ' \
+                                  'to keep the current behavior, as it is part of a ' \
+                                  'larger expression.'
         MSG_USE_NORMAL = 'Modifier form of `%<keyword>s` makes the line too long.'
 
         def self.autocorrect_incompatible_with
           [Style::Next, Style::SoleNestedConditional]
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:disable-next Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def on_if(node)
-          return if endless_method?(node.body) || node.ancestors.any?(&:dstr_type?)
+          return if endless_method?(node.body) || node.each_ancestor(:dstr).any?
 
           condition = node.condition
           return if defined_nodes(condition).any? { |n| defined_argument_is_undefined?(node, n) } ||
@@ -107,7 +109,6 @@ module RuboCop
             ignore_node(node)
           end
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         private
 
@@ -119,7 +120,7 @@ module RuboCop
           if condition.defined_type?
             [condition]
           else
-            condition.each_descendant.select(&:defined_type?)
+            condition.each_descendant(:defined?)
           end
         end
 
@@ -137,13 +138,13 @@ module RuboCop
           if condition.any_match_pattern_type?
             [condition]
           else
-            condition.each_descendant.select(&:any_match_pattern_type?)
+            condition.each_descendant(:any_match_pattern)
           end
         end
 
         def message(node)
           if single_line_as_modifier?(node) && !named_capture_in_condition?(node)
-            MSG_USE_MODIFIER
+            parenthesize?(node) ? MSG_USE_MODIFIER_PARENS : MSG_USE_MODIFIER
           elsif too_long_due_to_modifier?(node)
             MSG_USE_NORMAL
           end
@@ -188,52 +189,9 @@ module RuboCop
           max_line_length.between?(source_length - comment.source_range.length, source_length)
         end
 
-        def allowed_patterns
-          line_length_config = config.for_cop('Layout/LineLength')
-          line_length_config['AllowedPatterns'] || line_length_config['IgnoredPatterns'] || []
-        end
-
         def too_long_single_line?(node)
-          return false unless max_line_length
-
           range = node.source_range
-          return false unless range.single_line?
-          return false unless line_length_enabled_at_line?(range.first_line)
-
-          line = range.source_line
-          return false if line_length(line) <= max_line_length
-
-          too_long_line_based_on_config?(range, line)
-        end
-
-        def too_long_line_based_on_config?(range, line)
-          return false if matches_allowed_pattern?(line)
-
-          too_long = too_long_line_based_on_allow_cop_directives?(range, line)
-          return too_long unless too_long == :undetermined
-
-          too_long_line_based_on_allow_uri?(line)
-        end
-
-        def too_long_line_based_on_allow_cop_directives?(range, line)
-          if allow_cop_directives? && directive_on_source_line?(range.line - 1)
-            return line_length_without_directive(line) > max_line_length
-          end
-
-          :undetermined
-        end
-
-        def too_long_line_based_on_allow_uri?(line)
-          if allow_uri?
-            uri_range = find_excessive_range(line, :uri)
-            return false if uri_range && allowed_position?(line, uri_range)
-          end
-
-          true
-        end
-
-        def line_length_enabled_at_line?(line)
-          processed_source.comment_config.cop_enabled_at_line?('Layout/LineLength', line)
+          range.single_line? && !acceptable_line_length?(range.source_line, range.first_line)
         end
 
         def named_capture_in_condition?(node)
@@ -350,7 +308,7 @@ module RuboCop
         end
 
         def comment_on_node_line(node)
-          processed_source.comments.find { |c| same_line?(c, node) }
+          processed_source.comment_at_line(node.first_line)
         end
 
         def remove_comment(corrector, _node, comment)

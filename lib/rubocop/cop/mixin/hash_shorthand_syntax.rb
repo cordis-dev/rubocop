@@ -87,13 +87,26 @@ module RuboCop
       def ignore_mixed_hash_shorthand_syntax?(hash_node)
         target_ruby_version <= 3.0 ||
           !%w[consistent either_consistent].include?(enforced_shorthand_syntax) ||
-          !hash_node.hash_type?
+          !hash_node.hash_type? || hash_rockets_enforced?(hash_node)
       end
 
       def ignore_hash_shorthand_syntax?(pair_node)
         target_ruby_version <= 3.0 || enforced_shorthand_syntax == 'either' ||
           %w[consistent either_consistent].include?(enforced_shorthand_syntax) ||
-          !pair_node.parent.hash_type?
+          !pair_node.parent.hash_type? || hash_rockets_enforced?(pair_node.parent)
+      end
+
+      def hash_rockets_enforced?(hash_node)
+        style == :hash_rockets || force_hash_rockets?(hash_node.pairs) ||
+          no_mixed_keys_enforces_hash_rockets?(hash_node.pairs)
+      end
+
+      def no_mixed_keys_enforces_hash_rockets?(pairs)
+        case style
+        when :no_mixed_keys then !sym_indices?(pairs) || pairs.first.delimiter == '=>'
+        when :ruby19_no_mixed_keys then !sym_indices?(pairs)
+        else false
+        end
       end
 
       def enforced_shorthand_syntax
@@ -117,7 +130,7 @@ module RuboCop
           use_modifier_form_without_parenthesized_method_call?(method_dispatch_node)
       end
 
-      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      # rubocop:disable-next Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def def_node_that_require_parentheses(node)
         last_pair = node.parent.pairs.last
         return unless last_pair.key.source == last_pair.value.source
@@ -131,7 +144,6 @@ module RuboCop
 
         DefNode.new(def_node) unless def_node && def_node.arguments.empty?
       end
-      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       def find_ancestor_method_dispatch_node(node)
         return unless (ancestor = node.parent.parent)

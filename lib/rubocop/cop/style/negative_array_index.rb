@@ -91,8 +91,9 @@ module RuboCop
           end
         end
 
+        # rubocop:disable-next Metrics/CyclomaticComplexity
         def range_with_length_subtraction?(range_node, array_receiver)
-          return false unless range_node.range_type?
+          return false unless range_node&.range_type?
 
           range_end = range_node.end
           range_start = range_node.begin
@@ -122,7 +123,7 @@ module RuboCop
           end
         end
 
-        # rubocop:disable Metrics/ParameterLists
+        # rubocop:disable-next Metrics/ParameterLists
         def build_range_offense_data(receiver, range_node, range_end, inner_end, negative_index,
                                      index_arg)
           range_op = range_node.erange_type? ? '...' : '..'
@@ -138,7 +139,6 @@ module RuboCop
 
           [message, replacement]
         end
-        # rubocop:enable Metrics/ParameterLists
 
         def format_range_message_parts(range_start, negative_index, index_arg)
           has_parentheses = index_arg.begin_type?

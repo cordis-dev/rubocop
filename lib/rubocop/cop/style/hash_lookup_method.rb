@@ -57,12 +57,15 @@ module RuboCop
 
         def on_send(node)
           return if (receiver = node.receiver) && allowed_receiver?(receiver)
+          return if part_of_ignored_node?(node)
 
           if offense_for_brackets?(node)
+            ignore_node(node.first_argument)
             add_offense(node.loc.selector, message: BRACKET_MSG) do |corrector|
               correct_fetch_to_brackets(corrector, node)
             end
           elsif offense_for_fetch?(node)
+            ignore_node(node.first_argument)
             add_offense(node, message: FETCH_MSG) do |corrector|
               correct_brackets_to_fetch(corrector, node)
             end
@@ -74,21 +77,22 @@ module RuboCop
 
         def offense_for_brackets?(node)
           style == :brackets && node.receiver && node.method?(:fetch) && node.arguments.one? &&
-            !node.block_literal?
+            !node.block_literal? && !node.csend_type?
         end
 
         def offense_for_fetch?(node)
-          style == :fetch && node.method?(:[]) && node.arguments.one?
+          style == :fetch && node.method?(:[]) && node.arguments.one? &&
+            !compound_assignment_target?(node)
+        end
+
+        def compound_assignment_target?(node)
+          node.parent&.type?(:op_asgn, :or_asgn, :and_asgn) && node.parent.children.first == node
         end
 
         def correct_fetch_to_brackets(corrector, node)
           key = node.first_argument.source
 
-          if node.csend_type?
-            corrector.replace(node, "(#{node.receiver.source}[#{key}])")
-          else
-            corrector.replace(node.loc.dot.join(node.source_range.end), "[#{key}]")
-          end
+          corrector.replace(node.loc.dot.join(node.source_range.end), "[#{key}]")
         end
 
         def correct_brackets_to_fetch(corrector, node)

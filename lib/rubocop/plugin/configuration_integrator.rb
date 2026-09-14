@@ -59,7 +59,11 @@ module RuboCop
 
               plugin_config.make_excludes_absolute
 
-              ConfigLoader.merge_with_default(plugin_config, plugin_config_path)
+              # `unset_nil: false` keeps `AllCops` keys declared with a nil value by a plugin
+              # (e.g. `TargetRailsVersion: ~` of rubocop-rails); `merge_all_cop_settings` above
+              # carries such keys into each subsequent plugin's config, where `unset_nil: true`
+              # would delete them from the combined configuration.
+              ConfigLoader.merge_with_default(plugin_config, plugin_config_path, unset_nil: false)
             end
           end
         end
@@ -88,7 +92,7 @@ module RuboCop
           result
         end
 
-        # rubocop:disable Metrics/AbcSize
+        # rubocop:disable-next Metrics/AbcSize
         def load_plugin_rubocop_config(plugin, runner_context)
           rules = plugin.rules(runner_context)
 
@@ -105,7 +109,6 @@ module RuboCop
             raise "Plugin `#{plugin_name}' failed to load with error: #{error_message}"
           end
         end
-        # rubocop:enable Metrics/AbcSize
 
         # This is how we ensure "first-in wins": plugins can override AllCops settings that are
         # set by RuboCop's default configuration, but once a plugin sets an AllCop setting, they

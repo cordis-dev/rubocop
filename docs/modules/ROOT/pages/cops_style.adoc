@@ -368,6 +368,19 @@ alias_method :bar, :foo
 | `prefer_alias`, `prefer_alias_method`
 |===
 
+[#preview-defaults-stylealias]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `prefer_alias`
+| `prefer_alias_method`
+|===
+
 [#references-stylealias]
 === References
 
@@ -832,6 +845,7 @@ arr[0][-2]
 [#references-stylearrayfirstlast]
 === References
 
+* https://rubystyle.guide#first-and-last
 * #first-and-last
 
 [#stylearrayintersect]
@@ -876,6 +890,11 @@ NOTE: Although `Array#intersection` can take zero or multiple arguments,
 only cases where exactly one argument is provided can be replaced with
 `Array#intersect?` and are handled by this cop.
 
+NOTE: In the block form, `include?` is only detected when its receiver is
+an array literal, because `include?` is defined with different semantics
+on many non-array classes (e.g. `String#include?` checks for substrings).
+`member?` does not have this restriction.
+
 [#safety-stylearrayintersect]
 === Safety
 
@@ -899,7 +918,7 @@ array1.intersection(array2).none?
 
 # bad
 array1.any? { |elem| array2.member?(elem) }
-array1.none? { |elem| array2.member?(elem) }
+array1.none? { |elem| [1, 2].include?(elem) }
 
 # good
 array1.intersect?(array2)
@@ -1601,6 +1620,19 @@ things.map { |thing|
 | Array
 |===
 
+[#preview-defaults-styleblockdelimiters]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
+|===
+
 [#references-styleblockdelimiters]
 === References
 
@@ -1848,7 +1880,7 @@ That's a good use case of a `?` literal so it doesn't count as an offense.
 | Yes
 | Always (Unsafe)
 | 0.19
-| 1.74
+| 1.89
 |===
 
 Checks that namespaced classes and modules are defined with a consistent style.
@@ -1875,9 +1907,14 @@ Autocorrection is unsafe.
 
 Moving from `compact` to `nested` children requires knowledge of whether the
 outer parent is a module or a class. Moving from `nested` to `compact` requires
-verification that the outer parent is defined elsewhere. RuboCop does not
-have the knowledge to perform either operation safely and thus requires
+verification that the outer parent is defined elsewhere. By default RuboCop does
+not have the knowledge to perform either operation safely and thus requires
 manual oversight.
+
+When `AllCops/UseProjectIndex` is enabled and the `rubydex` gem is installed,
+the project-wide index is consulted to resolve whether the outer parent is a
+class or a module, and compacting is skipped when the outer parent is not
+defined elsewhere.
 
 [#examples-styleclassandmodulechildren]
 === Examples
@@ -1931,6 +1968,19 @@ end
 | EnforcedStyleForModules
 | `<none>`
 | `<none>`, `nested`, `compact`
+|===
+
+[#preview-defaults-styleclassandmodulechildren]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
 |===
 
 [#references-styleclassandmodulechildren]
@@ -3333,6 +3383,11 @@ end
 | Boolean
 |===
 
+[#references-styleconditionalassignment]
+=== References
+
+* https://rubystyle.guide#use-if-case-returns
+
 [#styleconstantvisibility]
 == Style/ConstantVisibility
 
@@ -3479,6 +3534,10 @@ Inheriting from `Data.define` adds a superfluous level in inheritance tree.
 Autocorrection is unsafe because it will change the inheritance
 tree (e.g. return value of `Module#ancestors`) of the constant.
 
+It is also unsafe because constants that the class body resolves through its
+ancestors (e.g. one provided by an included module) fall out of scope inside
+the block.
+
 [#examples-styledatainheritance]
 === Examples
 
@@ -3595,7 +3654,7 @@ something.to_time
 [#references-styledatetime]
 === References
 
-* https://rubystyle.guide#date-time
+* https://rubystyle.guide#no-datetime
 
 [#styledefwithparentheses]
 == Style/DefWithParentheses
@@ -3760,6 +3819,84 @@ Dir.each_child('path/to/dir').none?
 Dir.empty?('path/to/dir')
 ----
 
+[#styledirectivescope]
+== Style/DirectiveScope
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| Always (Unsafe)
+| 1.90
+| 1.91
+|===
+
+Checks for directive scopes that can be expressed with the tighter
+next-statement forms: a `disable`/`enable` pair, an
+`enable`/`disable` pair, or a `push`/`pop` with signed arguments
+wrapping exactly one statement. A statement-scoped directive cannot
+drift as the surrounding code changes and needs no closing boundary.
+
+[#safety-styledirectivescope]
+=== Safety
+
+The autocorrection is unsafe because the suppression scope shrinks
+from the whole region to the statement: offenses of the suppressed
+cops located on the directive lines themselves resurface.
+
+[#examples-styledirectivescope]
+=== Examples
+
+[source,ruby]
+----
+# bad
+# rubocop:disable Metrics/AbcSize
+def foo
+end
+# rubocop:enable Metrics/AbcSize
+
+# good
+# rubocop:disable-next Metrics/AbcSize
+def foo
+end
+
+# bad
+# rubocop:push -Metrics/AbcSize
+def foo
+end
+# rubocop:pop
+
+# good
+# rubocop:disable-next Metrics/AbcSize
+def foo
+end
+
+# bad
+# rubocop:disable Metrics/AbcSize
+# rubocop:push +Metrics/AbcSize
+def foo
+end
+# rubocop:pop
+# rubocop:enable Metrics/AbcSize
+
+# good
+# rubocop:disable Metrics/AbcSize
+# rubocop:enable-next Metrics/AbcSize
+def foo
+end
+# rubocop:enable Metrics/AbcSize
+
+# good - the region spans more than one statement
+# rubocop:disable Metrics/AbcSize
+def foo
+end
+
+def bar
+end
+# rubocop:enable Metrics/AbcSize
+----
+
 [#styledisablecopswithinsourcecodedirective]
 == Style/DisableCopsWithinSourceCodeDirective
 
@@ -3770,7 +3907,7 @@ Dir.empty?('path/to/dir')
 | Yes
 | Always
 | 0.82
-| 1.9
+| 1.90
 |===
 
 Detects comments to enable/disable RuboCop.
@@ -3779,6 +3916,33 @@ and not quickly disabled with a comment.
 
 Specific cops can be allowed with the `AllowedCops` configuration. Note that
 if this configuration is set, `rubocop:disable all` is still disallowed.
+
+`AllowedCops` and `DisallowedCops` accept cop names and department names
+alike. Listing a cop does not cover its whole department: a directive
+disabling `Metrics` is broader than one disabling `Metrics/AbcSize`.
+
+Alternatively, specific cops can be disallowed with the `DisallowedCops`
+configuration. When `DisallowedCops` is set, only directives for the listed
+cops (and `all`) will be flagged. This is useful when you want
+to protect a small set of critical cops from being disabled rather than
+allowlisting all other cops. `AllowedCops` and `DisallowedCops` should not
+both be set at the same time; if `DisallowedCops` is set, it takes precedence.
+
+`AllowedDirectives` names directive forms - `disable`, `todo`,
+`disable-next`, `todo-next`, `push`, `next` - and exempts them from the
+cop entirely. `rubocop:todo` is the usual candidate, since
+`--disable-uncorrectable` generates those and they record debt rather
+than a decision someone should be asked to justify.
+
+With `AllowWithReason` set to `true`, a disable directive carrying
+a `--` trailing justification comment is allowed, so a team can require
+every disable to be documented instead of banning them outright. Enable
+directives are not checked in this mode, since they end a suppression
+rather than start one.
+
+This cop cannot be disabled via directive comments when it is explicitly
+enabled with `Enabled: true`. This prevents users from bypassing the cop
+with `# rubocop:disable Style/DisableCopsWithinSourceCodeDirective`.
 
 [#examples-styledisablecopswithinsourcecodedirective]
 === Examples
@@ -3808,6 +3972,58 @@ end
 # rubocop:enable Metrics/AbcSize
 ----
 
+[#disallowedcops_-_lintvoid_-styledisablecopswithinsourcecodedirective]
+==== DisallowedCops: [Lint/Void]
+
+[source,ruby]
+----
+# bad
+# rubocop:disable Lint/Void
+foo
+# rubocop:enable Lint/Void
+
+# good
+# rubocop:disable Metrics/AbcSize
+foo
+# rubocop:enable Metrics/AbcSize
+----
+
+[#alloweddirectives_-_todo_-styledisablecopswithinsourcecodedirective]
+==== AllowedDirectives: [todo]
+
+[source,ruby]
+----
+# good - the cop does not look at `todo` directives at all
+x = 0 # rubocop:todo Layout/SpaceAroundOperators
+
+# bad
+x = 0 # rubocop:disable Layout/SpaceAroundOperators
+----
+
+[#allowedcops_-_metrics_-styledisablecopswithinsourcecodedirective]
+==== AllowedCops: [Metrics]
+
+[source,ruby]
+----
+# good - every cop the directive disables is in an exempt department
+# rubocop:disable Metrics/AbcSize
+def foo
+end
+# rubocop:enable Metrics/AbcSize
+----
+
+[#allowwithreason_-true-styledisablecopswithinsourcecodedirective]
+==== AllowWithReason: true
+
+[source,ruby]
+----
+# bad
+x = 0 # rubocop:disable Layout/SpaceAroundOperators
+
+# good
+x = 0 # rubocop:disable Layout/SpaceAroundOperators -- would misalign the table
+----
+
 [#configurable-attributes-styledisablecopswithinsourcecodedirective]
 === Configurable attributes
 
@@ -3815,6 +4031,18 @@ end
 | Name | Default value | Configurable values
 
 | AllowedCops
+| `[]`
+| Array
+
+| DisallowedCops
+| `[]`
+| Array
+
+| AllowWithReason
+| `false`
+| Boolean
+
+| AllowedDirectives
 | `[]`
 | Array
 |===
@@ -3924,7 +4152,7 @@ class_eval("def #{unsafe_method}!(*params); end # def capitalize!(*params); end"
 | Yes
 | No
 | 0.9
-| -
+| 1.89
 |===
 
 Checks for missing top-level documentation of classes and
@@ -3936,6 +4164,11 @@ declarations.
 The documentation requirement is annulled if the class or module has
 a `#:nodoc:` comment next to it. Likewise, `#:nodoc: all` does the
 same for all its children.
+
+When `AllCops/UseProjectIndex` is enabled and the `rubydex` gem is
+installed, a reopened class or module is not reported when any of its
+other definition sites (in the same or another file) carries a
+documentation comment.
 
 [#examples-styledocumentation]
 === Examples
@@ -4015,6 +4248,19 @@ end
 | Exclude
 | `+spec/**/*+`, `+test/**/*+`
 | Array
+|===
+
+[#preview-defaults-styledocumentation]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
 |===
 
 [#styledocumentationmethod]
@@ -4170,42 +4416,6 @@ end
 | Boolean
 |===
 
-[#styledoublecopdisabledirective]
-== Style/DoubleCopDisableDirective
-
-|===
-| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
-
-| Enabled
-| Yes
-| Always
-| 0.73
-| -
-|===
-
-Detects double disable comments on one line. This is mostly to catch
-automatically generated comments that need to be regenerated.
-
-[#examples-styledoublecopdisabledirective]
-=== Examples
-
-[source,ruby]
-----
-# bad
-def f # rubocop:disable Style/For # rubocop:disable Metrics/AbcSize
-end
-
-# good
-# rubocop:disable Metrics/AbcSize
-def f # rubocop:disable Style/For
-end
-# rubocop:enable Metrics/AbcSize
-
-# if both fit on one line
-def f # rubocop:disable Style/For, Metrics/AbcSize
-end
-----
-
 [#styledoublenegation]
 == Style/DoubleNegation
 
@@ -4301,6 +4511,19 @@ end
 | EnforcedStyle
 | `allowed_in_returns`
 | `allowed_in_returns`, `forbidden`
+|===
+
+[#preview-defaults-styledoublenegation]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
 |===
 
 [#references-styledoublenegation]
@@ -4560,6 +4783,11 @@ end
 | `[]`
 | Array
 |===
+
+[#references-styleemptyclassdefinition]
+=== References
+
+* https://rubystyle.guide#single-line-classes
 
 [#styleemptyelse]
 == Style/EmptyElse
@@ -4935,6 +5163,19 @@ end
 | EnforcedStyle
 | `compact`
 | `compact`, `expanded`
+|===
+
+[#preview-defaults-styleemptymethod]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `compact`
+| `expanded`
 |===
 
 [#references-styleemptymethod]
@@ -5852,6 +6093,11 @@ null_devices = %w[/dev/null nul]
 { unix: "/dev/null", windows: "nul" }
 ----
 
+[#references-stylefilenull]
+=== References
+
+* https://rubystyle.guide#null-devices
+
 [#stylefileopen]
 == Style/FileOpen
 
@@ -5917,6 +6163,11 @@ end
 # good - use File.read for one-shot reads
 File.read('file')
 ----
+
+[#references-stylefileopen]
+=== References
+
+* https://rubystyle.guide#auto-release-resources
 
 [#stylefileread]
 == Style/FileRead
@@ -6354,6 +6605,19 @@ puts '%10s' % 'foo'
 | `format`, `sprintf`, `percent`
 |===
 
+[#preview-defaults-styleformatstring]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
+|===
+
 [#references-styleformatstring]
 === References
 
@@ -6574,6 +6838,24 @@ sprintf("%<greeting>s", greeting: 'Hello')
 | Array
 |===
 
+[#preview-defaults-styleformatstringtoken]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
+|===
+
+[#references-styleformatstringtoken]
+=== References
+
+* https://rubystyle.guide#named-format-tokens
+
 [#stylefrozenstringliteralcomment]
 == Style/FrozenStringLiteralComment
 
@@ -6701,6 +6983,19 @@ end
 | Exclude
 | `+**/*.arb+`
 | Array
+|===
+
+[#preview-defaults-stylefrozenstringliteralcomment]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
 |===
 
 [#styleglobalstdstream]
@@ -6952,6 +7247,19 @@ end
 | AllowConsecutiveConditionals
 | `false`
 | Boolean
+|===
+
+[#preview-defaults-styleguardclause]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
 |===
 
 [#references-styleguardclause]
@@ -7858,6 +8166,11 @@ foo.bar.each_with_object({}) { |(k, v), h| h[k.to_s] = v }
 baz.map { |k, v| [k.to_s, v] }.to_h
 ----
 
+[#references-stylehashtransformkeys]
+=== References
+
+* https://rubystyle.guide#hash-transform-methods
+
 [#stylehashtransformvalues]
 == Style/HashTransformValues
 
@@ -7910,6 +8223,11 @@ foo.merge(bar).transform_values { |v| v.to_s }
 foo.bar.each_with_object({}) { |(k, v), h| h[k] = v.to_s }
 baz.map { |k, v| [k, v.to_s] }.to_h
 ----
+
+[#references-stylehashtransformvalues]
+=== References
+
+* https://rubystyle.guide#hash-transform-methods
 
 [#styleidenticalconditionalbranches]
 == Style/IdenticalConditionalBranches
@@ -8216,6 +8534,19 @@ if short_condition # a long comment that makes it too long if it were just a sin
   do_something
 end
 ----
+
+[#preview-defaults-styleifunlessmodifier]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
+|===
 
 [#references-styleifunlessmodifier]
 === References
@@ -9001,7 +9332,7 @@ end
 [#references-stylekeywordparametersorder]
 === References
 
-* https://rubystyle.guide#keyword-parameters-order
+* https://rubystyle.guide#keyword-arguments-order
 
 [#stylelambda]
 == Style/Lambda
@@ -9087,6 +9418,19 @@ f = ->(x) do
 | EnforcedStyle
 | `line_count_dependent`
 | `line_count_dependent`, `lambda`, `literal`
+|===
+
+[#preview-defaults-stylelambda]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
 |===
 
 [#references-stylelambda]
@@ -9200,6 +9544,11 @@ some_str = 'ala' \
            'bala'
 ----
 
+[#references-stylelineendconcatenation]
+=== References
+
+* https://rubystyle.guide#heredoc-long-strings
+
 [#stylemagiccommentformat]
 == Style/MagicCommentFormat
 
@@ -9210,7 +9559,7 @@ some_str = 'ala' \
 | Yes
 | Always
 | 1.35
-| -
+| 1.91
 |===
 
 Ensures magic comments are written consistently throughout your code base.
@@ -9374,13 +9723,26 @@ end
 
 | Pending
 | Yes
-| Always
+| Always (Unsafe)
 | 1.30
-| -
+| 1.88
 |===
 
 Prefer `select` or `reject` over `map { ... }.compact`.
 This cop also handles `filter_map { ... }`, similar to `map { ... }.compact`.
+
+[#safety-stylemapcompactwithconditionalblock]
+=== Safety
+
+This cop is unsafe because `compact` also removes `nil` elements that
+were already present in the receiver, whereas `select`/`reject` keep
+them. The result therefore differs when the collection contains `nil`:
+
+[source,ruby]
+----
+[nil, 1].map { |e| e if e }.compact # => [1]
+[nil, 1].select { |e| e }           # => [nil, 1]
+----
 
 [#examples-stylemapcompactwithconditionalblock]
 === Examples
@@ -10465,7 +10827,7 @@ end
 | Yes
 | No
 | 0.56
-| -
+| 1.89
 |===
 
 Checks for the presence of `method_missing` without also
@@ -10492,6 +10854,11 @@ delegator.respond_to?(:upcase) # => false
 # But you can call it.
 delegator.upcase # => FOO
 ----
+
+When `AllCops/UseProjectIndex` is enabled and the `rubydex` gem is
+installed, `respond_to_missing?` defined in another definition of the
+same class or module (e.g. a reopening in another file) also
+satisfies the check.
 
 [#examples-stylemissingrespondtomissing]
 === Examples
@@ -10788,6 +11155,19 @@ end
 | Autocorrect
 | `false`
 | Boolean
+|===
+
+[#preview-defaults-stylemodulefunction]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
 |===
 
 [#references-stylemodulefunction]
@@ -11436,6 +11816,9 @@ CONST = Struct.new do
     puts 1
   end
 end.freeze
+
+# good - `Data.define` declares an immutable value type
+CONST = Data.define(:foo, :bar)
 ----
 
 [source,ruby]
@@ -11571,6 +11954,19 @@ end
 | EnforcedStyle
 | `both`
 | `both`, `prefix`, `postfix`
+|===
+
+[#preview-defaults-stylenegatedif]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
 |===
 
 [#references-stylenegatedif]
@@ -11721,7 +12117,7 @@ end
 [#references-stylenegatedunless]
 === References
 
-* https://rubystyle.guide#if-for-negatives
+* https://rubystyle.guide#unless-for-negatives
 
 [#stylenegatedwhile]
 == Style/NegatedWhile
@@ -12088,6 +12484,19 @@ end
 | Boolean
 |===
 
+[#preview-defaults-stylenext]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
+|===
+
 [#references-stylenext]
 === References
 
@@ -12172,6 +12581,11 @@ end
 
 Checks for lambdas and procs that always return nil,
 which can be replaced with an empty lambda or proc instead.
+
+NOTE: A `proc` that returns nil via an explicit `return` is allowed,
+because in a `proc` `return` exits the enclosing method, so removing it
+would change behavior. A lambda is still reported, since there `return`
+only exits the lambda itself.
 
 [#examples-stylenillambda]
 === Examples
@@ -12592,6 +13006,19 @@ only correct to the standard pattern of an `_` every 3 digits.
 | Array
 |===
 
+[#preview-defaults-stylenumericliterals]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
+|===
+
 [#references-stylenumericliterals]
 === References
 
@@ -12738,6 +13165,19 @@ bar.baz.positive?
 | Exclude
 | `+spec/**/*+`
 | Array
+|===
+
+[#preview-defaults-stylenumericpredicate]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
 |===
 
 [#references-stylenumericpredicate]
@@ -12905,6 +13345,11 @@ end
 | `+spec/**/*+`, `+test/**/*+`
 | Array
 |===
+
+[#references-styleoneclassperfile]
+=== References
+
+* https://rubystyle.guide#one-class-per-file
 
 [#styleonelineconditional]
 == Style/OneLineConditional
@@ -13351,6 +13796,19 @@ b = 2
 c = 3
 ----
 
+[#preview-defaults-styleparallelassignment]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
+|===
+
 [#references-styleparallelassignment]
 === References
 
@@ -13666,7 +14124,7 @@ Checks for usage of the %Q() syntax when %q() would do.
 
 Looks for uses of Perl-style regexp match
 backreferences and their English versions like
-$1, $2, $&, &+, $MATCH, $PREMATCH, etc.
+$1, $2, $&, $MATCH, $PREMATCH, etc.
 
 [#examples-styleperlbackrefs]
 === Examples
@@ -13679,6 +14137,19 @@ puts $1
 # good
 puts Regexp.last_match(1)
 ----
+
+[#preview-defaults-styleperlbackrefs]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
+|===
 
 [#references-styleperlbackrefs]
 === References
@@ -13983,6 +14454,19 @@ fail 'message'
 | Array
 |===
 
+[#preview-defaults-styleraiseargs]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
+|===
+
 [#references-styleraiseargs]
 === References
 
@@ -14263,6 +14747,9 @@ x.join
 |===
 
 Checks for redundant assignment before returning.
+
+When there are comments between the assignment and reference,
+the cop will report an offense but it will not autocorrect.
 
 [#examples-styleredundantassignment]
 === Examples
@@ -14559,7 +15046,7 @@ x != y
 | Yes
 | Always
 | 1.40
-| -
+| 1.89
 |===
 
 Avoid redundant `::` prefix on a constant.
@@ -14572,6 +15059,11 @@ avoid such meaningless `::` prefix to avoid confusion.
 NOTE: This cop is disabled if `Lint/ConstantResolution` cop is enabled,
 to prevent conflicting rules. This is because it respects user configurations
 that want to enable `Lint/ConstantResolution` cop which is disabled by default.
+
+When `AllCops/UseProjectIndex` is enabled and the `rubydex` gem is
+installed, a leading `::` inside a namespace is also reported when the
+constant provably resolves to the same declaration with and without
+the base, i.e. nothing in the surrounding nesting shadows it.
 
 [#examples-styleredundantconstantbase]
 === Examples
@@ -15336,10 +15828,13 @@ String.new("#{foo} bar")
 
 Checks for redundant line continuation.
 
-This cop marks a line continuation as redundant if removing the backslash
-does not result in a syntax error.
-However, a backslash at the end of a comment or
-for string concatenation is not redundant and is not considered an offense.
+A line continuation is redundant when removing the backslash does not
+change how the program parses: the source is reparsed without the
+backslash and the resulting AST is compared to the original. Only
+backslashes that are pure noise are reported; backslashes that are
+significant — inside strings, for string concatenation, before an
+operator or argument that would otherwise start a new statement, and
+so on — are left alone, as are backslashes in comments.
 
 [#examples-styleredundantlinecontinuation]
 === Examples
@@ -15399,6 +15894,11 @@ foo(bar, # \
 some_method \
   (argument)
 ----
+
+[#references-styleredundantlinecontinuation]
+=== References
+
+* https://rubystyle.guide#no-trailing-backslash
 
 [#styleredundantminmaxby]
 == Style/RedundantMinMaxBy
@@ -15663,6 +16163,11 @@ Checks for redundant escapes inside `Regexp` literals.
 # good
 /[+\-]\d/
 ----
+
+[#references-styleredundantregexpescape]
+=== References
+
+* https://rubystyle.guide#limit-escapes
 
 [#styleredundantreturn]
 == Style/RedundantReturn
@@ -16266,6 +16771,19 @@ x =~ /home\//
 | Boolean
 |===
 
+[#preview-defaults-styleregexpliteral]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
+|===
+
 [#references-styleregexpliteral]
 === References
 
@@ -16512,6 +17030,19 @@ end
 | EnforcedStyle
 | `explicit`
 | `implicit`, `explicit`
+|===
+
+[#preview-defaults-stylerescuestandarderror]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `explicit`
+| `implicit`
 |===
 
 [#stylereturnnil]
@@ -16783,6 +17314,16 @@ x && x.foo  # return false
 x&.foo      # raises NoMethodError
 ----
 
+Additionally, when a method chain is converted, a `NoMethodError` that
+the original code raised for an intermediate `nil` value is suppressed:
+
+[source,ruby]
+----
+x = Struct.new(:foo).new(nil)
+x && x.foo.bar  # raises NoMethodError
+x&.foo&.bar     # returns nil
+----
+
 [#examples-stylesafenavigation]
 === Examples
 
@@ -16934,6 +17475,10 @@ user.address.zip if user
 Identifies usages of `shuffle.first`,
 `shuffle.last`, and `shuffle[]` and change them to use
 `sample` instead.
+
+NOTE: An offense involving a `random:` argument is registered but not autocorrected:
+`shuffle` and `sample` consume the given generator differently, so for a seeded generator
+the correction would select different elements.
 
 [#examples-stylesample]
 === Examples
@@ -17506,6 +18051,19 @@ explicit_receiver.raise
 | `only_raise`, `only_fail`, `semantic`
 |===
 
+[#preview-defaults-stylesignalexception]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
+|===
+
 [#references-stylesignalexception]
 === References
 
@@ -18022,6 +18580,19 @@ puts $*
 | `use_perl_names`, `use_english_names`, `use_builtin_english_names`
 |===
 
+[#preview-defaults-stylespecialglobalvars]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| Enabled
+| `true`
+| `false`
+|===
+
 [#references-stylespecialglobalvars]
 === References
 
@@ -18096,12 +18667,17 @@ There are two different styles. Defaults to `require_parentheses`.
 | No
 | Always (Unsafe)
 | 1.3
-| -
+| 1.89
 |===
 
 Checks for places where classes with only class methods can be
 replaced with a module. Classes should be used only when it makes sense to create
 instances out of them.
+
+When `AllCops/UseProjectIndex` is enabled and the `rubydex` gem is
+installed, classes that are subclassed anywhere in the project are
+not reported, since converting them to modules would break their
+subclasses.
 
 [#safety-stylestaticclass]
 === Safety
@@ -18420,6 +18996,19 @@ Checks if uses of quotes match the configured preference.
 | Boolean
 |===
 
+[#preview-defaults-stylestringliterals]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `single_quotes`
+| `double_quotes`
+|===
+
 [#references-stylestringliterals]
 === References
 
@@ -18497,6 +19086,19 @@ regexp = /Tests #{success ? "PASS" : "FAIL"}/
 | EnforcedStyle
 | `single_quotes`
 | `single_quotes`, `double_quotes`
+|===
+
+[#preview-defaults-stylestringliteralsininterpolation]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `single_quotes`
+| `double_quotes`
 |===
 
 [#stylestringmethods]
@@ -18590,6 +19192,10 @@ adds a superfluous level in inheritance tree.
 
 Autocorrection is unsafe because it will change the inheritance
 tree (e.g. return value of `Module#ancestors`) of the constant.
+
+It is also unsafe because constants that the class body resolves through its
+ancestors (e.g. one provided by an included module) fall out of scope inside
+the block.
 
 [#examples-stylestructinheritance]
 === Examples
@@ -18853,6 +19459,19 @@ array of 2 or fewer elements.
 | MinSize
 | `2`
 | Integer
+|===
+
+[#preview-defaults-stylesymbolarray]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `percent`
+| `brackets`
 |===
 
 [#references-stylesymbolarray]
@@ -19267,6 +19886,55 @@ foo = (bar = baz) ? a : b
 | `true`
 | Boolean
 |===
+
+[#preview-defaults-styleternaryparentheses]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `require_no_parentheses`
+| `require_parentheses_when_complex`
+|===
+
+[#styletimenow]
+== Style/TimeNow
+
+|===
+| Enabled by default | Safe | Supports autocorrection | Version Added | Version Changed
+
+| Pending
+| Yes
+| Always
+| 1.90
+| -
+|===
+
+Checks for `Time.new` without arguments, which is an implicit way
+to retrieve the current system time. Prefer the more explicit `Time.now`.
+
+[#examples-styletimenow]
+=== Examples
+
+[source,ruby]
+----
+# bad
+Time.new
+
+# good
+Time.now
+
+# good - `Time.new` with arguments constructs a specific time
+Time.new(2026, 8, 19)
+----
+
+[#references-styletimenow]
+=== References
+
+* https://rubystyle.guide#time-now
 
 [#styletoplevelmethoddefinition]
 == Style/TopLevelMethodDefinition
@@ -20152,6 +20820,11 @@ a, b, _something = foo
 | Boolean
 |===
 
+[#references-styletrailingunderscorevariable]
+=== References
+
+* https://rubystyle.guide#trailing-underscore-variables
+
 [#styletrivialaccessors]
 == Style/TrivialAccessors
 
@@ -20785,6 +21458,19 @@ array of 2 or fewer elements.
 | WordRegex
 | `(?-mix:\A(?:\p{Word}\|\p{Word}-\p{Word}\|\n\|\t)+\z)`
 | 
+|===
+
+[#preview-defaults-stylewordarray]
+=== Preview defaults
+
+These defaults apply under xref:versioning.adoc#preview[Preview] and are expected to become the regular defaults in the next major release.
+
+|===
+| Name | Current default | Preview default
+
+| EnforcedStyle
+| `percent`
+| `brackets`
 |===
 
 [#references-stylewordarray]

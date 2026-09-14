@@ -21,6 +21,10 @@ module RuboCop
         RuboCop::CLI::Command::AutoGenerateConfig::AUTO_GENERATED_FILE
       ].freeze
 
+      # Commands handled by `workspace/executeCommand`. Advertised to the client
+      # via `executeCommandProvider` so it knows which commands it can invoke.
+      EXECUTE_COMMANDS = %w[rubocop.formatAutocorrects rubocop.formatAutocorrectsAll].freeze
+
       def self.handle(name, &block)
         define_method(:"handle_#{name}", &block)
       end
@@ -50,6 +54,12 @@ module RuboCop
           result: LanguageServer::Protocol::Interface::InitializeResult.new(
             capabilities: LanguageServer::Protocol::Interface::ServerCapabilities.new(
               document_formatting_provider: true,
+              code_action_provider: LanguageServer::Protocol::Interface::CodeActionOptions.new(
+                code_action_kinds: [LanguageServer::Protocol::Constant::CodeActionKind::QUICK_FIX]
+              ),
+              execute_command_provider: LanguageServer::Protocol::Interface::ExecuteCommandOptions.new(
+                commands: EXECUTE_COMMANDS
+              ),
               text_document_sync: LanguageServer::Protocol::Interface::TextDocumentSyncOptions.new(
                 change: LanguageServer::Protocol::Constant::TextDocumentSyncKind::INCREMENTAL,
                 open_close: true
@@ -107,18 +117,26 @@ module RuboCop
         @server.write(id: request[:id], result: format_file(uri))
       end
 
+      handle 'textDocument/codeAction' do |request|
+        @server.write(id: request[:id], result: code_actions_for(request[:params]))
+      end
+
       handle 'workspace/didChangeConfiguration' do |_request|
         Logger.log('Ignoring workspace/didChangeConfiguration')
       end
 
       handle 'workspace/didChangeWatchedFiles' do |request|
-        changed = request[:params][:changes].any? do |change|
+        config_changed = request[:params][:changes].any? do |change|
           CONFIGURATION_FILE_PATTERNS.any? { |path| change[:uri].end_with?(path) }
         end
 
-        if changed
+        if config_changed
           Logger.log('Configuration file changed; restart required')
           @server.stop
+        else
+          # A watched source file changed on disk, so the project index may be
+          # stale; drop it so the next diagnostics run rebuilds it.
+          @server.reset_project_index
         end
       end
 
@@ -133,25 +151,13 @@ module RuboCop
           return
         end
 
-        uri = request[:params][:arguments][0][:uri]
-        formatted = nil
-
-        # The `workspace/executeCommand` is an LSP method triggered by intentional user actions,
-        # so the user's intention for autocorrection is respected.
-        LSP.disable { formatted = format_file(uri, command: command) }
-
-        @server.write(
-          id: request[:id],
-          method: 'workspace/applyEdit',
-          params: {
-            label: label,
-            edit: {
-              changes: {
-                uri => formatted
-              }
-            }
-          }
-        )
+        # Clients such as Eglot can invoke a command without arguments, so respond with
+        # an error instead of letting the server crash on a missing URI.
+        if (uri = document_uri_from(request))
+          write_formatting_edits(request, uri: uri, command: command, label: label)
+        else
+          write_invalid_arguments_error(request, command)
+        end
       end
 
       handle 'textDocument/willSave' do |_request|
@@ -159,7 +165,9 @@ module RuboCop
       end
 
       handle 'textDocument/didSave' do |_request|
-        # Nothing to do
+        # The buffer's contents are now on disk, so the project index may be
+        # stale; drop it so the next diagnostics run rebuilds it.
+        @server.reset_project_index
       end
 
       handle '$/cancelRequest' do |_request|
@@ -199,6 +207,47 @@ module RuboCop
         }
       end
 
+      def document_uri_from(request)
+        argument = request.dig(:params, :arguments, 0)
+
+        argument[:uri] if argument.is_a?(Hash)
+      end
+
+      def write_formatting_edits(request, uri:, command:, label:)
+        formatted = nil
+
+        # The `workspace/executeCommand` is an LSP method triggered by intentional user actions,
+        # so the user's intention for autocorrection is respected.
+        LSP.disable { formatted = format_file(uri, command: command) }
+
+        @server.write(
+          id: request[:id],
+          method: 'workspace/applyEdit',
+          params: {
+            label: label,
+            edit: {
+              changes: {
+                uri => formatted
+              }
+            }
+          }
+        )
+      end
+
+      def write_invalid_arguments_error(request, command)
+        message = "Missing document URI in arguments for #{command}"
+
+        @server.write(
+          id: request[:id],
+          error: LanguageServer::Protocol::Interface::ResponseError.new(
+            code: LanguageServer::Protocol::Constant::ErrorCodes::INVALID_PARAMS,
+            message: message
+          )
+        )
+
+        Logger.log(message)
+      end
+
       def format_file(file_uri, command: nil)
         unless (text = @text_cache[file_uri])
           Logger.log("Format request arrived before text synchronized; skipping: `#{file_uri}'")
@@ -217,6 +266,24 @@ module RuboCop
             end: { line: text.count("\n") + 1, character: 0 }
           }
         }]
+      end
+
+      # Returns the quickfix code actions for a `textDocument/codeAction` request.
+      #
+      # RuboCop attaches each offense's autocorrect and disable-line actions to
+      # the diagnostic it publishes, under the diagnostic's `data` (see
+      # `Diagnostic#to_lsp_diagnostic`).  The LSP spec preserves that `data`
+      # between `textDocument/publishDiagnostics` and `textDocument/codeAction`,
+      # so the client hands the diagnostics back in the request's context and we
+      # can surface their actions without re-analyzing the file.  This makes the
+      # actions available to clients that request code actions rather than
+      # reading them off the diagnostic (Eglot, Helix, Flycheck, ...).
+      def code_actions_for(params)
+        diagnostics = params.dig(:context, :diagnostics) || []
+        only = params.dig(:context, :only)
+
+        diagnostics.flat_map { |diagnostic| diagnostic.dig(:data, :code_actions) || [] }
+                   .select { |action| only.nil? || only.include?(action[:kind]) }
       end
 
       def diagnostic(file_uri, text)

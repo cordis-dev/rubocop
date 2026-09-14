@@ -73,7 +73,12 @@ module RuboCop
         end
 
         def find_pair_ancestor(node)
-          node.each_ancestor.find(&:pair_type?)
+          node.each_ancestor do |ancestor|
+            return ancestor if ancestor.pair_type?
+            break if grouped_expression?(ancestor) || inside_arg_list_parentheses?(node, ancestor)
+          end
+
+          nil
         end
 
         def unwrap_block_node(node)
@@ -405,7 +410,7 @@ module RuboCop
 
         def find_continuation_node(node)
           receiver = node.receiver
-          return receiver.send_node if single_line_block_receiver?(receiver)
+          return leftmost_call_on_same_line(receiver) if single_line_block_receiver?(receiver)
           return unless receiver.call_type? && receiver.loc.dot
           return receiver if receiver.receiver.begin_type? && node.block_node.single_line?
           return unless receiver.loc.dot.line > receiver.receiver.last_line
@@ -417,9 +422,19 @@ module RuboCop
           receiver.single_line? && receiver.any_block_type?
         end
 
+        def leftmost_call_on_same_line(node)
+          current = unwrap_block_node(node)
+          while (receiver = unwrap_block_node(current.receiver)) &&
+                receiver.call_type? && receiver.loc?(:dot) &&
+                receiver.loc.dot.line == current.loc.dot.line
+            current = receiver
+          end
+          current
+        end
+
         def handle_descendant_block(node)
           receiver = node.receiver
-          return receiver.send_node if single_line_block_receiver?(receiver)
+          return leftmost_call_on_same_line(receiver) if single_line_block_receiver?(receiver)
 
           block_node = node.each_descendant(:any_block).first
           return unless block_node&.multiline?

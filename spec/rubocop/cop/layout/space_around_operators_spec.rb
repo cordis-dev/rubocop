@@ -257,6 +257,28 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
     expect_no_offenses('x = a * b/42r')
   end
 
+  it 'registers an offense for an exponent-assignment operator without spaces and keeps the assignment' do
+    expect_offense(<<~RUBY)
+      base**=exp
+          ^^^ Surrounding space missing for operator `**=`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      base **= exp
+    RUBY
+  end
+
+  it 'registers an offense for a division-assignment operator without spaces and keeps the assignment' do
+    expect_offense(<<~RUBY)
+      val/=2r
+         ^^ Surrounding space missing for operator `/=`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      val /= 2r
+    RUBY
+  end
+
   it 'does not register an offense for slash in non rational literals without spaces' do
     expect_no_offenses(<<~RUBY)
       x = a * b / 42
@@ -354,6 +376,98 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
       expect_correction(<<~RUBY)
         "" => foo
       RUBY
+    end
+
+    context 'with endless method definitions' do
+      it 'registers an offense for a parameterless definition without space after `=`' do
+        expect_offense(<<~RUBY)
+          def foo =1
+                  ^ Surrounding space missing for operator `=`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo = 1
+        RUBY
+      end
+
+      it 'registers an offense for a parenthesized definition without space around `=`' do
+        expect_offense(<<~RUBY)
+          def foo()=1
+                   ^ Surrounding space missing for operator `=`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo() = 1
+        RUBY
+      end
+
+      it 'registers an offense for a parenthesized definition without space after `=`' do
+        expect_offense(<<~RUBY)
+          def foo() =1
+                    ^ Surrounding space missing for operator `=`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo() = 1
+        RUBY
+      end
+
+      it 'registers an offense for a parenthesized definition without space before `=`' do
+        expect_offense(<<~RUBY)
+          def foo()= 1
+                   ^ Surrounding space missing for operator `=`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo() = 1
+        RUBY
+      end
+
+      it 'registers an offense for a definition with parameters without space around `=`' do
+        expect_offense(<<~RUBY)
+          def foo(a, b)=a + b
+                       ^ Surrounding space missing for operator `=`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def foo(a, b) = a + b
+        RUBY
+      end
+
+      it 'registers an offense for a singleton definition without space after `=`' do
+        expect_offense(<<~RUBY)
+          def self.foo =1
+                       ^ Surrounding space missing for operator `=`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def self.foo = 1
+        RUBY
+      end
+
+      it 'does not register an offense for a correctly spaced definition' do
+        expect_no_offenses(<<~RUBY)
+          def foo = 1
+          def bar() = 2
+          def self.baz = 3
+        RUBY
+      end
+
+      it 'does not register an offense when the body is on the next line after `=`' do
+        expect_no_offenses(<<~RUBY)
+          def foo() =
+            1
+        RUBY
+      end
+
+      # An operator at the beginning of a continuation line is ignored by this cop as a whole,
+      # not just for endless method definitions.
+      it 'does not register an offense when `=` is at the beginning of a continuation line' do
+        expect_no_offenses(<<~RUBY)
+          def foo()
+            =1
+        RUBY
+      end
     end
   end
 
@@ -1194,6 +1308,14 @@ RSpec.describe RuboCop::Cop::Layout::SpaceAroundOperators, :config do
           x: y
         }.freeze
         SECOND = true
+      RUBY
+    end
+
+    it 'allows operator assignments to be aligned with a preceding assignment' do
+      expect_no_offenses(<<~RUBY)
+        aaaa = 1
+        foo
+        b   += 2
       RUBY
     end
   end

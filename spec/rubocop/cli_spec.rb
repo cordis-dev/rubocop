@@ -546,17 +546,88 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
                    '  # rubocop: enable Style/NumericLiterals',
                    'end'])
       expect(cli.run(['--format', 'emacs', 'example.rb'])).to eq(1)
-      expect($stderr.string)
-        .to eq(['example.rb: Warning: Style/LineLength has the wrong ' \
-                'namespace - replace it with Layout/LineLength',
-                ''].join("\n"))
-      # 2 real cops were disabled, and 1 that was incorrect
-      # 2 real cops was enabled, but only 1 had been disabled correctly
+      expect($stderr.string).to be_empty
+      # 2 real cops were disabled; the wrongly-namespaced `Style/LineLength` is
+      # not honored and gets reported with a suggestion instead.
+      # 2 real cops were enabled, but only 1 had been disabled correctly.
       expect($stdout.string).to eq(<<~RESULT)
+        #{abs('example.rb')}:3:19: W: Lint/RedundantCopDisableDirective: Unnecessary disabling of `Style/LineLength` (did you mean `Layout/LineLength`?).
+        #{abs('example.rb')}:4:121: C: Layout/LineLength: Line is too long. [130/120]
         #{abs('example.rb')}:8:21: W: [Correctable] Lint/RedundantCopEnableDirective: Unnecessary enabling of Layout/LineLength.
         #{abs('example.rb')}:9:121: C: Layout/LineLength: Line is too long. [132/120]
         #{abs('example.rb')}:11:5: C: [Correctable] Style/StringLiterals: Prefer single-quoted strings when you don't need string interpolation or special symbols.
       RESULT
+    end
+
+    it 'can disable cops for the following statement with `disable-next`' do
+      create_file('example.rb', <<~RUBY)
+        # frozen_string_literal: true
+
+        # rubocop:disable-next Lint/UselessAssignment -- kept for documentation purposes
+        useless = compute(1,
+                          2)
+        also_useless = 3
+      RUBY
+      expect(cli.run(['--format', 'emacs', 'example.rb'])).to eq(1)
+      expect($stdout.string).to include('6:1: W: [Correctable] Lint/UselessAssignment')
+      expect($stdout.string).not_to include('4:1')
+    end
+
+    it 'carries a `disable-next` justification into `--display-suppressed` JSON output' do
+      create_file('example.rb', <<~RUBY)
+        # frozen_string_literal: true
+
+        # rubocop:disable-next Lint/UselessAssignment -- kept for documentation purposes
+        useless = 1
+      RUBY
+      expect(cli.run(['--format', 'json', '--display-suppressed', 'example.rb'])).to eq(0)
+      expect($stdout.string).to include('"justification":"kept for documentation purposes"')
+    end
+
+    it 'keeps the justification when the offense is served from the result cache' do
+      create_file('example.rb', <<~RUBY)
+        # frozen_string_literal: true
+
+        # rubocop:disable-next Lint/UselessAssignment -- kept for documentation purposes
+        useless = 1
+      RUBY
+      args = ['--format', 'json', '--display-suppressed', '--cache', 'true',
+              '--cache-root', '.cache', 'example.rb']
+
+      expect(cli.run(args)).to eq(0)
+      expect($stdout.string).to include('"justification":"kept for documentation purposes"')
+
+      $stdout.string.clear
+      expect(cli.run(args)).to eq(0)
+      expect($stdout.string).to include('"justification":"kept for documentation purposes"')
+    end
+
+    it 'reports a detached `disable-next` even when no cop is disabled in the config' do
+      create_file('.rubocop.yml', <<~YAML)
+        AllCops:
+          EnabledByDefault: true
+      YAML
+      create_file('example.rb', <<~RUBY)
+        puts 1
+        # rubocop:disable-next Lint/UselessAssignment
+      RUBY
+      expect(cli.run(['--format', 'emacs', 'example.rb'])).to eq(1)
+      expect($stdout.string).to include('Unnecessary disabling of `Lint/UselessAssignment`')
+    end
+
+    it 'reports suppressed offenses with `--display-suppressed` without affecting the exit code' do
+      create_file('example.rb', <<~RUBY)
+        # frozen_string_literal: true
+
+        x = 1 # rubocop:disable Lint/UselessAssignment -- demo data
+      RUBY
+      expect(cli.run(['--format', 'emacs', '--display-suppressed', 'example.rb'])).to eq(0)
+      expect($stdout.string)
+        .to include('[Suppressed] Lint/UselessAssignment: Useless assignment to variable - `x`')
+
+      $stdout.string.clear
+      expect(cli.run(['--format', 'emacs', 'example.rb'])).to eq(0)
+      expect($stdout.string).not_to include('Suppressed')
     end
 
     it 'can disable all cops on a single line' do
@@ -640,7 +711,7 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
           create_file('example.rb', <<~RUBY)
             # frozen_string_literal: true
 
-            assert_equal nil, combinator {}.call # rubocop:disable Lint/EmptyBlock'
+            assert_equal nil, combinator {}.call # rubocop:disable Lint/EmptyBlock
           RUBY
           expect(cli.run(['example.rb'])).to eq(0)
           expect($stdout.string).to include('1 file inspected, no offenses detected')

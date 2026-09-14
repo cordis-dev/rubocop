@@ -248,10 +248,21 @@ RSpec.describe RuboCop::Cop::Lint::Void, :config do
       top
     RUBY
 
-    expect_correction(<<~RUBY)
-      CONST = 5
-      top
+    # Referencing a constant can trigger autoloading side effects, so removing it may
+    # change behavior; the offense is reported but not autocorrected.
+    expect_no_corrections
+  end
+
+  it 'registers an offense but does not autocorrect a qualified constant in void context' do
+    expect_offense(<<~RUBY)
+      Foo::Bar
+      ^^^^^^^^ Constant `Foo::Bar` used in void context.
+
+      class Foo::Bar
+      end
     RUBY
+
+    expect_no_corrections
   end
 
   it 'registers an offense for void constant `CONST` with guard condition if not on last line' do
@@ -594,6 +605,19 @@ RSpec.describe RuboCop::Cop::Lint::Void, :config do
       RUBY
     end
 
+    it 'registers an offense for a safe navigation call' do
+      expect_offense(<<~RUBY)
+        x&.sort
+        ^^^^^^^ Method `#sort` used in void context. Did you mean `#sort!`?
+        top(x)
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x&.sort!
+        top(x)
+      RUBY
+    end
+
     it 'does not register an offense assigning variable' do
       expect_no_offenses(<<~RUBY)
         foo = bar
@@ -865,30 +889,38 @@ RSpec.describe RuboCop::Cop::Lint::Void, :config do
     RUBY
   end
 
-  it 'registers two offenses for void literals in a setter method' do
+  it 'registers an offense only for the non-last void literal in a setter method' do
     expect_offense(<<~RUBY)
       def foo=(rhs)
         42
         ^^ Literal `42` used in void context.
         42
-        ^^ Literal `42` used in void context.
       end
     RUBY
 
     expect_no_corrections
   end
 
-  it 'registers two offenses for void literals in a class setter method' do
+  it 'registers an offense only for the non-last void literal in a class setter method' do
     expect_offense(<<~RUBY)
       def self.foo=(rhs)
         42
         ^^ Literal `42` used in void context.
         42
-        ^^ Literal `42` used in void context.
       end
     RUBY
 
     expect_no_corrections
+  end
+
+  it 'does not register an offense for the return value of a setter method' do
+    expect_no_offenses(<<~RUBY)
+      def name=(name)
+        @name = name
+        reset
+        name
+      end
+    RUBY
   end
 
   it 'registers an offense only for non-last void literal in a `#each` method' do

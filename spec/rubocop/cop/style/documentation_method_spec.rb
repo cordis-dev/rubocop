@@ -1006,6 +1006,65 @@ RSpec.describe RuboCop::Cop::Style::DocumentationMethod, :config do
           RUBY
         end
       end
+
+      describe 'when AllowedMethods is configured for an inline modifier def' do
+        before do
+          config['Style/DocumentationMethod'] =
+            { 'AllowedMethods' => ['bar'], 'RequireForNonPublicMethods' => true }
+        end
+
+        it 'ignores an allowed `module_function` inline def' do
+          expect_no_offenses(<<~RUBY)
+            module Foo
+              module_function def bar; end
+            end
+          RUBY
+        end
+
+        it 'ignores an allowed `ruby2_keywords` inline def' do
+          expect_no_offenses(<<~RUBY)
+            module Foo
+              ruby2_keywords def bar; end
+            end
+          RUBY
+        end
+
+        it 'still registers an offense for a non-allowed `module_function` inline def' do
+          expect_offense(<<~RUBY)
+            module Foo
+              module_function def baz
+              ^^^^^^^^^^^^^^^^^^^^^^^ Missing method documentation comment.
+              end
+            end
+          RUBY
+        end
+
+        it 'ignores an allowed inline def preceded by another argument' do
+          expect_no_offenses(<<~RUBY)
+            module Foo
+              ruby2_keywords :baz, def bar; end
+            end
+          RUBY
+        end
+
+        it 'registers an offense for a non-allowed inline def preceded by another argument' do
+          expect_offense(<<~RUBY)
+            module Foo
+              ruby2_keywords :bar, def baz; end
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Missing method documentation comment.
+            end
+          RUBY
+        end
+
+        it 'registers an offense for a non-allowed `module_function` def preceded by another argument' do
+          expect_offense(<<~RUBY)
+            module Foo
+              module_function :bar, def baz; end
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Missing method documentation comment.
+            end
+          RUBY
+        end
+      end
     end
   end
 end

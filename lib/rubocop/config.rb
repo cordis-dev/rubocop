@@ -2,7 +2,7 @@
 
 # FIXME: Moving Rails department code to RuboCop Rails will remove
 # the following rubocop:disable comment.
-# rubocop:disable Metrics/ClassLength
+# rubocop:disable-next Metrics/ClassLength
 module RuboCop
   # This class represents the configuration of the RuboCop application
   # and all its cops. A Config is associated with a YAML configuration
@@ -27,7 +27,7 @@ module RuboCop
       config
     end
 
-    # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    # rubocop:disable-next Metrics/AbcSize, Metrics/MethodLength
     def initialize(hash = RuboCop::ConfigLoader.default_configuration, loaded_path = nil)
       @loaded_path = loaded_path
       @for_cop = Hash.new do |h, cop|
@@ -72,7 +72,6 @@ module RuboCop
       @badge_config_cache = {}.compare_by_identity
       @clusivity_config_exists_cache = {}
     end
-    # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
     def loaded_plugins
       @loaded_plugins ||= ConfigLoader.loaded_plugins
@@ -168,7 +167,11 @@ module RuboCop
         department_config = self[badge.department_name]
         cop_config = for_cop(badge.to_s)
         if department_config
-          department_config.merge(cop_config)
+          merged_config = department_config.merge(cop_config)
+          if department_config['Exclude'] && cop_config['Exclude']
+            merged_config['Exclude'] = department_config['Exclude'] | cop_config['Exclude']
+          end
+          merged_config
         else
           cop_config
         end
@@ -207,6 +210,30 @@ module RuboCop
 
     def enabled_new_cops?
       for_all_cops['NewCops'] == 'enable'
+    end
+
+    # Whether the given pending cop should be enabled, based on the `NewCops` setting of
+    # its department (if any) or of `AllCops`. A department may set `NewCops` to `enable`,
+    # `disable`, `pending`, or a version, in which case pending cops added in that version
+    # or earlier are enabled.
+    def enabled_new_cop?(qualified_cop_name)
+      setting = new_cops_setting_for(qualified_cop_name)
+
+      case setting.to_s
+      when 'enable' then true
+      when '', 'pending', 'disable' then false
+      else new_cops_version_covers?(setting, qualified_cop_name)
+      end
+    end
+
+    # Whether preview behavior is on, for cops that gate an unstable change
+    # behind it and for cops that are themselves `Enabled: preview`.
+    # `--preview` / `--no-preview` win over `AllCops: Preview`.
+    def preview?(options = {})
+      preview = options[:preview]
+      return preview unless preview.nil?
+
+      for_all_cops['Preview'] == true
     end
 
     def active_support_extensions_enabled?
@@ -326,6 +353,7 @@ module RuboCop
 
         cop_metadata = self[qualified_cop_name]
         next unless cop_metadata['Enabled'] == 'pending'
+        next if new_cops_covered?(qualified_cop_name)
 
         pending_cops << CopConfig.new(qualified_cop_name, cop_metadata)
       end
@@ -335,6 +363,14 @@ module RuboCop
     # @returns [Hash{String => Gem::Version}] The locked gem versions, keyed by the gems' names.
     def gem_versions_in_target
       @gem_versions_in_target ||= read_gem_versions_from_target_lockfile
+    end
+
+    # Returns the names of the target's gems that are sourced from a local path
+    # (i.e. `path:` dependencies and the project's own gem when the `Gemfile`
+    # uses `gemspec`), whose code therefore lives in the project itself.
+    # @returns [Array<String>, nil] The gem names, or nil without a lockfile.
+    def path_sourced_gems_in_target
+      @path_sourced_gems_in_target ||= read_path_sourced_gems_from_target_lockfile
     end
 
     def inspect # :nodoc:
@@ -381,6 +417,14 @@ module RuboCop
       Lockfile.new(lockfile_path).gem_versions
     end
 
+    # @returns [Array<String>, nil] The names of the gems sourced from a local path.
+    def read_path_sourced_gems_from_target_lockfile
+      lockfile_path = bundler_lock_file_path
+      return nil unless lockfile_path
+
+      Lockfile.new(lockfile_path).path_sourced_gem_names
+    end
+
     def enable_cop?(qualified_cop_name, cop_options)
       # If the cop is explicitly enabled or `Lint/Syntax`, the other checks can be skipped.
       return true if cop_options['Enabled'] == true || qualified_cop_name == 'Lint/Syntax'
@@ -399,6 +443,43 @@ module RuboCop
 
       self[cop_department.join('/')]
     end
+
+    # The effective `NewCops` setting for the given cop: the department-level
+    # setting if present, otherwise the `AllCops` setting.
+    def new_cops_setting_for(qualified_cop_name)
+      department = department_of(qualified_cop_name)
+      setting = department['NewCops'] if department
+
+      setting || for_all_cops['NewCops']
+    end
+
+    # Whether the cop's pending status is resolved by a `NewCops` setting,
+    # so that it should not appear in the pending cops warning.
+    # Unlike `enabled_new_cop?`, `disable` counts as covered.
+    def new_cops_covered?(qualified_cop_name)
+      setting = new_cops_setting_for(qualified_cop_name)
+
+      case setting.to_s
+      when 'enable', 'disable' then true
+      when '', 'pending' then false
+      else new_cops_version_covers?(setting, qualified_cop_name)
+      end
+    end
+
+    def new_cops_version_covers?(new_cops_version, qualified_cop_name)
+      cop_metadata = self[qualified_cop_name]
+      version_added = comparable_version(cop_metadata['VersionAdded']) if cop_metadata
+      pinned_version = comparable_version(new_cops_version)
+      return false if version_added.nil? || pinned_version.nil?
+
+      version_added <= pinned_version
+    end
+
+    # Returns a `Gem::Version` for values like `'1.19'` or `1.19`, and `nil`
+    # for non-version values like `'N/A'` or `'<<next>>'`.
+    def comparable_version(value)
+      value = value.to_s
+      Gem::Version.new(value) if value.match?(/\A\d/) && Gem::Version.correct?(value)
+    end
   end
 end
-# rubocop:enable Metrics/ClassLength

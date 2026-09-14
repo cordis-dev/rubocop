@@ -153,6 +153,28 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
           .bar
       RUBY
     end
+
+    it 'accepts a method chain nested inside a parenthesized argument list within a hash pair value' do
+      expect_no_offenses(<<~RUBY)
+        foo(
+          key => Model.joins(
+            Other
+              .arel_table
+              .join_sources
+          )
+        )
+      RUBY
+    end
+
+    it 'accepts a method chain nested inside a grouped expression within a hash pair value' do
+      expect_no_offenses(<<~RUBY)
+        foo(
+          key => (Other
+                    .arel_table
+                    .join_sources)
+        )
+      RUBY
+    end
   end
 
   shared_examples 'common for aligned and indented' do
@@ -1106,6 +1128,87 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
         do_something.foo do
         end&.bar
            &.baz
+      RUBY
+    end
+
+    it 'accepts aligned method chain when line has multiple calls before single-line block' do
+      expect_no_offenses(<<~RUBY)
+        users
+          .dup.sort_by { _1.name.lower }
+          .page(params[:page])
+          .per(PER_PAGE)
+      RUBY
+    end
+
+    it 'accepts aligned method chain when line has multiple calls before single-line block with safe navigation' do
+      expect_no_offenses(<<~RUBY)
+        users
+          &.dup&.sort_by { _1.name.lower }
+          &.page(params[:page])
+      RUBY
+    end
+
+    it 'accepts aligned method chain when continuation also has a block' do
+      expect_no_offenses(<<~RUBY)
+        users
+          .dup.sort_by { _1.name }
+          .select { |u| u.active? }
+          .map(&:id)
+      RUBY
+    end
+
+    it 'accepts aligned method chain with three calls before single-line block' do
+      expect_no_offenses(<<~RUBY)
+        users
+          .dup.compact.sort_by { _1.name }
+          .first(10)
+      RUBY
+    end
+
+    it 'accepts aligned method chain when line has multiple single-line blocks before a multiline block' do
+      expect_no_offenses(<<~RUBY)
+        obj
+          .foo { _1.a }.bar { _1.b }
+          .each do |x|
+          do_something(x)
+        end
+      RUBY
+    end
+
+    it 'accepts aligned method chain when line has multiple single-line blocks before a method call' do
+      expect_no_offenses(<<~RUBY)
+        obj
+          .foo { _1.a }.bar { _1.b }
+          .baz(x)
+      RUBY
+    end
+
+    it 'accepts aligned method chain when line has multiple single-line blocks with safe navigation' do
+      expect_no_offenses(<<~RUBY)
+        obj
+          &.foo { _1.a }&.bar { _1.b }
+          &.each do |x|
+          do_something(x)
+        end
+      RUBY
+    end
+
+    it 'registers an offense and corrects misaligned method call after multiple single-line blocks' do
+      expect_offense(<<~RUBY)
+        obj
+          .foo { _1.a }.bar { _1.b }
+            .each do |x|
+            ^^^^^ Align `.each` with `.foo` on line 2.
+            do_something(x)
+          end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        obj
+          .foo { _1.a }.bar { _1.b }
+          .each do |x|
+          do_something(x)
+        end
       RUBY
     end
 

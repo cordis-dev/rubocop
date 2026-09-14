@@ -24,7 +24,8 @@ module RuboCop
       include FileFinder
 
       attr_accessor :debug, :ignore_parent_exclusion, :disable_pending_cops, :enable_pending_cops,
-                    :enabled_by_default, :disabled_by_default, :ignore_unrecognized_cops
+                    :enabled_by_default, :disabled_by_default, :ignore_unrecognized_cops,
+                    :preview
       attr_writer :default_configuration, :cache_root
       attr_reader :loaded_plugins, :loaded_features
 
@@ -41,6 +42,7 @@ module RuboCop
         @loaded_features = Set.new
         @disable_pending_cops = nil
         @enable_pending_cops = nil
+        @preview = nil
         @enabled_by_default = nil
         @disabled_by_default = nil
         @ignore_parent_exclusion = nil
@@ -49,7 +51,7 @@ module RuboCop
         FileFinder.root_level = nil
       end
 
-      # rubocop:disable Metrics/AbcSize
+      # rubocop:disable-next Metrics/AbcSize
       def load_file(file, check: true)
         path = file_path(file)
 
@@ -73,7 +75,6 @@ module RuboCop
 
         Config.create(hash, path, check: check)
       end
-      # rubocop:enable Metrics/AbcSize
 
       def load_yaml_configuration(absolute_path)
         file_contents = read_file(absolute_path)
@@ -196,12 +197,18 @@ module RuboCop
       # `AllCops/DisabledByDefault` to the given configuration. Used when the
       # configuration would otherwise be returned without going through
       # `merge_with_default` (e.g. there is no user-supplied `.rubocop.yml`).
+      # Used when there is no configuration file, so the defaults are the whole
+      # configuration and still need the same treatment `merge_with_default`
+      # would have given them.
       def apply_default_overrides(config)
-        return config if @enabled_by_default.nil? && @disabled_by_default.nil?
+        hash = resolver.apply_preview_defaults(config, preview == true)
 
-        hash = config.transform_values do |params|
-          params.is_a?(Hash) ? params.merge('Enabled' => !@disabled_by_default) : params
+        unless @enabled_by_default.nil? && @disabled_by_default.nil?
+          hash = hash.transform_values do |params|
+            params.is_a?(Hash) ? params.merge('Enabled' => !@disabled_by_default) : params
+          end
         end
+
         Config.new(hash, config.loaded_path)
       end
 

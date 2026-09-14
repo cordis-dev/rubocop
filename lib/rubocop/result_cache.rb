@@ -123,7 +123,7 @@ module RuboCop
     end
 
     def valid?
-      File.exist?(@path)
+      !@checksum_unavailable && File.exist?(@path)
     end
 
     def load
@@ -132,6 +132,8 @@ module RuboCop
     end
 
     def save(offenses)
+      return if @checksum_unavailable
+
       dir = File.dirname(@path)
 
       begin
@@ -176,14 +178,23 @@ module RuboCop
     end
 
     def file_checksum(file, config_store)
+      stat = File.stat(file)
+      return unavailable_checksum unless stat.file?
+
       digester = Digest::SHA1.new
-      mode = File.stat(file).mode
-      digester.update("#{file}#{mode}#{config_store.for_file(file).signature}")
+      digester.update("#{file}#{stat.mode}#{config_store.for_file(file).signature}")
       digester.file(file)
       digester.hexdigest
     rescue Errno::ENOENT
-      # Spurious files that come and go should not cause a crash, at least not
-      # here.
+      # Spurious files that come and go should not cause a crash, at least not here.
+      unavailable_checksum
+    end
+
+    # Every file that fails to checksum shares this sentinel value, so the cache entry
+    # must be neither saved nor considered valid, or one file's cached results could be
+    # served as another's.
+    def unavailable_checksum
+      @checksum_unavailable = true
       '_'
     end
 
@@ -237,10 +248,12 @@ module RuboCop
         # when traversing the relative paths with symlinks.
         exe_root = File.absolute_path(exe_root)
 
-        # These are all the files we have `require`d plus everything in the
-        # exe directory. A change to any of them could affect the cop output
-        # so we include them in the cache hash.
-        source_files = $LOADED_FEATURES + Find.find(exe_root).to_a
+        # These are all the files we have `require`d, all of RuboCop's own files whether loaded
+        # or not (cops are loaded lazily, so which of them are in `$LOADED_FEATURES` varies from
+        # run to run), plus everything in the exe directory. A change to any of them could affect
+        # the cop output so we include them in the cache hash.
+        rubocop_lib_files = Dir[File.join(File.absolute_path(lib_root), 'rubocop', '**', '*.rb')]
+        source_files = $LOADED_FEATURES | rubocop_lib_files | Find.find(exe_root).to_a
         source_files -= ResultCache.rubocop_required_features # Rely on gem versions
 
         source_files

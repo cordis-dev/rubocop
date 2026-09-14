@@ -19,7 +19,15 @@ RSpec.describe RuboCop::ConfigLoader do
     RuboCop::ConfigFinder.project_root = nil
   end
 
-  let(:default_config) { described_class.default_configuration }
+  # The default configuration as it resolves: a cop's `Preview` section never
+  # survives into the loaded configuration, and that includes the one under
+  # `AllCops`. (A project's own `AllCops: Preview: true` is a boolean, so a
+  # boolean would survive.)
+  let(:default_config) do
+    described_class.default_configuration.to_h.transform_values do |params|
+      params.reject { |key, value| key == 'Preview' && value.is_a?(Hash) }
+    end
+  end
 
   describe '.configuration_file_for', :isolated_environment do
     subject(:configuration_file_for) { described_class.configuration_file_for(dir_path) }
@@ -2092,6 +2100,99 @@ RSpec.describe RuboCop::ConfigLoader do
       end
 
       it 'gets a warning message' do
+        expect do
+          load_file
+        end.to raise_error(
+          RuboCop::ValidationError,
+          /invalid true for `NewCops` found in/
+        )
+      end
+    end
+
+    context 'sets a version to `NewCops` for `AllCops`' do
+      before do
+        create_file(configuration_path, <<~YAML)
+          AllCops:
+            NewCops: '1.19'
+        YAML
+      end
+
+      it 'raises an error because versions are only allowed for a department' do
+        expect do
+          load_file
+        end.to raise_error(
+          RuboCop::ValidationError,
+          /invalid 1\.19 for `NewCops` found in/
+        )
+      end
+    end
+
+    context 'sets `enable` to `NewCops` for a department' do
+      before do
+        create_file(configuration_path, <<~YAML)
+          Lint:
+            NewCops: enable
+        YAML
+      end
+
+      it 'loads the config without error' do
+        expect { load_file }.not_to raise_error
+      end
+    end
+
+    context 'sets a version string to `NewCops` for a department' do
+      before do
+        create_file(configuration_path, <<~YAML)
+          Lint:
+            NewCops: '1.19'
+        YAML
+      end
+
+      it 'loads the config without error' do
+        expect { load_file }.not_to raise_error
+      end
+    end
+
+    context 'sets an unquoted version to `NewCops` for a department' do
+      before do
+        create_file(configuration_path, <<~YAML)
+          Lint:
+            NewCops: 1.19
+        YAML
+      end
+
+      it 'loads the config without error' do
+        expect { load_file }.not_to raise_error
+      end
+    end
+
+    context 'sets an invalid value to `NewCops` for a department' do
+      before do
+        create_file(configuration_path, <<~YAML)
+          Lint:
+            NewCops: foo
+        YAML
+      end
+
+      it 'gets a validation error' do
+        expect do
+          load_file
+        end.to raise_error(
+          RuboCop::ValidationError,
+          /invalid foo for `NewCops` found in/
+        )
+      end
+    end
+
+    context 'sets a boolean to `NewCops` for a department' do
+      before do
+        create_file(configuration_path, <<~YAML)
+          Lint:
+            NewCops: true
+        YAML
+      end
+
+      it 'gets a validation error' do
         expect do
           load_file
         end.to raise_error(

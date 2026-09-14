@@ -106,7 +106,7 @@ RSpec.describe RuboCop::Cop::Style::RedundantFormat, :config do
       end
 
       context 'with literal arguments' do
-        # rubocop:disable Metrics/ParameterLists
+        # rubocop:disable-next Metrics/ParameterLists
         shared_examples 'offending format specifier' do |specifier, value, result, start_delim = "'", end_delim = "'", **metadata|
           it 'registers an offense and corrects', **metadata do
             options = {
@@ -127,7 +127,6 @@ RSpec.describe RuboCop::Cop::Style::RedundantFormat, :config do
             RUBY
           end
         end
-        # rubocop:enable Metrics/ParameterLists
 
         shared_examples 'non-offending format specifier' do |specifier, value|
           it 'does not register an offense' do
@@ -247,6 +246,12 @@ RSpec.describe RuboCop::Cop::Style::RedundantFormat, :config do
               #{method}('%2$s %1$i', 'abcd', '5')
             RUBY
           end
+
+          it 'does not register an offense when the argument number is beyond the 64-bit range' do
+            expect_no_offenses(<<~RUBY)
+              #{method}('%999999999999999999999999999999999999999999999999999999999999$d', 1)
+            RUBY
+          end
         end
 
         context 'with `*` in specifier' do
@@ -308,6 +313,19 @@ RSpec.describe RuboCop::Cop::Style::RedundantFormat, :config do
           it 'does not register an offense when the variable width argument is not numeric' do
             expect_no_offenses(<<~RUBY)
               #{method}('%*d', 'a', 'foo')
+            RUBY
+          end
+
+          it 'does not register an offense when the positional variable width argument is missing' do
+            expect_no_offenses(<<~RUBY)
+              #{method}('%*9$d', 1)
+            RUBY
+          end
+
+          it 'does not register an offense when the positional variable width argument number ' \
+             'is beyond the 64-bit range' do
+            expect_no_offenses(<<~RUBY)
+              #{method}('%*999999999999999999999999999999999999999999999999999999999999$d', 1)
             RUBY
           end
 

@@ -155,7 +155,7 @@ module RuboCop
           end
         end
 
-        # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+        # rubocop:disable-next Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def all_fields_literal?(string, arguments)
           count = 0
           sequences = RuboCop::Cop::Utils::FormatString.new(string).format_sequences
@@ -175,18 +175,17 @@ module RuboCop
 
           sequences.size == count
         end
-        # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
         # If the sequence has a variable (`*`) width, it cannot be autocorrected
         # if the width is not given as a numeric literal argument
         def unknown_variable_width?(sequence, arguments)
           return false unless sequence.variable_width?
 
-          argument = arguments[sequence.variable_width_argument_number - 1]
-          !numeric?(argument)
+          argument = positional_argument(arguments, sequence.variable_width_argument_number)
+          argument.nil? || !numeric?(argument)
         end
 
-        # rubocop:disable Metrics/AbcSize
+        # rubocop:disable-next Metrics/AbcSize
         def find_argument(sequence, arguments, hash)
           if hash && (sequence.annotated? || sequence.template?)
             find_hash_value_node(hash, sequence.name.to_sym).first
@@ -195,12 +194,11 @@ module RuboCop
             arguments.delete_at(sequence.variable_width_argument_number - 1)
             arguments.shift
           elsif sequence.arg_number
-            arguments[sequence.arg_number.to_i - 1]
+            positional_argument(arguments, sequence.arg_number.to_i)
           else
             arguments.shift
           end
         end
-        # rubocop:enable Metrics/AbcSize
 
         def matching_argument?(sequence, argument)
           # Template specifiers don't give a type, any acceptable literal type is ok.
@@ -218,6 +216,15 @@ module RuboCop
           else
             false
           end
+        end
+
+        # `Array#[]` raises `RangeError` for an index beyond the 64-bit range
+        # (e.g. `format('%*9999999999999999999999$d', 1)`) instead of returning `nil`,
+        # so the index needs to be checked before accessing the array.
+        def positional_argument(arguments, number)
+          index = number - 1
+
+          arguments[index] if index < arguments.size
         end
 
         def numeric?(argument)

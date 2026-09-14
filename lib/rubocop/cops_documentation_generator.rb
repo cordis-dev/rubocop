@@ -6,7 +6,7 @@ require 'yard'
 # Class for generating documentation of all cops departments
 # @api private
 class CopsDocumentationGenerator # rubocop:disable Metrics/ClassLength
-  include ::RuboCop::Cop::Documentation
+  include RuboCop::Cop::Documentation
 
   CopData = Struct.new(
     :cop, :description, :example_objects, :safety_objects, :see_objects, :config, keyword_init: true
@@ -20,6 +20,7 @@ class CopsDocumentationGenerator # rubocop:disable Metrics/ClassLength
     safety:                ->(data) { safety_object(data.safety_objects, data.cop) },
     examples:              ->(data) { examples(data.example_objects, data.cop) },
     configuration:         ->(data) { configurations(data.cop.department, data.cop, data.config) },
+    preview:               ->(data) { preview_defaults(data.cop) },
     references:            ->(data) { references(data.cop, data.see_objects) }
   }.freeze
 
@@ -137,7 +138,7 @@ class CopsDocumentationGenerator # rubocop:disable Metrics/ClassLength
     "NOTE: Requires Ruby version #{requirement}\n\n"
   end
 
-  # rubocop:disable Metrics/MethodLength
+  # rubocop:disable-next Metrics/MethodLength
   def properties(cop)
     header = [
       'Enabled by default', 'Safe', 'Supports autocorrection', 'Version Added',
@@ -160,7 +161,6 @@ class CopsDocumentationGenerator # rubocop:disable Metrics/ClassLength
     ]]
     "#{to_table(header, content)}\n"
   end
-  # rubocop:enable Metrics/MethodLength
 
   def cop_header(cop)
     content = +"\n"
@@ -195,7 +195,7 @@ class CopsDocumentationGenerator # rubocop:disable Metrics/ClassLength
   def configurations(department, cop, cop_config)
     header = ['Name', 'Default value', 'Configurable values']
     configs = cop_config.each_key.reject do |key|
-      key == 'AllowMultipleStyles' ||
+      key == 'AllowMultipleStyles' || key == 'Preview' ||
         (key != 'SupportedTypes' && key.start_with?('Supported'))
     end
     return '' if configs.empty?
@@ -210,6 +210,22 @@ class CopsDocumentationGenerator # rubocop:disable Metrics/ClassLength
     cop_subsection('Configurable attributes', cop) + to_table(header, content)
   end
 
+  def preview_defaults(cop)
+    cop_config = config.for_cop(cop)
+    preview = cop_config['Preview']
+    return '' unless preview.is_a?(Hash)
+
+    header = ['Name', 'Current default', 'Preview default']
+    content = preview.map do |name, value|
+      [name, format_table_value(cop_config[name]), format_table_value(value)]
+    end
+
+    cop_subsection('Preview defaults', cop) +
+      'These defaults apply under xref:versioning.adoc#preview[Preview] and are ' \
+      "expected to become the regular defaults in the next major release.\n\n" +
+      to_table(header, content)
+  end
+
   def configuration_name(department, name)
     return name unless name == 'AllowMultilineFinalElement'
 
@@ -217,7 +233,7 @@ class CopsDocumentationGenerator # rubocop:disable Metrics/ClassLength
     "xref:#{filename}#allowmultilinefinalelement[AllowMultilineFinalElement]"
   end
 
-  # rubocop:disable Metrics/CyclomaticComplexity,Metrics/MethodLength
+  # rubocop:disable-next Metrics/CyclomaticComplexity,Metrics/MethodLength
   def configurable_values(cop_config, name)
     case name
     when /^Enforced/
@@ -244,7 +260,6 @@ class CopsDocumentationGenerator # rubocop:disable Metrics/ClassLength
       end
     end
   end
-  # rubocop:enable Metrics/CyclomaticComplexity,Metrics/MethodLength
 
   def to_table(header, content)
     table = ['|===', "| #{header.join(' | ')}\n\n"].join("\n")
@@ -303,7 +318,7 @@ class CopsDocumentationGenerator # rubocop:disable Metrics/ClassLength
     "\ninclude::../partials/#{filename}[]\n"
   end
 
-  # rubocop:disable Metrics/MethodLength
+  # rubocop:disable-next Metrics/MethodLength
   def print_cops_of_department(department)
     selected_cops = cops_of_department(department)
     content = +<<~HEADER
@@ -323,7 +338,6 @@ class CopsDocumentationGenerator # rubocop:disable Metrics/ClassLength
       file.write("#{content.strip}\n")
     end
   end
-  # rubocop:enable Metrics/MethodLength
 
   def print_cop_with_doc(cop) # rubocop:todo Metrics/AbcSize, Metrics/MethodLength
     cop_config = config.for_cop(cop)
@@ -392,7 +406,11 @@ class CopsDocumentationGenerator # rubocop:disable Metrics/ClassLength
   def cop_status(status)
     return 'Disabled' unless status
 
-    status == 'pending' ? 'Pending' : 'Enabled'
+    case status
+    when 'pending' then 'Pending'
+    when 'preview' then 'Preview'
+    else 'Enabled'
+    end
   end
 
   # HTML anchor are somewhat limited in what characters they can contain, just

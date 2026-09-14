@@ -109,6 +109,10 @@ module RuboCop
         MSG = 'Use a guard clause (`%<example>s`) instead of wrapping the ' \
               'code inside a conditional expression.'
 
+        def self.autocorrect_incompatible_with
+          [Style::MissingElse]
+        end
+
         def on_def(node)
           body = node.body
 
@@ -196,7 +200,7 @@ module RuboCop
           end
         end
 
-        # rubocop:disable Metrics/AbcSize
+        # rubocop:disable-next Metrics/AbcSize
         def autocorrect(corrector, node, condition, replacement, guard)
           corrector.replace(node.loc.keyword.join(condition.source_range), replacement)
 
@@ -217,7 +221,6 @@ module RuboCop
             corrector.remove(range_of_branch_to_remove(node, guard))
           end
         end
-        # rubocop:enable Metrics/AbcSize
 
         def heredoc?(argument)
           argument.respond_to?(:heredoc?) && argument.heredoc?

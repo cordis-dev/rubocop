@@ -13,7 +13,7 @@ module RuboCop
     DEFAULT_PARALLEL_OPTIONS = %i[
       color config debug display_style_guide display_time display_only_fail_level_offenses
       display_only_failed editor_mode except extra_details fail_level fix_layout format formatters
-      ignore_disable_comments lint only only_guide_cops out require safe
+      ignore_disable_comments lint only only_guide_cops out preview require safe
       autocorrect safe_autocorrect autocorrect_all
     ].freeze
 
@@ -35,7 +35,7 @@ module RuboCop
     # @param args [Array<String>] command line arguments
     # @return [Integer] UNIX exit code
     #
-    # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
+    # rubocop:disable-next Metrics/MethodLength, Metrics/AbcSize
     def run(args = ARGV)
       time_start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
@@ -80,11 +80,10 @@ module RuboCop
         puts "Finished in #{elapsed_time.round(5)} seconds"
       end
     end
-    # rubocop:enable Metrics/MethodLength, Metrics/AbcSize
 
     private
 
-    # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
+    # rubocop:disable-next Metrics/MethodLength, Metrics/AbcSize
     def profile_if_needed
       return yield unless @options[:profile]
 
@@ -116,7 +115,6 @@ module RuboCop
       end
       status
     end
-    # rubocop:enable Metrics/MethodLength, Metrics/AbcSize
 
     def require_gem(name)
       require name
@@ -185,12 +183,18 @@ module RuboCop
 
     def set_options_to_config_loader
       ConfigLoader.debug = @options[:debug]
-      ConfigLoader.disable_pending_cops = @options[:disable_pending_cops]
-      ConfigLoader.enable_pending_cops = @options[:enable_pending_cops]
       ConfigLoader.ignore_parent_exclusion = @options[:ignore_parent_exclusion]
       ConfigLoader.ignore_unrecognized_cops = @options[:ignore_unrecognized_cops]
+      set_cop_selection_options_to_config_loader
+    end
+
+    # Options that decide which cops run, as opposed to how configuration is loaded.
+    def set_cop_selection_options_to_config_loader
+      ConfigLoader.disable_pending_cops = @options[:disable_pending_cops]
+      ConfigLoader.enable_pending_cops = @options[:enable_pending_cops]
       ConfigLoader.enabled_by_default = @options[:enable_all_cops]
       ConfigLoader.disabled_by_default = @options[:disable_all_cops]
+      ConfigLoader.preview = @options[:preview]
     end
 
     def set_options_to_pending_cops_reporter

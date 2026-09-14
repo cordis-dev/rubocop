@@ -143,6 +143,10 @@ module RuboCop
         MSG_REQUIRE_SINGLE = 'Use endless method definitions for single line methods.'
         MSG_REQUIRE_ALWAYS = 'Use endless method definitions.'
 
+        def self.autocorrect_incompatible_with
+          [Style::MethodCallWithArgsParentheses]
+        end
+
         def on_def(node)
           return if node.assignment_method? || use_heredoc?(node)
 
@@ -166,6 +170,8 @@ module RuboCop
           return if node.single_line? || style == :allow_always
 
           add_offense(node, message: MSG_MULTI_LINE) do |corrector|
+            next if endless_parent?(node)
+
             correct_to_multiline(corrector, node)
           end
         end
@@ -175,11 +181,11 @@ module RuboCop
             add_offense(node, message: MSG_MULTI_LINE) do |corrector|
               correct_to_multiline(corrector, node)
             end
-          elsif !node.endless? && can_be_made_endless?(node) && node.body.single_line?
+          elsif !node.endless? && can_be_made_endless?(node) && single_line_when_made_endless?(node)
             return if too_long_when_made_endless?(node)
 
             add_offense(node, message: MSG_REQUIRE_SINGLE) do |corrector|
-              corrector.replace(node, endless_replacement(node))
+              correct_to_endless(corrector, node)
             end
           end
         end
@@ -189,31 +195,40 @@ module RuboCop
           return if too_long_when_made_endless?(node)
 
           add_offense(node, message: MSG_REQUIRE_ALWAYS) do |corrector|
-            corrector.replace(node, endless_replacement(node))
+            correct_to_endless(corrector, node)
           end
         end
 
         def handle_disallow_style(node)
           return unless node.endless?
 
-          add_offense(node) { |corrector| correct_to_multiline(corrector, node) }
+          add_offense(node) do |corrector|
+            next if endless_parent?(node)
+
+            correct_to_multiline(corrector, node)
+          end
+        end
+
+        def endless_parent?(node)
+          node.parent&.any_def_type? && node.parent.endless?
         end
 
         def use_heredoc?(node)
           return false unless (body = node.body)
           return true if body.any_str_type? && body.heredoc?
 
-          body.each_descendant(:str).any?(&:heredoc?)
+          body.each_descendant(:any_str).any?(&:heredoc?)
         end
 
-        def correct_to_multiline(corrector, node)
-          replacement = <<~RUBY.strip
-            def #{receiver(node)}#{node.method_name}#{arguments(node)}
-              #{node.body.source}
-            end
-          RUBY
+        def correct_to_endless(corrector, node)
+          corrector.replace(signature_to_body_range(node), ' = ')
+          corrector.remove(node.body.source_range.end.join(node.loc.end.end))
+        end
 
-          corrector.replace(node, replacement)
+        def signature_to_body_range(node)
+          signature_end = node.arguments.any? ? node.arguments.source_range.end : node.loc.name.end
+
+          signature_end.join(node.body.source_range.begin)
         end
 
         def endless_replacement(node)
@@ -231,19 +246,26 @@ module RuboCop
         end
 
         def can_be_made_endless?(node)
-          node.body && !node.body.begin_type? && !node.body.kwbegin_type?
+          return false unless node.body
+          return false if node.body.type?(:begin, :kwbegin, :rescue, :ensure)
+
+          !ends_with_omitted_hash_value?(node.body)
+        end
+
+        def single_line_when_made_endless?(node)
+          !endless_replacement(node).include?("\n")
         end
 
         def too_long_when_made_endless?(node)
           return false unless config.cop_enabled?('Layout/LineLength')
 
-          offset = modifier_offset(node)
-
-          endless_replacement(node).length + offset > max_line_length
+          endless_replacement(node).length + node.loc.column > max_line_length
         end
 
-        def modifier_offset(node)
-          same_line?(node.parent, node) ? node.loc.column - node.parent.loc.column : 0
+        def ends_with_omitted_hash_value?(body)
+          body.each_descendant(:pair).any? do |pair|
+            pair.value_omission? && pair.source_range.end_pos == body.source_range.end_pos
+          end
         end
       end
     end

@@ -47,7 +47,7 @@ module RuboCop
       end
 
       def hash_for_offense(offense)
-        {
+        hash = {
           severity:    offense.severity.name,
           message:     offense.message,
           cop_name:    offense.cop_name,
@@ -56,18 +56,23 @@ module RuboCop
           fixable: offense.uncorrected?,
           location:    hash_for_location(offense)
         }
+
+        # Suppressed offenses appear only under `--display-suppressed`, so
+        # these keys are additive for existing consumers.
+        if offense.disabled?
+          hash[:suppressed] = true
+          hash[:justification] = offense.justification
+        end
+
+        hash
       end
 
-      # TODO: Consider better solution for Offense#real_column.
-      #       The minimum value of `start_column: real_column` is 1.
-      #       So, the minimum value of `last_column` should be 1.
-      #       And non-zero value of `last_column` should be used as is.
       def hash_for_location(offense)
         {
           start_line:   offense.line,
           start_column: offense.real_column,
           last_line:    offense.last_line,
-          last_column:  offense.last_column.zero? ? 1 : offense.last_column,
+          last_column:  offense.real_last_column,
           length:       offense.location.length,
           # `line` and `column` exist for compatibility.
           # Use `start_line` and `start_column` instead.

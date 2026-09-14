@@ -92,7 +92,7 @@ module RuboCop
           (str "true")
         PATTERN
 
-        def on_block(node) # rubocop:disable Metrics/MethodLength, InternalAffairs/NumblockHandler, InternalAffairs/ItblockHandler
+        def on_block(node) # rubocop:disable Metrics/MethodLength, InternalAffairs/NumblockHandler, InternalAffairs/ItblockHandler -- the gemspec block is matched by its named block variable
           gem_specification(node) do |block_var|
             metadata_value = metadata(node)
             mfa_value = mfa_value(metadata_value)
@@ -143,7 +143,10 @@ module RuboCop
             #{block_var}.metadata['rubygems_mfa_required'] = 'true'
           RUBY
 
-          if (last_assignment = metadata_assignment(processed_source.ast).to_a.last)
+          # Scope the search to the current spec block. Searching the whole file
+          # would, for a second `Gem::Specification.new` block, insert the directive
+          # into the first block, leaving this block uncorrected and looping forever.
+          if (last_assignment = metadata_assignment(node).to_a.last)
             corrector.insert_after(last_assignment, "\n#{require_mfa_directive}")
           else
             corrector.insert_before(node.loc.end, "#{require_mfa_directive}\n")
