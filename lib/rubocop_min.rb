@@ -19,9 +19,15 @@ require_relative 'rubocop/version.rb'
 require 'rubocop-ast'
 
 require_relative 'concatenated_rubocop.rb'
+# Excluded from the concatenation; cops such as `Lint/CopDirectiveSyntax` need it at load time.
+require_relative 'rubocop/directive_comment.rb'
 require_relative 'rubocop/cop/lint/todo_comment.rb'
 
 unless File.exist?("#{__dir__}/../rubocop.gemspec") # Check if we are a gem
-  RuboCop::ResultCache.rubocop_required_features = $LOADED_FEATURES - before_us
+  # Include all of RuboCop's own files, even those that are lazily loaded later (the cops),
+  # so that the cache key relies solely on the gem version instead of varying with which
+  # cop files end up loaded.
+  features = $LOADED_FEATURES - before_us
+  RuboCop::ResultCache.rubocop_required_features = features | Dir["#{__dir__}/rubocop/**/*.rb"]
 end
 RuboCop::AST.rubocop_loaded if RuboCop::AST.respond_to?(:rubocop_loaded)

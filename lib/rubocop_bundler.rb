@@ -112,6 +112,13 @@ class RubocopConcatenator
 		    "lib_root = File.join(File.dirname(__FILE__), '..')",
 			"lib_root = File.dirname(__FILE__)"
 		  )
+
+          # `__dir__` interpolations (lazy `register_cop` / `autoload` paths in department
+          # and mixin modules) must keep pointing at the file's original directory, since
+          # `__dir__` resolves to the base directory once concatenated.
+          unless current_file_dir.to_s == '.'
+            line = line.gsub(/(?<!\\)#\{__dir__\}/, "\#{__dir__}/#{current_file_dir}")
+          end
           
           # Check if this line contains a require_relative
           if line.strip.start_with?('require_relative') && (match = line.match(/require_relative\s+['"]([^'"]+)['"]/))
