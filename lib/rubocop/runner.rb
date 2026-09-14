@@ -446,7 +446,8 @@ module RuboCop
       if @options[:diff]
         record_diff(file, original_source, corrected_source)
       elsif corrected_source
-        File.write(file, corrected_source)
+        # Write in binary mode so Windows does not convert LF to CRLF.
+        File.binwrite(file, corrected_source)
       end
     end
 
@@ -473,15 +474,13 @@ module RuboCop
       [team, offenses, updated_source_file]
     end
 
-    # When corrections were written to disk and read back between iterations,
-    # the text-mode write converted LF to CRLF on Windows, and cops like
-    # `Layout/EndOfLine` rely on seeing the source as it would be on disk.
-    # Apply the same conversion to the in-memory source. The final `File.write`
-    # still performs it for the file itself.
+    # Upstream converts LF to CRLF here on Windows to mirror what its
+    # text-mode `File.write` would do to the file. This fork writes corrected
+    # files in binary mode (see `finalize_corrections` and `Team#apply_correction`),
+    # so there is no line ending conversion to emulate and the source is
+    # returned unchanged.
     def emulate_write_read_cycle(source)
-      return source unless Platform.windows?
-
-      source.encode(source.encoding, crlf_newline: true)
+      source
     end
 
     # Custom ruby extractors may derive their fragments from the file on
