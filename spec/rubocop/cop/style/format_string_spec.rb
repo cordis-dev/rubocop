@@ -301,6 +301,28 @@ RSpec.describe RuboCop::Cop::Style::FormatString, :config do
       expect_no_corrections
     end
 
+    %w[@pair @@pair $pair PAIR Foo::PAIR (pair) pair&.foo].each do |argument|
+      it "registers an offense for `#{argument}` argument but does not autocorrect" do
+        expect_offense(<<~RUBY, argument: argument)
+          puts "%s and %s" % %{argument}
+                           ^ Favor `format` over `String#%`.
+        RUBY
+
+        expect_no_corrections
+      end
+    end
+
+    it 'registers an offense and corrects a safe navigation known conversion method argument' do
+      expect_offense(<<~RUBY)
+        puts "%s" % a&.to_s
+                  ^ Favor `format` over `String#%`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        puts format("%s", a&.to_s)
+      RUBY
+    end
+
     it 'does not register an offense for numbers' do
       expect_no_offenses('puts 10 % 4')
     end
@@ -386,6 +408,40 @@ RSpec.describe RuboCop::Cop::Style::FormatString, :config do
 
       expect_correction(<<~RUBY)
         something % { a: 10, b: 11 }
+      RUBY
+    end
+
+    it 'registers an offense for format with a braced hash argument' do
+      expect_offense(<<~RUBY)
+        format(something, { a: 10, b: 11 })
+        ^^^^^^ Favor `String#%` over `format`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        something % { a: 10, b: 11 }
+      RUBY
+    end
+
+    it 'registers an offense for format with a splatted hash literal argument' do
+      expect_offense(<<~RUBY)
+        format(something, *{ a: 10, b: 11 })
+        ^^^^^^ Favor `String#%` over `format`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        something % { a: 10, b: 11 }.to_a
+      RUBY
+    end
+
+    it 'registers an offense for format nested in the arguments of format' do
+      expect_offense(<<~RUBY)
+        format(something, a: format(other, b: 1))
+                             ^^^^^^ Favor `String#%` over `format`.
+        ^^^^^^ Favor `String#%` over `format`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        something % { a: other % { b: 1 } }
       RUBY
     end
 

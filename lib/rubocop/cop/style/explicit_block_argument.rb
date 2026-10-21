@@ -50,8 +50,11 @@ module RuboCop
           (block $_ (args $...) (yield $...))
         PATTERN
 
+        # `Style/LambdaCall` rewrites the `call` that the block argument is appended to, and
+        # `Style/TrailingCommaInArguments` changes the trailing comma where it is appended,
+        # in the same pass.
         def self.autocorrect_incompatible_with
-          [Lint::UnusedMethodArgument]
+          [Lint::UnusedMethodArgument, Style::LambdaCall, Style::TrailingCommaInArguments]
         end
 
         def initialize(config = nil, options = nil)
@@ -70,10 +73,13 @@ module RuboCop
             # this is not a valid ruby pattern, but can happen in haml or erb,
             # so this can cause crashes in haml_lint
             return unless def_node
+            return if argument_forwarding?(def_node)
 
             block_name = extract_block_name(def_node)
 
             add_offense(block_node) do |corrector|
+              next unless can_add_block_argument?(def_node, send_node, block_name)
+
               corrector.remove(block_body_range(block_node, send_node))
 
               add_block_argument(send_node, corrector, block_name)
@@ -84,11 +90,37 @@ module RuboCop
 
         private
 
+        # A block parameter can't be added next to `...`.
+        def argument_forwarding?(def_node)
+          def_node.arguments.any?(&:forward_arg_type?)
+        end
+
         def extract_block_name(def_node)
           if def_node.block_argument?
             def_node.last_argument.name
           else
             'block'
+          end
+        end
+
+        def can_add_block_argument?(def_node, send_node, block_name)
+          return false if block_name_taken?(def_node, block_name)
+
+          !send_node.zsuper_type? || zsuper_arguments_forwardable?(def_node)
+        end
+
+        def block_name_taken?(def_node, block_name)
+          return false if def_node.block_argument?
+
+          def_node.each_descendant(:argument, :lvasgn).any? { |node| node.name.to_s == block_name }
+        end
+
+        # A destructuring argument can only be passed on as the original value,
+        # and anonymous arguments can only be forwarded since Ruby 3.2.
+        def zsuper_arguments_forwardable?(def_node)
+          def_node.arguments.none? do |arg|
+            arg.mlhs_type? ||
+              (arg.type?(:restarg, :kwrestarg) && !arg.name && target_ruby_version < 3.2)
           end
         end
 
@@ -110,6 +142,8 @@ module RuboCop
             insert_argument(node, corrector, block_name)
           elsif empty_arguments?(node)
             corrector.replace(node.arguments, "(&#{block_name})")
+          elsif index_call?(node)
+            corrector.replace(node.loc.selector, "[&#{block_name}]")
           elsif call_like?(node)
             correct_call_node(node, corrector, block_name)
           else
@@ -120,6 +154,10 @@ module RuboCop
         def empty_arguments?(node)
           # Is there an arguments node with only parentheses?
           node.arguments.is_a?(RuboCop::AST::Node) && node.arguments.loc.begin
+        end
+
+        def index_call?(node)
+          node.send_type? && node.method?(:[]) && !node.loc?(:dot)
         end
 
         def call_like?(node)
@@ -141,19 +179,21 @@ module RuboCop
                           else
                             "&#{block_name}"
                           end
-          corrector.insert_after(node, "(#{new_arguments})")
-          return unless node.parenthesized?
-
-          args_begin = Util.args_begin(node)
-          args_end = Util.args_end(node)
-          range = range_between(args_begin.begin_pos, args_end.end_pos)
-          corrector.remove(range)
+          if node.parenthesized?
+            corrector.replace(node.loc.begin.join(node.loc.end), "(#{new_arguments})")
+          else
+            corrector.insert_after(node, "(#{new_arguments})")
+          end
         end
 
         def build_new_arguments_for_zsuper(node)
           def_node = node.each_ancestor(:any_def).first
-          def_node.arguments.map do |arg|
-            arg.optarg_type? ? arg.node_parts[0] : arg.source
+          def_node.arguments.filter_map do |arg|
+            case arg.type
+            when :arg, :optarg then arg.name.to_s
+            when :kwarg, :kwoptarg then "#{arg.name}: #{arg.name}"
+            when :restarg, :kwrestarg then arg.source
+            end
           end
         end
 

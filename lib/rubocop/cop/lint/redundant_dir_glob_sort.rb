@@ -28,6 +28,7 @@ module RuboCop
       #   end
       #
       class RedundantDirGlobSort < Base
+        include RangeHelp
         extend AutoCorrector
         extend TargetRubyVersion
 
@@ -46,8 +47,7 @@ module RuboCop
           selector = node.loc.selector
 
           add_offense(selector) do |corrector|
-            corrector.remove(selector)
-            corrector.remove(node.loc.dot)
+            autocorrect(corrector, node.loc.dot, selector)
           end
         end
 
@@ -66,6 +66,17 @@ module RuboCop
 
         def sort_with_comparator?(node)
           node.parent&.any_block_type? || node.last_argument&.block_pass_type?
+        end
+
+        def autocorrect(corrector, dot, selector)
+          range = dot.join(selector)
+
+          if processed_source.contains_comment?(range)
+            corrector.remove(dot)
+            corrector.remove(selector)
+          else
+            corrector.remove(range_with_surrounding_space(range, side: :left))
+          end
         end
       end
     end

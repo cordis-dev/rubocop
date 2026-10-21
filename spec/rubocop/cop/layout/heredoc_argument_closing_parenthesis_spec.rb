@@ -57,6 +57,28 @@ RSpec.describe RuboCop::Cop::Layout::HeredocArgumentClosingParenthesis, :config 
         RUBY
       end
 
+      it 'accepts method with heredoc argument of proc with the closing parenthesis on its own line' do
+        expect_no_offenses(<<~RUBY)
+          outer_method(
+            -> {
+              inner_method#{dot}chain(<<~CODE)
+                code
+              CODE
+            }
+          )
+        RUBY
+      end
+
+      it 'accepts method with heredoc argument of proc correct case with spaces inside parentheses' do
+        expect_no_offenses(<<~RUBY)
+          outer_method( -> {
+            inner_method#{dot}chain( <<~CODE )
+              code
+            CODE
+          } )
+        RUBY
+      end
+
       it 'accepts double correct case nested' do
         expect_no_offenses(<<~RUBY)
           baz(bar(foo#{dot}bar(<<-SQL, <<-NOSQL)))
@@ -140,6 +162,29 @@ RSpec.describe RuboCop::Cop::Layout::HeredocArgumentClosingParenthesis, :config 
           foo#{dot}bar(foo: <<-SQL)
             foo
           SQL
+        RUBY
+      end
+
+      it 'accepts a HEREDOC in a hash followed by another pair' do
+        expect_no_offenses(<<~RUBY)
+          foo#{dot}bar(
+            baz: <<-SQL,
+              foo
+            SQL
+            qux: 1
+          )
+        RUBY
+      end
+
+      it 'accepts a HEREDOC in a hash whose braces close after the HEREDOC' do
+        expect_no_offenses(<<~RUBY)
+          foo#{dot}bar(:baz,
+            foo: {
+              qux: <<-SQL,
+                foo
+              SQL
+            }
+          )
         RUBY
       end
 

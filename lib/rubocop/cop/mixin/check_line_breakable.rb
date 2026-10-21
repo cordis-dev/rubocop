@@ -76,11 +76,7 @@ module RuboCop
       def extract_first_element_over_column_limit(node, elements, max)
         line = node.first_line
 
-        # If a `send` or `csend` node is not parenthesized, don't move the first element, because it
-        # can result in changed behavior or a syntax error.
-        if node.call_type? && !node.parenthesized? && !first_argument_is_heredoc?(node)
-          elements = elements.drop(1)
-        end
+        elements = elements.drop(1) unless first_element_movable?(node)
 
         i = 0
         i += 1 while within_column_limit?(elements[i], max, line)
@@ -93,23 +89,35 @@ module RuboCop
       end
 
       # @api private
-      def first_argument_is_heredoc?(node)
-        first_argument = node.first_argument
+      # If a method call or definition is not parenthesized, the first element cannot be moved,
+      # because it can result in changed behavior or a syntax error.
+      def first_element_movable?(node)
+        return !node.arguments.loc.begin.nil? if node.any_def_type?
+        return true if !node.call_type? || node.parenthesized?
 
-        first_argument.respond_to?(:heredoc?) && first_argument.heredoc?
+        node.first_argument.respond_to?(:heredoc?) && node.first_argument.heredoc?
       end
 
       # @api private
       # If a `send` or `csend` node contains a heredoc argument, splitting cannot happen
       # after the heredoc or else it will cause a syntax error.
       def shift_elements_for_heredoc_arg(node, elements, index)
-        return index unless node.type?(:call, :array)
+        return index unless node.type?(:call, :array, :hash)
+        return index unless (heredoc_pos = heredoc_begin_position(node))
 
-        heredoc_index = elements.index { |arg| arg.respond_to?(:heredoc?) && arg.heredoc? }
-        return index unless heredoc_index
-        return nil if heredoc_index.zero?
+        last_safe = elements.rindex { |element| element.source_range.begin_pos <= heredoc_pos }
+        return nil if last_safe.nil? ||
+                      (last_safe.zero? && elements.first.source_range.end_pos > heredoc_pos)
 
-        heredoc_index >= index ? index : heredoc_index + 1
+        [index, last_safe + 1].min
+      end
+
+      # @api private
+      def heredoc_begin_position(node)
+        children = node.call_type? ? node.arguments : node.children
+        children.flat_map { |child| [child, *child.each_descendant(:any_str)] }
+                .find { |descendant| descendant.type?(:any_str) && descendant.heredoc? }
+                &.source_range&.begin_pos
       end
 
       # @api private
@@ -128,9 +136,7 @@ module RuboCop
         # or redundant edits, we only mark one offense at a time.
         return true if contained_by_breakable_collection_on_same_line?(node)
 
-        return true if contained_by_multiline_collection_that_could_be_broken_up?(node)
-
-        false
+        contained_by_multiline_collection_that_could_be_broken_up?(node)
       end
 
       # @api private
@@ -145,9 +151,7 @@ module RuboCop
         # break before the second argument and the rest of the
         # argument will get auto-formatted onto separate lines
         # by other cops.
-        has_second_element = elements.length >= 2
-
-        starts_with_bracket && has_second_element
+        starts_with_bracket && elements.length >= 2
       end
 
       # @api private

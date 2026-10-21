@@ -185,6 +185,11 @@ RSpec.describe RuboCop::Options, :isolated_environment do
                                                when combined with --display-only-correctable.
                   --display-suppressed         Also output offenses suppressed by directive
                                                comments. They do not affect the exit code.
+                  --max-offenses-per-cop COUNT Report at most COUNT offenses per cop across the
+                                               whole run, so a single noisy cop cannot bury the
+                                               rest. Offenses beyond the limit are not reported
+                                               and do not count towards the totals, the same way
+                                               the other display filters work.
 
           Autocorrection:
               -a, --autocorrect                Autocorrect offenses (only when it's safe).
@@ -240,6 +245,10 @@ RSpec.describe RuboCop::Options, :isolated_environment do
                   --show-docs-url [COP1,COP2,...]
                                                Display url to documentation for the given
                                                cops, or base url by default.
+                  --explain COP1,COP2,...      Explain what the given cops do: their
+                                               description, configuration, whether they
+                                               correct, and the examples from their own
+                                               documentation.
 
           General Options:
                   --init                       Generate a .rubocop.yml file in the current directory.
@@ -339,8 +348,19 @@ RSpec.describe RuboCop::Options, :isolated_environment do
         it 'ignores --parallel' do
           msg = '-P/--parallel is being ignored because it is not compatible with --cache false'
           options.parse %w[--parallel --cache false]
-          expect($stdout.string).to include(msg)
+          expect($stderr.string).to include(msg)
           expect(options.instance_variable_get(:@options)).not_to be_key(:parallel)
+        end
+
+        it 'leaves stdout to the formatter' do
+          options.parse %w[--parallel --cache false]
+          expect($stdout.string).to be_empty
+        end
+
+        it 'says nothing when parallel inspection was turned off' do
+          options.parse %w[--no-parallel --cache false]
+          expect($stdout.string).to be_empty
+          expect($stderr.string).to be_empty
         end
       end
 
@@ -348,7 +368,7 @@ RSpec.describe RuboCop::Options, :isolated_environment do
         context 'combined with --fix-layout' do
           it 'allows --parallel' do
             options.parse %w[--parallel --fix-layout]
-            expect($stdout.string).not_to include('-P/--parallel is being ignored')
+            expect($stderr.string).not_to include('-P/--parallel is being ignored')
             expect(options.instance_variable_get(:@options)).to be_key(:parallel)
           end
         end
@@ -356,7 +376,7 @@ RSpec.describe RuboCop::Options, :isolated_environment do
         context 'combined with --autocorrect' do
           it 'allows --parallel' do
             options.parse %w[--parallel --autocorrect]
-            expect($stdout.string).not_to include('-P/--parallel is being ignored')
+            expect($stderr.string).not_to include('-P/--parallel is being ignored')
             expect(options.instance_variable_get(:@options)).to be_key(:parallel)
           end
         end
@@ -364,7 +384,7 @@ RSpec.describe RuboCop::Options, :isolated_environment do
         context 'combined with --autocorrect-all' do
           it 'allows --parallel' do
             options.parse %w[--parallel --autocorrect-all]
-            expect($stdout.string).not_to include('-P/--parallel is being ignored')
+            expect($stderr.string).not_to include('-P/--parallel is being ignored')
             expect(options.instance_variable_get(:@options)).to be_key(:parallel)
           end
         end
@@ -374,7 +394,7 @@ RSpec.describe RuboCop::Options, :isolated_environment do
         it 'ignores --parallel' do
           msg = '-P/--parallel is being ignored because it is not compatible with -F/--fail-fast'
           options.parse %w[--parallel --fail-fast]
-          expect($stdout.string).to include(msg)
+          expect($stderr.string).to include(msg)
           expect(options.instance_variable_get(:@options)).not_to be_key(:parallel)
         end
       end
@@ -382,7 +402,7 @@ RSpec.describe RuboCop::Options, :isolated_environment do
       context 'combined with two incompatible arguments' do
         it 'ignores --parallel and lists both incompatible arguments' do
           options.parse %w[--parallel --fail-fast --autocorrect]
-          expect($stdout.string).to include('-P/--parallel is being ignored because it is not ' \
+          expect($stderr.string).to include('-P/--parallel is being ignored because it is not ' \
                                             'compatible with -F/--fail-fast')
           expect(options.instance_variable_get(:@options)).not_to be_key(:parallel)
         end
@@ -414,6 +434,26 @@ RSpec.describe RuboCop::Options, :isolated_environment do
           expect { options.parse ['--display-only-fail-level-offenses', o] }
             .not_to raise_error(RuboCop::OptionArgumentError)
         end
+      end
+    end
+
+    describe '--max-offenses-per-cop' do
+      it 'accepts a positive integer' do
+        options.parse %w[--max-offenses-per-cop 3]
+
+        expect(options.instance_variable_get(:@options)[:max_offenses_per_cop]).to eq('3')
+      end
+
+      %w[0 -1 abc 1.5].each do |value|
+        it "rejects #{value.inspect}" do
+          expect { options.parse ['--max-offenses-per-cop', value] }
+            .to raise_error(OptionParser::InvalidArgument)
+        end
+      end
+
+      it 'requires an argument' do
+        expect { options.parse %w[--max-offenses-per-cop] }
+          .to raise_error(OptionParser::MissingArgument)
       end
     end
 

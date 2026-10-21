@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-# FIXME: https://github.com/ruby/prism/issues/2513
 RSpec.describe RuboCop::Cop::Lint::AmbiguousRegexpLiteral, :config do
   shared_examples 'with a regexp literal in the first argument' do
     context 'without parentheses' do
@@ -23,6 +22,28 @@ RSpec.describe RuboCop::Cop::Lint::AmbiguousRegexpLiteral, :config do
 
         expect_correction(<<~RUBY)
           p(/pattern/, foo)
+        RUBY
+      end
+
+      it 'registers an offense and corrects when the regexp is the first key of a hash argument' do
+        expect_offense(<<~RUBY)
+          p /pattern/ => foo
+            ^ Ambiguous regexp literal. Parenthesize the method arguments if it's surely a regexp literal, or add a whitespace to the right of the `/` if it should be a division.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          p(/pattern/ => foo)
+        RUBY
+      end
+
+      it 'registers an offense and corrects when sending method to regexp in the first key of a hash argument' do
+        expect_offense(<<~RUBY)
+          p /pattern/.do_something => foo
+            ^ Ambiguous regexp literal. Parenthesize the method arguments if it's surely a regexp literal, or add a whitespace to the right of the `/` if it should be a division.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          p(/pattern/.do_something => foo)
         RUBY
       end
 

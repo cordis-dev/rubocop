@@ -188,6 +188,14 @@ module RuboCop
 
         MSG = '`%<category>s` is supposed to appear before `%<previous>s`.'
 
+        # A moved element is inserted before the line break that precedes its anchor.
+        # When the anchor follows a blank line, `Layout/EmptyLines`,
+        # `Layout/EmptyLinesAroundAccessModifier` or `Layout/EmptyLinesAroundClassBody`
+        # may remove that line break in the same pass.
+        def self.autocorrect_incompatible_with
+          [Layout::EmptyLines, Layout::EmptyLinesAroundAccessModifier, Layout::EmptyLinesAroundClassBody]
+        end
+
         # Validates code style on class declaration.
         # Add offense when find a node out of expected order.
         # A node is out of order when its category is expected earlier than
@@ -333,8 +341,25 @@ module RuboCop
 
             return "#{node_visibility(node)}_methods"
           end
+          return class_method_category(node) if node.defs_type?
+
           HUMANIZED_NODE_TYPE[node.type] || node.type
         end
+
+        # Only `private_class_method` reaches a singleton method; a bare `private` does not.
+        # Such a call follows the definition it names, so only right siblings are searched.
+        def class_method_category(node)
+          modifier = node.right_siblings.reverse.find do |sibling|
+            class_method_visibility_modifier?(sibling, method_name: node.method_name)
+          end
+
+          modifier ? :"#{modifier.method_name}s" : HUMANIZED_NODE_TYPE[node.type]
+        end
+
+        # @!method class_method_visibility_modifier?(node, method_name:)
+        def_node_matcher :class_method_visibility_modifier?, <<~PATTERN
+          (send nil? {:private_class_method :public_class_method} <(sym %method_name) ...>)
+        PATTERN
 
         def dynamic_constant?(node)
           return false unless node.casgn_type? && node.namespace.nil?
@@ -421,12 +446,9 @@ module RuboCop
         end
 
         def end_position_for(node)
-          if node.casgn_type?
-            heredoc = find_heredoc(node)
-            return heredoc.location.heredoc_end.end_pos + 1 if heredoc
-          end
+          heredoc_end_lines = heredocs(node).map { |heredoc| heredoc.loc.heredoc_end.line }
+          end_line = [node.last_line, *heredoc_end_lines].max
 
-          end_line = buffer.line_for_position(node.source_range.end_pos)
           buffer.line_range(end_line).end_pos
         end
 
@@ -449,8 +471,8 @@ module RuboCop
           buffer.line_range(node.loc.line).begin_pos - 1
         end
 
-        def find_heredoc(node)
-          node.each_node(:any_str).find(&:heredoc?)
+        def heredocs(node)
+          node.each_node(:any_str).select(&:heredoc?)
         end
 
         def buffer

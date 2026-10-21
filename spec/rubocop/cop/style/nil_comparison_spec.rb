@@ -85,6 +85,25 @@ RSpec.describe RuboCop::Cop::Style::NilComparison, :config do
       RUBY
     end
 
+    it 'registers an offense for nil? with a leading dot on its own line' do
+      expect_offense(<<~RUBY)
+        x
+          .nil?
+           ^^^^ Prefer the use of the `==` comparison.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x == nil
+      RUBY
+    end
+
+    it 'does not register an offense for nil? with a comment before a leading dot' do
+      expect_no_offenses(<<~RUBY)
+        x # comment
+          .nil?
+      RUBY
+    end
+
     it 'registers and corrects an offense for `!x.nil?`' do
       expect_offense(<<~RUBY)
         !x.nil?
@@ -104,6 +123,51 @@ RSpec.describe RuboCop::Cop::Style::NilComparison, :config do
 
       expect_correction(<<~RUBY)
         ary << (x == nil)
+      RUBY
+    end
+
+    it 'wraps the comparison when a method is called on it' do
+      expect_offense(<<~RUBY)
+        x.nil?.to_s
+          ^^^^ Prefer the use of the `==` comparison.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        (x == nil).to_s
+      RUBY
+    end
+
+    it 'wraps the comparison when a method is called on it with safe navigation' do
+      expect_offense(<<~RUBY)
+        x.nil?&.to_s
+          ^^^^ Prefer the use of the `==` comparison.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        (x == nil)&.to_s
+      RUBY
+    end
+
+    it 'wraps the inner comparison when `nil?` is called on `nil?`' do
+      expect_offense(<<~RUBY)
+        x.nil?.nil?
+               ^^^^ Prefer the use of the `==` comparison.
+          ^^^^ Prefer the use of the `==` comparison.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        (x == nil) == nil
+      RUBY
+    end
+
+    it 'does not wrap the comparison when it is an argument of a method call' do
+      expect_offense(<<~RUBY)
+        foo(x.nil?)
+              ^^^^ Prefer the use of the `==` comparison.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo(x == nil)
       RUBY
     end
 

@@ -394,6 +394,43 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
+  context 'when a variable is assigned a list of values without brackets and unreferenced' do
+    it 'registers an offense and corrects to an array literal' do
+      expect_offense(<<~RUBY)
+        foo = 1,
+        ^^^ Useless assignment to variable - `foo`.
+              2
+      RUBY
+
+      expect_correction(<<~RUBY)
+        [1,
+              2]
+      RUBY
+    end
+
+    it 'registers an offense and corrects a splat to an array literal' do
+      expect_offense(<<~RUBY)
+        foo = *bar
+        ^^^ Useless assignment to variable - `foo`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        [*bar]
+      RUBY
+    end
+
+    it 'registers an offense and keeps an array literal as is' do
+      expect_offense(<<~RUBY)
+        foo = [1, 2]
+        ^^^ Useless assignment to variable - `foo`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        [1, 2]
+      RUBY
+    end
+  end
+
   context 'when a variable is assigned with operator assignment in top level' do
     it 'registers an offense' do
       expect_offense(<<~RUBY)
@@ -649,6 +686,7 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
           foo = 2
           bar {
             foo = 3
+            puts foo
           }
         end
       RUBY
@@ -659,8 +697,121 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
           foo = 2
           bar {
             foo = 3
+            puts foo
           }
         end
+      RUBY
+    end
+
+    context 'and the variable is never referenced' do
+      it 'registers offenses for all the assignments' do
+        expect_offense(<<~RUBY)
+          def some_method
+            foo = 1
+            ^^^ Useless assignment to variable - `foo`.
+            foo = 2
+            ^^^ Useless assignment to variable - `foo`.
+            bar {
+              foo = 3
+              ^^^ Useless assignment to variable - `foo`.
+            }
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def some_method
+            1
+            2
+            bar {
+              3
+            }
+          end
+        RUBY
+      end
+    end
+  end
+
+  context 'when an outer variable is reassigned in a block and never referenced' do
+    it 'registers offenses for all the assignments' do
+      expect_offense(<<~RUBY)
+        prev = nil
+        ^^^^ Useless assignment to variable - `prev`.
+        [1, 2, 3].each { |item| prev = item }
+                                ^^^^ Useless assignment to variable - `prev`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        nil
+        [1, 2, 3].each { |item| item }
+      RUBY
+    end
+
+    it 'registers offenses when the variable is reassigned in a lambda' do
+      expect_offense(<<~RUBY)
+        value = nil
+        ^^^^^ Useless assignment to variable - `value`.
+        callback = -> { value = 1 }
+                        ^^^^^ Useless assignment to variable - `value`.
+        callback.call
+      RUBY
+    end
+
+    it 'registers offenses in a numblock', :ruby27 do
+      expect_offense(<<~RUBY)
+        prev = nil
+        ^^^^ Useless assignment to variable - `prev`.
+        [1, 2, 3].each { prev = _1 }
+                         ^^^^ Useless assignment to variable - `prev`.
+      RUBY
+    end
+
+    it 'registers offenses in an itblock', :ruby34 do
+      expect_offense(<<~RUBY)
+        prev = nil
+        ^^^^ Useless assignment to variable - `prev`.
+        [1, 2, 3].each { prev = it }
+                         ^^^^ Useless assignment to variable - `prev`.
+      RUBY
+    end
+  end
+
+  context 'when an outer variable is reassigned in a block and referenced after it' do
+    it 'accepts' do
+      expect_no_offenses(<<~RUBY)
+        found = false
+        items.each { |item| found = true if item.ok? }
+        puts found
+      RUBY
+    end
+  end
+
+  context 'when an outer variable is reassigned in a block and referenced in another block' do
+    it 'accepts' do
+      expect_no_offenses(<<~RUBY)
+        value = nil
+        writer = -> { value = 1 }
+        reader = -> { value }
+        writer.call
+        reader.call
+      RUBY
+    end
+  end
+
+  context 'when an outer variable is reassigned in a block and read through `binding`' do
+    it 'accepts' do
+      expect_no_offenses(<<~RUBY)
+        value = nil
+        foo { value = 1 }
+        binding
+      RUBY
+    end
+  end
+
+  context 'when an outer variable is reassigned in a block and its name starts with an underscore' do
+    it 'accepts' do
+      expect_no_offenses(<<~RUBY)
+        _prev = nil
+        [1, 2, 3].each { |item| _prev = item }
       RUBY
     end
   end
@@ -1768,6 +1919,194 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
     end
   end
 
+  context 'when a variable is reassigned multiple times in a conditional ' \
+          'in main body of begin then referenced in rescue' do
+    it 'accepts' do
+      expect_no_offenses(<<~RUBY)
+        def some_method(items)
+          step = :load
+          begin
+            unless items.empty?
+              step = :prepare
+              prepare(items)
+              step = :process
+              process(items)
+            end
+          rescue StandardError => e
+            puts "failed during \#{step}: \#{e.message}"
+          end
+        end
+      RUBY
+    end
+  end
+
+  context 'when a variable is reassigned multiple times in a nested conditional ' \
+          'in main body of begin then referenced in rescue' do
+    it 'accepts' do
+      expect_no_offenses(<<~RUBY)
+        def some_method(items, flag)
+          step = :load
+          begin
+            unless items.empty?
+              if flag
+                step = :prepare
+                prepare(items)
+                step = :process
+                process(items)
+              end
+            end
+          rescue StandardError
+            puts step
+          end
+        end
+      RUBY
+    end
+  end
+
+  context 'when a variable is reassigned multiple times in a conditional ' \
+          'in main body of begin with ensure then referenced in an outer rescue' do
+    it 'accepts' do
+      expect_no_offenses(<<~RUBY)
+        def some_method(flag)
+          status = :initial
+          begin
+            begin
+              if flag
+                status = :connected
+                fetch_sometimes_fails!
+                status = :fetched
+              end
+            ensure
+              cleanup
+            end
+          rescue StandardError
+            puts status
+          end
+        end
+      RUBY
+    end
+  end
+
+  context 'when a variable is reassigned multiple times in a conditional ' \
+          'in main body of begin then referenced after the begin' do
+    it 'accepts' do
+      expect_no_offenses(<<~RUBY)
+        def some_method(flag)
+          status = :initial
+          begin
+            if flag
+              status = :connected
+              fetch_sometimes_fails!
+              status = :fetched
+            end
+          rescue StandardError
+            do_something
+          end
+
+          puts status
+        end
+      RUBY
+    end
+  end
+
+  context 'when a variable is reassigned multiple times in a conditional ' \
+          'in main body of begin then referenced in ensure' do
+    it 'accepts' do
+      expect_no_offenses(<<~RUBY)
+        def some_method(flag)
+          status = :initial
+          begin
+            if flag
+              status = :connected
+              fetch_sometimes_fails!
+              status = :fetched
+            end
+          ensure
+            puts status
+          end
+        end
+      RUBY
+    end
+  end
+
+  context 'when a variable is reassigned multiple times in a conditional ' \
+          'in main body of begin then referenced later in the main body' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method(flag)
+          begin
+            if flag
+              status = :connected
+              ^^^^^^ Useless assignment to variable - `status`.
+              fetch_sometimes_fails!
+              status = :fetched
+            end
+            puts status
+          rescue StandardError
+            do_something
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def some_method(flag)
+          begin
+            if flag
+              :connected
+              fetch_sometimes_fails!
+              status = :fetched
+            end
+            puts status
+          rescue StandardError
+            do_something
+          end
+        end
+      RUBY
+    end
+  end
+
+  context 'when a variable is reassigned multiple times in a conditional in a block ' \
+          'and the block is in main body of begin in the outer scope' do
+    it 'registers an offense' do
+      expect_offense(<<~RUBY)
+        def some_method(items, flag)
+          begin
+            items.each do
+              status = :initial
+              if flag
+                status = :connected
+                ^^^^^^ Useless assignment to variable - `status`.
+                fetch_sometimes_fails!
+                status = :fetched
+              end
+              puts status
+            end
+          rescue StandardError
+            do_something
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def some_method(items, flag)
+          begin
+            items.each do
+              status = :initial
+              if flag
+                :connected
+                fetch_sometimes_fails!
+                status = :fetched
+              end
+              puts status
+            end
+          rescue StandardError
+            do_something
+          end
+        end
+      RUBY
+    end
+  end
+
   context 'when a variable is reassigned multiple times in rescue and referenced after the begin' do
     it 'registers an offense' do
       expect_offense(<<~RUBY)
@@ -2735,6 +3074,58 @@ RSpec.describe RuboCop::Cop::Lint::UselessAssignment, :config do
         end
 
         raise(CombinationPoolExhaustedError)
+      RUBY
+    end
+
+    it 'does not register an offense when variable is used directly in condition inside a method' do
+      expect_no_offenses(<<~RUBY)
+        def foo
+          keep_going = true
+          while keep_going
+            keep_going = false
+            if rand < 0.5
+              keep_going = true
+            end
+          end
+        end
+      RUBY
+    end
+
+    it 'does not register an offense when variable is used in condition expression inside a method' do
+      expect_no_offenses(<<~RUBY)
+        def generate_pin
+          try = 0
+          while try < max_tries
+            try += 1
+            next if weak?
+            try = 0
+          end
+
+          raise(CombinationPoolExhaustedError)
+        end
+      RUBY
+    end
+
+    it 'registers an offense when the variable is assigned in a method defined in the loop' do
+      expect_offense(<<~RUBY)
+        x = 0
+        while x < 10
+          def helper
+            x = 1
+            ^ Useless assignment to variable - `x`.
+          end
+          x += 1
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x = 0
+        while x < 10
+          def helper
+            1
+          end
+          x += 1
+        end
       RUBY
     end
   end

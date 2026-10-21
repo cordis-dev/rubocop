@@ -2,6 +2,105 @@
 
 RSpec.describe RuboCop::Cop::Style::ReturnNilInPredicateMethodDefinition, :config do
   context 'when defining predicate method' do
+    it 'registers an offense when using `return` as an operand of `||`' do
+      expect_offense(<<~RUBY)
+        def foo?
+          condition || return
+                       ^^^^^^ Return `false` instead of `nil` in predicate methods.
+
+          bar?
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo?
+          condition || (return false)
+
+          bar?
+        end
+      RUBY
+    end
+
+    it 'registers an offense when using `return` as an operand of `or`' do
+      expect_offense(<<~RUBY)
+        def foo?
+          condition or return
+                       ^^^^^^ Return `false` instead of `nil` in predicate methods.
+
+          bar?
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo?
+          condition or return false
+
+          bar?
+        end
+      RUBY
+    end
+
+    it 'registers an offense when using `return` in the `if` branch of a ternary' do
+      expect_offense(<<~RUBY)
+        def foo?
+          condition ? return : baz
+                      ^^^^^^ Return `false` instead of `nil` in predicate methods.
+
+          bar?
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo?
+          condition ? (return false) : baz
+
+          bar?
+        end
+      RUBY
+    end
+
+    it 'registers an offense when using `return` in the `else` branch of a ternary' do
+      expect_offense(<<~RUBY)
+        def foo?
+          condition ? baz : return
+                            ^^^^^^ Return `false` instead of `nil` in predicate methods.
+
+          bar?
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo?
+          condition ? baz : (return false)
+
+          bar?
+        end
+      RUBY
+    end
+
+    it 'registers an offense when using `return` in an `if` body' do
+      expect_offense(<<~RUBY)
+        def foo?
+          if condition
+            return
+            ^^^^^^ Return `false` instead of `nil` in predicate methods.
+          end
+
+          bar?
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo?
+          if condition
+            return false
+          end
+
+          bar?
+        end
+      RUBY
+    end
+
     it 'registers an offense when using `return`' do
       expect_offense(<<~RUBY)
         def foo?

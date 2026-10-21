@@ -65,7 +65,7 @@ module RuboCop
           return if correct_style?(node)
 
           add_offense(node) do |corrector|
-            corrected = style == :return ? 'return' : 'return nil'
+            corrected = style == :return ? 'return' : return_nil(node)
 
             corrector.replace(node, corrected)
           end
@@ -79,11 +79,26 @@ module RuboCop
 
         def correct_style?(node)
           (style == :return && !return_nil_node?(node)) ||
-            (style == :return_nil && !return_node?(node))
+            (style == :return_nil && (!return_node?(node) || top_level_return?(node)))
+        end
+
+        def top_level_return?(node)
+          node.each_ancestor(:any_block, :any_def).none?
         end
 
         def scoped_node?(node)
           node.any_def_type? || node.lambda?
+        end
+
+        def return_nil(node)
+          return 'return nil' unless (parent = node.parent)
+
+          if (parent.operator_keyword? && parent.logical_operator?) ||
+             (parent.if_type? && parent.ternary?)
+            '(return nil)'
+          else
+            'return nil'
+          end
         end
 
         # @!method chained_send?(node)

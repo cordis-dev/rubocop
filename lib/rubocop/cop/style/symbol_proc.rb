@@ -142,9 +142,11 @@ module RuboCop
         include RangeHelp
         include AllowedMethods
         include AllowedPattern
+        include PatternMatchingHelp
         extend AutoCorrector
 
         MSG = 'Pass `&:%<method>s` as an argument to `%<block_method>s` instead of a block.'
+        MSG_LAMBDA_LITERAL = 'Use `lambda(&:%<method>s)` instead of %<original>s.'
         SUPER_TYPES = %i[super zsuper].freeze
         LAMBDA_OR_PROC = %i[lambda proc].freeze
 
@@ -164,7 +166,7 @@ module RuboCop
         PATTERN
 
         def self.autocorrect_incompatible_with
-          [Layout::SpaceBeforeBlockBraces]
+          [Layout::SpaceBeforeBlockBraces, Style::TrailingCommaInArguments]
         end
 
         # rubocop:disable-next Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
@@ -174,6 +176,8 @@ module RuboCop
               return if proc_node?(dispatch_node)
               return if LAMBDA_OR_PROC.include?(dispatch_node.method_name)
             end
+            # A pattern accepts a lambda literal, but not `lambda(&:foo)`.
+            return if in_pattern?(node)
             return if unsafe_hash_usage?(dispatch_node)
             return if unsafe_array_usage?(dispatch_node)
             return if allowed_method_name?(dispatch_node.method_name)
@@ -207,12 +211,26 @@ module RuboCop
         end
 
         def register_offense(node, method_name, block_method_name)
-          block_start = node.loc.begin.begin_pos
-          block_end = node.loc.end.end_pos
-          range = range_between(block_start, block_end)
-          message = format(MSG, method: method_name, block_method: block_method_name)
+          range = if node.send_node.lambda_literal?
+                    node.source_range
+                  else
+                    node.loc.begin.begin.join(node.loc.end.end)
+                  end
+          message = message(node, method_name, block_method_name)
 
-          add_offense(range, message: message) { |corrector| autocorrect(corrector, node) }
+          add_offense(range, message: message) do |corrector|
+            autocorrect(corrector, node)
+          end
+        end
+
+        def message(node, method_name, block_method_name)
+          if node.send_node.lambda_literal?
+            original = node.single_line? ? "`#{node.source}`" : 'a lambda literal with a block'
+
+            format(MSG_LAMBDA_LITERAL, method: method_name, original: original)
+          else
+            format(MSG, method: method_name, block_method: block_method_name)
+          end
         end
 
         def autocorrect(corrector, node)

@@ -359,6 +359,39 @@ RSpec.describe RuboCop::Cop::Style::Semicolon, :config do
     RUBY
   end
 
+  it 'registers an offense for a method definition with an unparenthesized keyword parameter ' \
+     'terminated with a semicolon' do
+    expect_offense(<<~RUBY)
+      def c a:;
+              ^ Do not use semicolons to terminate expressions.
+        d
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def c a:
+        d
+      end
+    RUBY
+  end
+
+  it 'registers an offense for a `case`/`in` hash pattern terminated with a semicolon', :ruby27 do
+    expect_offense(<<~RUBY)
+      case h
+      in a:;
+           ^ Do not use semicolons to terminate expressions.
+        d
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      case h
+      in a:
+        d
+      end
+    RUBY
+  end
+
   context 'Ruby >= 3.1', :ruby31 do
     it 'registers an offense for a method call using multiple hash value omission without parentheses when terminated with a semicolon' do
       expect_offense(<<~RUBY)
@@ -396,6 +429,88 @@ RSpec.describe RuboCop::Cop::Style::Semicolon, :config do
       expect_correction(<<~RUBY)
         obj&.m(key:)
         do_something
+      RUBY
+    end
+
+    it 'registers an offense for a method call using hash value omission after a positional argument without parentheses when terminated with a semicolon' do
+      expect_offense(<<~RUBY)
+        m 1, key:;
+                 ^ Do not use semicolons to terminate expressions.
+        do_something
+      RUBY
+
+      expect_correction(<<~RUBY)
+        m(1, key:)
+        do_something
+      RUBY
+    end
+
+    it 'registers an offense for a method call with a receiver using multiple hash value omission after positional arguments without parentheses when terminated with a semicolon' do
+      expect_offense(<<~RUBY)
+        obj.m 1, 2, key1:, key2:;
+                                ^ Do not use semicolons to terminate expressions.
+        do_something
+      RUBY
+
+      expect_correction(<<~RUBY)
+        obj.m(1, 2, key1:, key2:)
+        do_something
+      RUBY
+    end
+
+    it 'registers an offense for a safe navigation method call using hash value omission after a positional argument without parentheses when terminated with a semicolon' do
+      expect_offense(<<~RUBY)
+        obj&.m 1, key:;
+                      ^ Do not use semicolons to terminate expressions.
+        do_something
+      RUBY
+
+      expect_correction(<<~RUBY)
+        obj&.m(1, key:)
+        do_something
+      RUBY
+    end
+
+    it 'registers an offense for a method call using hash value omission without a space before the first argument when terminated with a semicolon' do
+      expect_offense(<<~RUBY)
+        m"str", key:;
+                    ^ Do not use semicolons to terminate expressions.
+        do_something
+      RUBY
+
+      expect_correction(<<~RUBY)
+        m("str", key:)
+        do_something
+      RUBY
+    end
+
+    it 'registers an offense for `yield` using hash value omission without parentheses when terminated with a semicolon' do
+      expect_offense(<<~RUBY)
+        def foo(key)
+          yield key:;
+                    ^ Do not use semicolons to terminate expressions.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(key)
+          yield(key:)
+        end
+      RUBY
+    end
+
+    it 'registers an offense for `super` using hash value omission without parentheses when terminated with a semicolon' do
+      expect_offense(<<~RUBY)
+        def foo(key)
+          super key:;
+                    ^ Do not use semicolons to terminate expressions.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(key)
+          super(key:)
+        end
       RUBY
     end
   end

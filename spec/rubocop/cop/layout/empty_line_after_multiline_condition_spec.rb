@@ -72,6 +72,65 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLineAfterMultilineCondition, :config d
     RUBY
   end
 
+  it 'does not register an offense when modifier `if` with multiline condition is followed by `rescue`' do
+    expect_no_offenses(<<~RUBY)
+      def m
+        do_something if multiline &&
+                        condition
+      rescue
+        handle_error
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when modifier `while` with multiline condition is followed by `rescue`' do
+    expect_no_offenses(<<~RUBY)
+      begin
+        do_something while multiline &&
+                           condition
+      rescue
+        handle_error
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when modifier `if` with multiline condition is followed by `ensure`' do
+    expect_no_offenses(<<~RUBY)
+      def m
+        do_something if multiline &&
+                        condition
+      ensure
+        do_something_else
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when modifier `if` with multiline condition is followed by a statement on the same line' do
+    expect_no_offenses(<<~RUBY)
+      do_something if multiline &&
+                      condition; do_something_else
+      do_another_thing
+    RUBY
+  end
+
+  it 'does not register an offense when modifier `while` with multiline condition is followed by a statement on the same line' do
+    expect_no_offenses(<<~RUBY)
+      do_something while multiline &&
+                         condition; do_something_else
+      do_another_thing
+    RUBY
+  end
+
+  it 'does not register an offense when `begin...end while` with multiline condition is followed by a statement on the same line' do
+    expect_no_offenses(<<~RUBY)
+      begin
+        do_something
+      end while multiline &&
+            condition; do_something_else
+      do_another_thing
+    RUBY
+  end
+
   it 'does not register an offense when `if` at the top level' do
     expect_no_offenses(<<~RUBY)
       do_something if condition
@@ -209,6 +268,31 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLineAfterMultilineCondition, :config d
     RUBY
   end
 
+  it 'registers an offense when no new line after a statement with modifier `while` with multiline condition' do
+    expect_offense(<<~RUBY)
+      do_something while multiline &&
+                         ^^^^^^^^^^^^ Use empty line after multiline condition.
+                         condition
+      do_something_else
+    RUBY
+
+    expect_correction(<<~RUBY)
+      do_something while multiline &&
+                         condition
+
+      do_something_else
+    RUBY
+  end
+
+  it 'does not register an offense when a statement with modifier `while` with multiline condition is the last child of its parent' do
+    expect_no_offenses(<<~RUBY)
+      def m
+        do_something while multiline &&
+                           condition
+      end
+    RUBY
+  end
+
   it 'registers an offense when no new line after `when` with multiline condition' do
     expect_offense(<<~RUBY)
       case x
@@ -236,6 +320,41 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLineAfterMultilineCondition, :config d
           bar
 
         do_something
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when the body follows `then` on the last line of a multiline `when` condition' do
+    expect_no_offenses(<<~RUBY)
+      case x
+      when foo,
+          bar then do_something
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when the body follows `then` on the last line of a multiline `if` condition' do
+    expect_no_offenses(<<~RUBY)
+      if foo &&
+         bar then do_something
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when the body follows `do` on the last line of a multiline `while` condition' do
+    expect_no_offenses(<<~RUBY)
+      while foo &&
+            bar do do_something
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when the body follows `then` on the last line of multiline `rescue` exceptions' do
+    expect_no_offenses(<<~RUBY)
+      begin
+        do_something
+      rescue FooError,
+        BarError then handle_error
       end
     RUBY
   end

@@ -53,7 +53,7 @@ module RuboCop
       Lint/RedundantCopDisableDirective RedundantCopDisableDirective Lint
     ].freeze
 
-    attr_reader :errors, :warnings, :diffs
+    attr_reader :errors, :warnings
     attr_writer :aborting
 
     def initialize(options, config_store)
@@ -63,8 +63,18 @@ module RuboCop
       @warnings = []
       @aborting = false
       @inspected_files = []
-      @diffs = []
+      @diff_sources = {}
       @report_queue = {}
+    end
+
+    # The `--diff` patches, one per file, from the source on disk (or stdin) to
+    # the source once every correction, redundant directive removal included,
+    # has been applied.
+    def diffs
+      @diffs ||= @diff_sources.filter_map do |file, (original_source, corrected_source)|
+        diff = UnifiedDiff.new(PathUtil.smart_path(file), original_source, corrected_source).to_s
+        diff unless diff.empty?
+      end
     end
 
     def run(paths)
@@ -101,9 +111,7 @@ module RuboCop
     def only_changed(target_files)
       return target_files unless @options[:changed]
 
-      changed = ChangedFiles.new(@options[:changed]).paths
-
-      target_files.select { |file| changed.include?(file) }.freeze
+      ChangedFiles.new(@options[:changed]).filter(target_files).freeze
     end
 
     def find_target_files(paths)
@@ -160,10 +168,10 @@ module RuboCop
       formatter_set.started(files)
       formatters_started = true
       file_iterator(files) do |file|
-        offenses = process_file(file)
+        offenses, problems = collect_problems { process_file(file) }
         succeeded = offenses.none? { |o| considered_failure?(o) && offense_displayed?(o) }
 
-        [offenses, succeeded]
+        [offenses, succeeded, problems]
       end
     ensure
       # OPTIMIZE: Calling `ResultCache.cleanup` takes time. This optimization
@@ -174,15 +182,16 @@ module RuboCop
       end
       formatter_set.finished(@inspected_files.freeze) if formatters_started
       formatter_set.close_output_files
+      warn_about_elided_offenses
     end
 
     def file_iterator(files, &block)
       all_passed = true
 
       on_start = ->(file, _index) { file_started(file) }
-      on_finish = lambda do |file, index, (offenses, passed)|
+      on_finish = lambda do |file, index, (offenses, passed, problems)|
         all_passed &&= passed
-        finished_report(file, index, offenses)
+        finished_report(file, index, offenses, problems)
       end
 
       if run_in_parallel?(files)
@@ -196,8 +205,8 @@ module RuboCop
       all_passed
     end
 
-    def finished_report(file, index, offenses)
-      @report_queue[index] = [file, offenses]
+    def finished_report(file, index, offenses, problems)
+      @report_queue[index] = [file, offenses, problems]
       @next_index_to_report ||= 0
       while @report_queue.key?(@next_index_to_report)
         process_report_queue_entry(@next_index_to_report)
@@ -206,7 +215,10 @@ module RuboCop
     end
 
     def process_report_queue_entry(index)
-      file, offenses = @report_queue.delete(index)
+      file, offenses, (errors, warnings) = @report_queue.delete(index)
+      @errors.concat(errors)
+      @warnings.concat(warnings)
+      file_problems(file, errors, warnings) unless errors.empty? && warnings.empty?
       file_finished(file, offenses)
     end
 
@@ -270,6 +282,21 @@ module RuboCop
       paths.each { |path| puts PathUtil.relative_path(path) }
     end
 
+    # Keeps the errors and warnings a file causes apart from the rest of the
+    # run's. A parallel worker inspects files in a copy of the runner that is
+    # thrown away, so they have to travel back with the file's offenses.
+    def collect_problems
+      errors = @errors
+      warnings = @warnings
+      @errors = []
+      @warnings = []
+
+      [yield, [@errors, @warnings]]
+    ensure
+      @errors = errors
+      @warnings = warnings
+    end
+
     def process_file(file)
       file_offenses(file)
     rescue InfiniteCorrectionLoop => e
@@ -322,9 +349,11 @@ module RuboCop
         if redundant_updated
           # Do one extra inspection loop if any redundant disables were
           # removed. This is done in order to find rubocop:enable directives that
-          # have now become useless.
-          _source, new_offenses = do_inspection_loop(file)
-          offenses |= new_offenses
+          # have now become useless. It finds the offenses that are left again,
+          # located in the corrected source, so only the corrected ones are kept
+          # from before, as `inspect_and_correct` does.
+          _source, new_offenses = do_inspection_loop(file, team.updated_source)
+          offenses = offenses.select(&:corrected?) | new_offenses
         end
       end
       offenses
@@ -336,6 +365,8 @@ module RuboCop
       config = @config_store.for_file(file)
       team = Cop::Team.mobilize([Cop::Lint::RedundantCopDisableDirective], config, @options)
       return if team.cops.empty?
+
+      team.defer_corrections = @options[:diff]
 
       team.cops.first.offenses_to_check = offenses
       yield team
@@ -370,6 +401,15 @@ module RuboCop
       formatter_set.file_started(file, cli_options: @options, config_store: @config_store)
     end
 
+    # Formatters get the messages without the colors added for the terminal.
+    def file_problems(file, errors, warnings)
+      formatter_set.file_problems(file, plain_messages(errors), plain_messages(warnings))
+    end
+
+    def plain_messages(problems)
+      problems.map { |problem| Rainbow::StringUtils.uncolor(problem.to_s) }
+    end
+
     def file_finished(file, offenses)
       @inspected_files << file
       offenses = offenses_to_report(offenses)
@@ -388,15 +428,15 @@ module RuboCop
       return unless cache
       # Caching results when a cop has crashed would prevent the crash in the
       # next run, since the cop would not be called then. We want crashes to
-      # show up the same in each run.
+      # show up the same in each run. Only this file's errors and warnings are
+      # visible here, see `collect_problems`.
       return if errors.any? || warnings.any?
 
       cache.save(offenses)
     end
 
-    def do_inspection_loop(file)
-      # We can reuse the prism result since the source did not change yet.
-      processed_source = get_processed_source(file, @prism_result)
+    def do_inspection_loop(file, source = nil)
+      processed_source = initial_processed_source(file, source)
       original_source = processed_source.raw_source
       # This variable is 2d array used to track corrected offenses after each
       # inspection iteration. This is used to output meaningful infinite loop
@@ -429,6 +469,15 @@ module RuboCop
       finalize_corrections(file, original_source, corrected_source)
     end
 
+    # `source` is the corrected source to continue from when the corrections
+    # are kept in memory rather than written to the file (`--diff`).
+    def initial_processed_source(file, source)
+      return get_processed_source(file, nil, source: source) if source
+
+      # We can reuse the prism result since the source did not change yet.
+      get_processed_source(file, @prism_result)
+    end
+
     def inspect_and_correct(processed_source, offenses_by_iteration)
       # The offenses that couldn't be corrected will be found again so we
       # only keep the corrected ones in order to avoid duplicate reporting.
@@ -446,25 +495,26 @@ module RuboCop
       if @options[:diff]
         record_diff(file, original_source, corrected_source)
       elsif corrected_source
-        # Write in binary mode so Windows does not convert LF to CRLF.
-        File.binwrite(file, corrected_source)
+        Util.replace_file_contents(file, corrected_source)
       end
     end
 
     # `--diff` reports what autocorrection would do instead of doing it. With
     # `--stdin` the corrected source is handed back through the options rather
-    # than deferred, so that is where the new source comes from.
+    # than deferred, so that is where the new source comes from. A file can go
+    # through more than one inspection loop, so the diff runs from the source
+    # the first loop started with to the one the last loop ended with.
     def record_diff(file, original_source, corrected_source)
-      new_source = @options[:stdin] || corrected_source
-      return unless original_source && new_source
+      return unless original_source
 
+      new_source = @options[:stdin] || corrected_source
       # The original source is the file as it is on disk, so the corrected one
       # has to go through the same line ending conversion `File.write` would
       # apply, or on Windows every single line reads as changed.
-      new_source = emulate_write_read_cycle(new_source)
+      new_source = new_source ? Util.emulate_write_read_cycle(new_source) : original_source
 
-      diff = UnifiedDiff.new(PathUtil.smart_path(file), original_source, new_source).to_s
-      @diffs << diff unless diff.empty?
+      sources = (@diff_sources[file] ||= [original_source])
+      sources[1] = new_source
     end
 
     def inspect_iteration(processed_source)
@@ -472,15 +522,6 @@ module RuboCop
       team.defer_corrections = @options[:diff] || in_memory_corrections_possible?
       offenses, updated_source_file = inspect_file(processed_source, team)
       [team, offenses, updated_source_file]
-    end
-
-    # Upstream converts LF to CRLF here on Windows to mirror what its
-    # text-mode `File.write` would do to the file. This fork writes corrected
-    # files in binary mode (see `finalize_corrections` and `Team#apply_correction`),
-    # so there is no line ending conversion to emulate and the source is
-    # returned unchanged.
-    def emulate_write_read_cycle(source)
-      source
     end
 
     # Custom ruby extractors may derive their fragments from the file on
@@ -573,6 +614,12 @@ module RuboCop
       end
     end
 
+    # Lets a runner that is reused from run to run pick up a different `--only`
+    # or `--except`.
+    def forget_mobilized_cops
+      @mobilized_cop_classes = nil
+    end
+
     def mobilize_cop_badge?(badge, config)
       return false if badge.department == :Test
       return false if badge.match_name?(@options[:except])
@@ -589,7 +636,7 @@ module RuboCop
       %i[only except].each do |option|
         next unless @options[option]
 
-        @options[option].map! do |cop_name|
+        @options[option] = @options[option].map do |cop_name|
           Cop::Registry.qualified_cop_name(cop_name, "--#{option} option")
         end
       end
@@ -630,7 +677,28 @@ module RuboCop
     end
 
     def offenses_to_report(offenses)
-      offenses.select { |o| offense_displayed?(o) }
+      offenses = offenses.select { |o| offense_displayed?(o) }
+      offenses = offense_limit.filter(offenses) if offense_limit
+      offenses
+    end
+
+    # Files are reported in order, so which offenses survive the limit does not
+    # depend on how the run was parallelized.
+    def offense_limit
+      return @offense_limit if defined?(@offense_limit)
+
+      max = @options[:max_offenses_per_cop]
+      @offense_limit = (OffenseLimit.new(max.to_i) if max)
+    end
+
+    def warn_about_elided_offenses
+      elided = offense_limit&.elided_per_cop
+      return unless elided&.any?
+
+      warn Rainbow(
+        "#{elided.values.sum} more offenses were not reported because of " \
+        "--max-offenses-per-cop=#{offense_limit.max} (#{elided.keys.join(', ')})."
+      ).yellow
     end
 
     def supports_safe_autocorrect?(offense)
@@ -662,7 +730,7 @@ module RuboCop
 
       processed_source = if source
                            ProcessedSource.new(
-                             emulate_write_read_cycle(source),
+                             Util.emulate_write_read_cycle(source),
                              ruby_version,
                              file,
                              parser_engine: parser_engine

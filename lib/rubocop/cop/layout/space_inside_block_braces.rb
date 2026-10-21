@@ -153,7 +153,7 @@ module RuboCop
           else
             column = node.source_range.column
             return if multiline_block?(left_brace, right_brace) &&
-                      aligned_braces?(inner, right_brace, column)
+                      aligned_braces?(inner, right_brace, column, left_brace)
 
             space_inside_right_brace(inner, right_brace, column)
           end
@@ -163,12 +163,19 @@ module RuboCop
           left_brace.first_line != right_brace.first_line
         end
 
-        def aligned_braces?(inner, right_brace, column)
-          column == right_brace.column || column == inner_last_space_count(inner)
+        def aligned_braces?(inner, right_brace, column, left_brace)
+          column == right_brace.column ||
+            column == inner_last_space_count(inner) ||
+            aligned_with_opening_brace_line?(left_brace, right_brace)
         end
 
         def inner_last_space_count(inner)
           inner.split("\n").last.count(' ')
+        end
+
+        def aligned_with_opening_brace_line?(left_brace, right_brace)
+          begins_its_line?(right_brace) &&
+            right_brace.column == left_brace.source_line[/\A\s*/].length
         end
 
         def no_space_inside_left_brace(left_brace, args_delimiter)
@@ -197,14 +204,26 @@ module RuboCop
                       'Space between { and | detected.')
             end
           else
-            brace_with_space = range_with_surrounding_space(left_brace, side: :right)
-            space(brace_with_space.begin_pos + 1, brace_with_space.end_pos,
-                  'Space inside { detected.')
+            space_after_left_brace(left_brace)
           end
         end
 
         def pipe?(args_delimiter)
           args_delimiter&.is?('|')
+        end
+
+        def space_after_left_brace(left_brace)
+          brace_with_space = range_with_surrounding_space(left_brace, side: :right)
+          return if brace_with_space.source.match?(/\R/)
+          return if comment_at?(brace_with_space.end_pos)
+
+          space(
+            brace_with_space.begin_pos + 1, brace_with_space.end_pos, 'Space inside { detected.'
+          )
+        end
+
+        def comment_at?(pos)
+          processed_source.comments.any? { |comment| comment.source_range.begin_pos == pos }
         end
 
         def space_inside_right_brace(inner, right_brace, column)
@@ -216,12 +235,16 @@ module RuboCop
             begin_pos = end_pos - (right_brace.column - column)
           end
 
-          if inner.end_with?(']')
+          if closing_bracket_on_own_line?(inner)
             end_pos -= 1
             begin_pos = end_pos - (inner_last_space_count(inner) - column)
           end
 
           space(begin_pos, end_pos, 'Space inside } detected.')
+        end
+
+        def closing_bracket_on_own_line?(inner)
+          inner[/[^\n]*\z/].match?(/\A\s*\]\z/)
         end
 
         def no_space(begin_pos, end_pos, msg)
@@ -241,7 +264,7 @@ module RuboCop
         end
 
         def offense(begin_pos, end_pos, msg, style_param = 'EnforcedStyle')
-          return if begin_pos > end_pos
+          return if begin_pos >= end_pos
 
           range = range_between(begin_pos, end_pos)
           add_offense(range, message: msg) do |corrector|

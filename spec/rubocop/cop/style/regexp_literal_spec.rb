@@ -19,6 +19,17 @@ RSpec.describe RuboCop::Cop::Style::RegexpLiteral, :config do
     it 'ignores the slashes that do not belong // regex' do
       expect_no_offenses('x =~ /\s{#{x[/\s+/].length}}/')
     end
+
+    it 'registers an offense and corrects a `%r` regex without escaping the slashes in interpolation' do
+      expect_offense(<<~'RUBY')
+        x =~ %r{^#{line[/^\s+/]}\s}
+             ^^^^^^^^^^^^^^^^^^^^^^ Use `//` around regular expression.
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        x =~ /^#{line[/^\s+/]}\s/
+      RUBY
+    end
   end
 
   describe '%r regex with other delimiters than curly braces' do
@@ -181,6 +192,85 @@ RSpec.describe RuboCop::Cop::Style::RegexpLiteral, :config do
         it 'is accepted' do
           expect_no_offenses('foo = /users\/#{user.id}\/forms/')
         end
+      end
+    end
+
+    describe 'a single-line `%r` regex with an escaped delimiter' do
+      it 'registers an offense and unescapes the delimiter' do
+        expect_offense(<<~'RUBY')
+          foo = %r!(?\!x)!
+                ^^^^^^^^^^ Use `//` around regular expression.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo = /(?!x)/
+        RUBY
+      end
+
+      it 'registers an offense and keeps an escaped backslash before the delimiter' do
+        expect_offense(<<~'RUBY')
+          foo = %r!a\\\!b!
+                ^^^^^^^^^^ Use `//` around regular expression.
+        RUBY
+
+        expect_correction(<<~'RUBY')
+          foo = /a\\!b/
+        RUBY
+      end
+
+      it 'registers an offense and unescapes a hyphen delimiter inside a character class' do
+        expect_offense(<<~'RUBY')
+          foo = %r-[a\-z]-
+                ^^^^^^^^^^ Use `//` around regular expression.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo = /[a-z]/
+        RUBY
+      end
+
+      it 'registers an offense and unescapes a hash delimiter' do
+        expect_offense(<<~'RUBY')
+          foo = %r#a\#b#x
+                ^^^^^^^^^ Use `//` around regular expression.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo = /a#b/x
+        RUBY
+      end
+
+      it 'registers an offense and keeps the escape of a hash delimiter that would start an interpolation' do
+        expect_offense(<<~'RUBY')
+          foo = %r#a\#{b}#
+                ^^^^^^^^^^ Use `//` around regular expression.
+        RUBY
+
+        expect_correction(<<~'RUBY')
+          foo = /a\#{b}/
+        RUBY
+      end
+
+      it 'registers an offense and moves the escape after a hash delimiter that would start an interpolation in extended mode' do
+        expect_offense(<<~'RUBY')
+          foo = %r#a\#{b}#x
+                ^^^^^^^^^^^ Use `//` around regular expression.
+        RUBY
+
+        expect_correction(<<~'RUBY')
+          foo = /a#\{b}/x
+        RUBY
+      end
+
+      it 'registers an offense and keeps the escape of a delimiter that is a regexp metacharacter' do
+        expect_offense(<<~'RUBY')
+          foo = %r{a\{b}
+                ^^^^^^^^ Use `//` around regular expression.
+        RUBY
+
+        expect_correction(<<~'RUBY')
+          foo = /a\{b/
+        RUBY
       end
     end
 
@@ -626,6 +716,59 @@ RSpec.describe RuboCop::Cop::Style::RegexpLiteral, :config do
       it 'does not register an offense when using a regexp starts with equal as a method argument' do
         expect_no_offenses(<<~RUBY)
           do_something %r/=regexp/
+        RUBY
+      end
+
+      it 'does not register an offense when using a regexp starts with a newline as a method argument' do
+        expect_no_offenses(<<~RUBY)
+          do_something %r{
+            regexp
+          }x
+        RUBY
+      end
+
+      it 'registers an offense when using a regexp starts with a newline as a parenthesized method argument' do
+        expect_offense(<<~RUBY)
+          do_something(%r{
+                       ^^^ Use `//` around regular expression.
+            regexp
+          }x)
+        RUBY
+
+        expect_correction(<<~RUBY)
+          do_something(/
+            regexp
+          /x)
+        RUBY
+      end
+
+      it 'registers an offense when using a regexp starts with a newline as a second method argument' do
+        expect_offense(<<~RUBY)
+          do_something foo, %r{
+                            ^^^ Use `//` around regular expression.
+            regexp
+          }x
+        RUBY
+
+        expect_correction(<<~RUBY)
+          do_something foo, /
+            regexp
+          /x
+        RUBY
+      end
+
+      it 'registers an offense when using a regexp starts with a newline as an operator method argument' do
+        expect_offense(<<~RUBY)
+          foo =~ %r{
+                 ^^^ Use `//` around regular expression.
+            regexp
+          }x
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo =~ /
+            regexp
+          /x
         RUBY
       end
     end

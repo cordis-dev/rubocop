@@ -484,6 +484,28 @@ RSpec.describe RuboCop::Cop::Style::Next, :config do
           end
         RUBY
       end
+
+      it "registers an offense for modifier #{condition} wrapping a block with another offense" do
+        expect_offense(<<~RUBY, condition: condition)
+          [].each do |o|
+            o.each do |v|
+            ^^^^^^^^^^^^^ Use `next` to skip iteration.
+              puts v #{condition} v == 1
+              ^^^^^^^^{condition}^^^^^^^ Use `next` to skip iteration.
+            end #{condition} o
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          [].each do |o|
+            next #{opposite} o
+            o.each do |v|
+              next #{opposite} v == 1
+              puts v
+            end
+          end
+        RUBY
+      end
     end
 
     it 'autocorrects a misaligned end' do
@@ -576,6 +598,54 @@ RSpec.describe RuboCop::Cop::Style::Next, :config do
         this is a heredoc
          nice eh?
         BLAH
+        something
+      end
+    RUBY
+  end
+
+  it "doesn't reindent indented heredoc bodies without interpolation when autocorrecting" do
+    expect_offense(<<~RUBY)
+      loop do
+        if test
+        ^^^^^^^ Use `next` to skip iteration.
+          str = <<-BLAH
+            this is a heredoc
+          BLAH
+          something
+        end
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      loop do
+        next unless test
+        str = <<-BLAH
+            this is a heredoc
+        BLAH
+        something
+      end
+    RUBY
+  end
+
+  it "doesn't reindent the inner lines of multiline string literals when autocorrecting" do
+    expect_offense(<<~RUBY)
+      loop do
+        if test
+        ^^^^^^^ Use `next` to skip iteration.
+          puts "first
+          second \#{third}
+          fourth"
+          something
+        end
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      loop do
+        next unless test
+        puts "first
+          second \#{third}
+          fourth"
         something
       end
     RUBY

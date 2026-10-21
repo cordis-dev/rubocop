@@ -175,6 +175,67 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
         )
       RUBY
     end
+
+    it 'accepts a method chain inside a lambda body within a hash pair value' do
+      expect_no_offenses(<<~RUBY)
+        {
+          key: -> do
+            client
+              .beta
+              .messages
+          end
+        }
+      RUBY
+    end
+
+    it 'accepts a method chain inside a block body within a hash pair value' do
+      expect_no_offenses(<<~RUBY)
+        {
+          key: proc { |request|
+            request
+              .params
+              .fetch(:page)
+          }
+        }
+      RUBY
+    end
+
+    it 'accepts a method chain inside a `begin` body within a hash pair value' do
+      expect_no_offenses(<<~RUBY)
+        {
+          key: begin
+            settings
+              .fetch(:connection)
+              .fetch(:retries)
+          end
+        }
+      RUBY
+    end
+
+    it 'accepts a method chain inside an `if` body within a hash pair value' do
+      expect_no_offenses(<<~RUBY)
+        {
+          key: if condition
+            client
+              .beta
+          else
+            other
+              .beta
+          end
+        }
+      RUBY
+    end
+
+    it 'accepts a method chain inside a `while` body within a hash pair value' do
+      expect_no_offenses(<<~RUBY)
+        {
+          key: while condition
+            client
+              .beta
+          end
+        }
+      RUBY
+    end
   end
 
   shared_examples 'common for aligned and indented' do
@@ -454,6 +515,27 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
 
     it_behaves_like 'common'
     it_behaves_like 'common for aligned and indented'
+
+    it 'registers an offense for a misindented method chain inside a lambda body within a hash pair value' do
+      expect_offense(<<~RUBY)
+        {
+          key: -> do
+            client
+            .beta
+            ^^^^^ Use 2 (not 0) spaces for indenting an expression spanning multiple lines.
+          end
+        }
+      RUBY
+
+      expect_correction(<<~RUBY)
+        {
+          key: -> do
+            client
+              .beta
+          end
+        }
+      RUBY
+    end
 
     it "doesn't fail on unary operators" do
       expect_offense(<<~RUBY)
@@ -1480,7 +1562,6 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
         end
       RUBY
 
-      # NOTE: There's a minor issue where the space after |entry| gets removed
       expect_correction(<<~RUBY)
         def targets_for(path)
           fullpath = fullpath_for(path)
@@ -1488,7 +1569,7 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
             Dir.glob(fullpath),
           ].flatten
            .uniq
-           .delete_if { |entry|dot_directory?(entry) }
+           .delete_if { |entry| dot_directory?(entry) }
         end
       RUBY
     end
@@ -2084,6 +2165,34 @@ RSpec.describe RuboCop::Cop::Layout::MultilineMethodCallIndentation, :config do
       expect_no_offenses(<<~RUBY)
         (0..foo).bar
           .qux { quux }
+      RUBY
+    end
+
+    it 'registers an offense and corrects a method call with a single-line `do`...`end` block' do
+      expect_offense(<<~RUBY)
+        foo.bar do |x| x end
+        .baz do |x| do_something(x) end
+        ^^^^ Use 2 (not 0) spaces for indenting an expression spanning multiple lines.
+      RUBY
+
+      expect_correction(<<~RUBY, loop: false)
+        foo.bar do |x| x end
+          .baz do |x| do_something(x) end
+      RUBY
+    end
+
+    it 'registers an offense and corrects a method call with a block whose body ends on the line of its closing brace' do
+      expect_offense(<<~RUBY)
+        foo.bar
+        .baz { |x|
+        ^^^^ Use 2 (not 0) spaces for indenting an expression spanning multiple lines.
+          do_something(x) }
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo.bar
+          .baz { |x|
+            do_something(x) }
       RUBY
     end
 

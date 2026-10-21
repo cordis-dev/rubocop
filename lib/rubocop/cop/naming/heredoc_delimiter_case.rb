@@ -35,7 +35,7 @@ module RuboCop
         MSG = 'Use %<style>s heredoc delimiters.'
 
         def on_heredoc(node)
-          return if correct_case_delimiters?(node)
+          return if correct_case_delimiters?(node) || corrected_delimiter_in_body?(node)
 
           add_offense(node.loc.heredoc_end) do |corrector|
             expr = node.source_range
@@ -52,7 +52,14 @@ module RuboCop
         end
 
         def correct_case_delimiters?(node)
-          delimiter_string(node) == correct_delimiters(delimiter_string(node))
+          delimiters = delimiter_string(node)
+          delimiters == correct_delimiters(delimiters)
+        end
+
+        def corrected_delimiter_in_body?(node)
+          corrected = correct_delimiters(delimiter_string(node))
+
+          node.loc.heredoc_body.source.each_line.any? { |line| line.strip == corrected }
         end
 
         def correct_delimiters(source)

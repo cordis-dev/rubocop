@@ -178,7 +178,7 @@ module RuboCop
         elsif defer_corrections
           @updated_source = new_source
         else
-          File.open(processed_source.file_path, 'wb') { |f| f.write(new_source) }
+          RuboCop::Util.replace_file_contents(processed_source.file_path, new_source)
         end
       end
 
@@ -342,18 +342,23 @@ module RuboCop
       end
 
       def each_corrector(report)
-        skips = Set.new
+        applied = []
         report.cop_reports.each do |cop_report|
-          cop = cop_report.cop
+          cop_class = cop_report.cop.class
           corrector = cop_report.corrector
 
           next if corrector.nil? || corrector.empty?
-          next if skips.include?(cop.class)
+          next if applied.any? { |other| autocorrect_incompatible?(cop_class, other) }
 
           yield corrector
 
-          skips.merge(cop.class.autocorrect_incompatible_with)
+          applied << cop_class
         end
+      end
+
+      def autocorrect_incompatible?(cop_class, other)
+        cop_class.autocorrect_incompatible_with.include?(other) ||
+          other.autocorrect_incompatible_with.include?(cop_class)
       end
 
       def suppress_clobbering

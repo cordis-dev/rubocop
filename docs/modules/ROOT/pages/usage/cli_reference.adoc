@@ -81,6 +81,9 @@ $ rubocop --only Rails/Blank,Layout/HeredocIndentation,Naming/FileName
 | `--display-suppressed`
 | Also output offenses suppressed by directive comments, tagged `[Suppressed]` (with their `--` justification in the JSON formatter). Suppressed offenses do not affect the exit code.
 
+| `--max-offenses-per-cop=COUNT`
+| Report at most `COUNT` offenses per cop across the whole run. Like the other display filters, offenses beyond the limit are not reported and do not count towards the totals; a note on stderr says how many were held back and which cops they came from.
+
 | `--enable-all-cops`
 | Run with all cops enabled, including those disabled by default. Overrides `AllCops/EnabledByDefault` and `AllCops/DisabledByDefault` in configuration files.
 
@@ -179,6 +182,9 @@ $ rubocop --only Rails/Blank,Layout/HeredocIndentation,Naming/FileName
 
 | `--show-docs-url`
 | Shows URLs for documentation pages of supplied cops.
+
+| `--explain COP1,COP2,...`
+| Explain what the given cops do: their description, properties, configuration, the examples from their own documentation, and links to the style guide and docs. Unlike `--show-cops` and `--show-docs-url`, an unrecognized name is reported rather than skipped.
 
 | `--stderr`
 | Write all output to stderr except for the autocorrected source. This is especially useful when combined with `--autocorrect` and `--stdin`.

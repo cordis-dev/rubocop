@@ -19,6 +19,20 @@ RSpec.describe RuboCop::Cop::Style::NumericPredicate, :config do
         RUBY
       end
 
+      it 'registers an offense with a unary operation' do
+        expect_offense(<<~RUBY)
+          -foo == 0
+          ^^^^^^^^^ Use `(-foo).zero?` instead of `-foo == 0`.
+          ~foo == 0
+          ^^^^^^^^^ Use `(~foo).zero?` instead of `~foo == 0`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          (-foo).zero?
+          (~foo).zero?
+        RUBY
+      end
+
       it 'registers an offense with a complex expression' do
         expect_offense(<<~RUBY)
           foo - 1 == 0
@@ -31,6 +45,39 @@ RSpec.describe RuboCop::Cop::Style::NumericPredicate, :config do
           (foo - 1).zero?
           (foo - 1).zero?
         RUBY
+      end
+
+      context 'when `Style/BitwisePredicate` is disabled' do
+        let(:other_cops) { { 'Style/BitwisePredicate' => { 'Enabled' => false } } }
+
+        it 'registers an offense for a bitwise comparison' do
+          expect_offense(<<~RUBY)
+            stat.mode & 0o077 == 0
+            ^^^^^^^^^^^^^^^^^^^^^^ Use `(stat.mode & 0o077).zero?` instead of `stat.mode & 0o077 == 0`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            (stat.mode & 0o077).zero?
+          RUBY
+        end
+      end
+
+      context 'when `Style/BitwisePredicate` is enabled' do
+        let(:other_cops) { { 'Style/BitwisePredicate' => { 'Enabled' => true } } }
+        let(:registry) { RuboCop::Cop::Registry.new([described_class]) }
+
+        it 'does not register an offense for a bitwise comparison' do
+          expect_no_offenses('stat.mode & 0o077 == 0')
+        end
+
+        context 'when target Ruby is older than 2.5', :ruby24, unsupported_on: :prism do
+          it 'registers an offense for a bitwise comparison' do
+            expect_offense(<<~RUBY)
+              stat.mode & 0o077 == 0
+              ^^^^^^^^^^^^^^^^^^^^^^ Use `(stat.mode & 0o077).zero?` instead of `stat.mode & 0o077 == 0`.
+            RUBY
+          end
+        end
       end
 
       it 'allows comparing against a global variable' do
@@ -223,6 +270,50 @@ RSpec.describe RuboCop::Cop::Style::NumericPredicate, :config do
 
       expect_correction(<<~RUBY)
         !(number == 0)
+      RUBY
+    end
+
+    it 'registers an offense and adds parentheses when the predicate is an operand of an operator' do
+      expect_offense(<<~RUBY)
+        foo == number.zero?
+               ^^^^^^^^^^^^ Use `(number == 0)` instead of `number.zero?`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo == (number == 0)
+      RUBY
+    end
+
+    it 'registers an offense and adds parentheses when the predicate is a method call receiver' do
+      expect_offense(<<~RUBY)
+        number.positive?.to_s
+        ^^^^^^^^^^^^^^^^ Use `(number > 0)` instead of `number.positive?`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        (number > 0).to_s
+      RUBY
+    end
+
+    it 'registers an offense without adding parentheses when the predicate is an element reference index' do
+      expect_offense(<<~RUBY)
+        foo[number.zero?]
+            ^^^^^^^^^^^^ Use `number == 0` instead of `number.zero?`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo[number == 0]
+      RUBY
+    end
+
+    it 'registers an offense without adding parentheses when the predicate is a method argument' do
+      expect_offense(<<~RUBY)
+        do_something(number.zero?)
+                     ^^^^^^^^^^^^ Use `number == 0` instead of `number.zero?`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        do_something(number == 0)
       RUBY
     end
 

@@ -26,6 +26,31 @@ RSpec.describe RuboCop::Cop::Style::HashLookupMethod, :config do
       RUBY
     end
 
+    it 'registers an offense for fetch with a leading dot on its own line' do
+      expect_offense(<<~RUBY)
+        do_something(
+          hash
+            .fetch(key)
+             ^^^^^ Use `Hash#[]` instead of `Hash#fetch`.
+        )
+      RUBY
+
+      expect_correction(<<~RUBY)
+        do_something(
+          hash[key]
+        )
+      RUBY
+    end
+
+    it 'does not register an offense for fetch with a comment before a leading dot' do
+      expect_no_offenses(<<~RUBY)
+        do_something(
+          hash # comment
+            .fetch(key)
+        )
+      RUBY
+    end
+
     it 'accepts bracket access' do
       expect_no_offenses('hash[key]')
     end
@@ -56,6 +81,56 @@ RSpec.describe RuboCop::Cop::Style::HashLookupMethod, :config do
 
     it 'accepts `fetch` without receiver and with block' do
       expect_no_offenses('fetch(key) { default }')
+    end
+
+    context 'when `Style/FetchEnvVar` is enabled' do
+      let(:other_cops) { { 'Style/FetchEnvVar' => { 'Enabled' => true } } }
+
+      it 'accepts `ENV.fetch` with one argument' do
+        expect_no_offenses(<<~RUBY)
+          ENV.fetch(key)
+          ::ENV.fetch(key)
+        RUBY
+      end
+    end
+
+    context 'when `Style/FetchEnvVar` is pending' do
+      let(:other_cops) { { 'Style/FetchEnvVar' => { 'Enabled' => 'pending' } } }
+
+      it 'registers an offense for `ENV.fetch` with one argument' do
+        expect_offense(<<~RUBY)
+          ENV.fetch(key)
+              ^^^^^ Use `Hash#[]` instead of `Hash#fetch`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          ENV[key]
+        RUBY
+      end
+    end
+
+    context 'when `Style/FetchEnvVar` is pending and new cops are enabled' do
+      let(:all_cops_config) { super().merge('NewCops' => 'enable') }
+      let(:other_cops) { { 'Style/FetchEnvVar' => { 'Enabled' => 'pending' } } }
+
+      it 'accepts `ENV.fetch` with one argument' do
+        expect_no_offenses('ENV.fetch(key)')
+      end
+    end
+
+    context 'when `Style/FetchEnvVar` is disabled' do
+      let(:other_cops) { { 'Style/FetchEnvVar' => { 'Enabled' => false } } }
+
+      it 'registers an offense for `ENV.fetch` with one argument' do
+        expect_offense(<<~RUBY)
+          ENV.fetch(key)
+              ^^^^^ Use `Hash#[]` instead of `Hash#fetch`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          ENV[key]
+        RUBY
+      end
     end
 
     it 'registers an offense for the outer call when the key is itself a fetch' do
@@ -143,6 +218,17 @@ RSpec.describe RuboCop::Cop::Style::HashLookupMethod, :config do
           hash&.fetch(key)
         RUBY
       end
+    end
+
+    it 'registers an offense for an explicit element reference call' do
+      expect_offense(<<~RUBY)
+        hash.[](key)
+        ^^^^^^^^^^^^ Use `Hash#fetch` instead of `Hash#[]`.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        hash.fetch(key)
+      RUBY
     end
   end
 

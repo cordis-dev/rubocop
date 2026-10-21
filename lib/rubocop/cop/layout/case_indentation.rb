@@ -164,8 +164,12 @@ module RuboCop
           cop_config['IndentOneStep']
         end
 
+        # Under tabs one step is a single tab character, which counts as one column
+        # regardless of the configured indentation width.
         def indentation_width
-          indent_one_step? ? configured_indentation_width : 0
+          return 0 unless indent_one_step?
+
+          using_tabs? ? 1 : configured_indentation_width
         end
 
         def incorrect_style(when_node, branch_type)
@@ -176,8 +180,10 @@ module RuboCop
             detect_incorrect_style(when_node)
 
             whitespace = whitespace_range(when_node)
+            next unless whitespace.source.strip.empty?
 
-            corrector.replace(whitespace, replacement(when_node)) if whitespace.source.strip.empty?
+            indentation = replacement(when_node)
+            corrector.replace(whitespace, indentation) if indentation
           end
         end
 
@@ -193,10 +199,7 @@ module RuboCop
         end
 
         def base_column(case_node, base)
-          case base
-          when :case then case_node.location.keyword.column
-          when :end  then case_node.location.end.column
-          end
+          base_location(case_node, base)&.column
         end
 
         def whitespace_range(node)
@@ -207,13 +210,26 @@ module RuboCop
         end
 
         def replacement(node)
+          base_loc = configured_base_location(node)
+
+          return ' ' * (base_loc.column + indentation_width) unless using_tabs?
+          return unless begins_its_line?(base_loc)
+
+          base_loc.source_line[/\A\s*/] + ("\t" * indentation_width)
+        end
+
+        def configured_base_location(node)
           case_node = node.each_ancestor(:case, :case_match).first
           base_type = cop_config[style_parameter_name] == 'end' ? :end : :case
 
-          column = base_column(case_node, base_type)
-          column += indentation_width
+          base_location(case_node, base_type)
+        end
 
-          ' ' * column
+        def base_location(case_node, base)
+          case base
+          when :case then case_node.location.keyword
+          when :end  then case_node.location.end
+          end
         end
       end
     end

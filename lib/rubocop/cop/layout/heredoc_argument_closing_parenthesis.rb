@@ -57,8 +57,10 @@ module RuboCop
         MSG = 'Put the closing parenthesis for a method call with a ' \
               'HEREDOC parameter on the same line as the HEREDOC opening.'
 
+        # `Layout/MultilineMethodCallBraceLayout` can move the same closing parenthesis after
+        # the last argument in the same pass, and both insertions are kept.
         def self.autocorrect_incompatible_with
-          [Style::TrailingCommaInArguments]
+          [Layout::MultilineMethodCallBraceLayout, Style::TrailingCommaInArguments]
         end
 
         def on_send(node)
@@ -117,6 +119,8 @@ module RuboCop
           previous = heredoc
           current = previous.parent
           until send_missing_closing_parens?(current, previous, heredoc)
+            return if current&.any_block_type? && !current.send_node.equal?(previous)
+
             previous = current
             current = current.parent
             return unless previous && current
@@ -229,8 +233,8 @@ module RuboCop
         end
 
         def find_most_bottom_of_heredoc_end(arguments)
-          arguments.filter_map do |argument|
-            argument.loc.heredoc_end.end_pos if argument.loc?(:heredoc_end)
+          arguments.flat_map { |argument| argument.each_node(:any_str).to_a }.filter_map do |node|
+            node.loc.heredoc_end.end_pos if node.loc?(:heredoc_end)
           end.max
         end
 

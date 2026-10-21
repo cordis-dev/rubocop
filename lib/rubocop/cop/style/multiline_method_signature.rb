@@ -27,6 +27,7 @@ module RuboCop
         def on_def(node)
           return unless node.arguments?
           return if opening_line(node) == closing_line(node)
+          return if node.arguments.any?(&:multiline?)
           return if correction_exceeds_max_line_length?(node)
           return unless (begin_of_arguments = node.arguments.loc.begin)
 
@@ -78,11 +79,7 @@ module RuboCop
         def correction_exceeds_max_line_length?(node)
           return false unless max_line_length
 
-          indentation_width(node) + definition_width(node) > max_line_length
-        end
-
-        def indentation_width(node)
-          processed_source.line_indentation(node.source_range.line)
+          node.source_range.column + definition_width(node) > max_line_length
         end
 
         def definition_width(node)

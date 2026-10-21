@@ -516,6 +516,10 @@ RSpec.describe RuboCop::Cop::Layout::RedundantLineBreak, :config do
         RUBY
       end
 
+      it 'accepts a string concatenation that is too long only when tabs are counted' do
+        expect_no_offenses("\t\tfoo('aaaaaaaaaaa' \\\n\t\t  'bbbbbbbbbb')\n")
+      end
+
       it 'accepts a quoted symbol with a single newline' do
         expect_no_offenses(<<~RUBY)
           foo(:"
@@ -846,6 +850,54 @@ RSpec.describe RuboCop::Cop::Layout::RedundantLineBreak, :config do
           RUBY
         end
       end
+    end
+  end
+
+  context 'when expressions that each fit on a single line share a line' do
+    let(:max_line_length) { 35 }
+
+    it 'registers an offense only for the first expression when joining both would make the line too long' do
+      expect_offense(<<~RUBY)
+        do_something(foo(a,
+                     ^^^^^^ Redundant line break detected.
+                         b) => bar(c,
+                                   d))
+      RUBY
+
+      expect_correction(<<~RUBY)
+        do_something(foo(a, b) => bar(c,
+                                   d))
+      RUBY
+    end
+
+    it 'registers an offense for each expression when joining all of them fits' do
+      expect_offense(<<~RUBY)
+        [foo(a,
+         ^^^^^^ Redundant line break detected.
+             b), bar(c,
+                 ^^^^^^ Redundant line break detected.
+                     d)]
+      RUBY
+
+      expect_correction(<<~RUBY)
+        [foo(a, b), bar(c, d)]
+      RUBY
+    end
+
+    it 'registers an offense only for the expressions whose combined line still fits' do
+      expect_offense(<<~RUBY)
+        [fooo(a,
+         ^^^^^^^ Redundant line break detected.
+              b), baar(c,
+                  ^^^^^^^ Redundant line break detected.
+                       d), baaz(e,
+                                f)]
+      RUBY
+
+      expect_correction(<<~RUBY)
+        [fooo(a, b), baar(c, d), baaz(e,
+                                f)]
+      RUBY
     end
   end
 

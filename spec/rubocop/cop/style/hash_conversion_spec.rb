@@ -63,6 +63,117 @@ RSpec.describe RuboCop::Cop::Style::HashConversion, :config do
     RUBY
   end
 
+  it 'adds parentheses when hash argument `Hash[]` is an argument of a safe navigation call without parentheses' do
+    expect_offense(<<~RUBY)
+      foo&.bar Hash[a => b]
+               ^^^^^^^^^^^^ Prefer literal hash to `Hash[key: value, ...]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      foo&.bar({a => b})
+    RUBY
+  end
+
+  it 'does not add parentheses when multi-argument `Hash[]` is assigned with a safe navigation setter' do
+    expect_offense(<<~RUBY)
+      foo&.bar = Hash[a, b]
+                 ^^^^^^^^^^ Prefer literal hash to `Hash[arg1, arg2, ...]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      foo&.bar = {a => b}
+    RUBY
+  end
+
+  it 'adds parentheses when hash argument `Hash[]` is an argument of `super` without parentheses' do
+    expect_offense(<<~RUBY)
+      def foo
+        super Hash[a => b]
+              ^^^^^^^^^^^^ Prefer literal hash to `Hash[key: value, ...]`.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def foo
+        super({a => b})
+      end
+    RUBY
+  end
+
+  it 'adds parentheses when hash argument `Hash[]` is the last argument of `super` without parentheses' do
+    expect_offense(<<~RUBY)
+      def foo
+        super x, Hash[a => b]
+                 ^^^^^^^^^^^^ Prefer literal hash to `Hash[key: value, ...]`.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def foo
+        super(x, {a => b})
+      end
+    RUBY
+  end
+
+  it 'adds parentheses when multi-argument `Hash[]` is an argument of `yield` without parentheses' do
+    expect_offense(<<~RUBY)
+      def foo
+        yield Hash[a, b]
+              ^^^^^^^^^^ Prefer literal hash to `Hash[arg1, arg2, ...]`.
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def foo
+        yield({a => b})
+      end
+    RUBY
+  end
+
+  it 'adds parentheses when a method chain on multi-argument `Hash[]` is a method argument' do
+    expect_offense(<<~RUBY)
+      do_something Hash[a, b].merge(c)
+                   ^^^^^^^^^^ Prefer literal hash to `Hash[arg1, arg2, ...]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      do_something({a => b}.merge(c))
+    RUBY
+  end
+
+  it 'adds parentheses when a method call on hash argument `Hash[]` is a method argument' do
+    expect_offense(<<~RUBY)
+      do_something Hash[a => b].size
+                   ^^^^^^^^^^^^ Prefer literal hash to `Hash[key: value, ...]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      do_something({a => b}.size)
+    RUBY
+  end
+
+  it 'adds parentheses when a safe navigation call on multi-argument `Hash[]` is a method argument' do
+    expect_offense(<<~RUBY)
+      do_something Hash[a, b]&.merge(c)
+                   ^^^^^^^^^^ Prefer literal hash to `Hash[arg1, arg2, ...]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      do_something({a => b}&.merge(c))
+    RUBY
+  end
+
+  it 'adds parentheses when a block call on multi-argument `Hash[]` is a method argument' do
+    expect_offense(<<~RUBY)
+      do_something Hash[a, b].map { |k, v| k }
+                   ^^^^^^^^^^ Prefer literal hash to `Hash[arg1, arg2, ...]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      do_something({a => b}.map { |k, v| k })
+    RUBY
+  end
+
   it 'reports different offense for empty Hash[]' do
     expect_offense(<<~RUBY)
       Hash[]
@@ -223,6 +334,83 @@ RSpec.describe RuboCop::Cop::Style::HashConversion, :config do
 
     expect_correction(<<~RUBY)
       {}.to_h
+    RUBY
+  end
+
+  it 'does not add parentheses to a method called on multi-argument `Hash[]`' do
+    expect_offense(<<~RUBY)
+      Hash[a, b].size
+      ^^^^^^^^^^ Prefer literal hash to `Hash[arg1, arg2, ...]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      {a => b}.size
+    RUBY
+  end
+
+  it 'does not add parentheses to a unary operator called on hash argument `Hash[]`' do
+    expect_offense(<<~RUBY)
+      !Hash[a => b]
+       ^^^^^^^^^^^^ Prefer literal hash to `Hash[key: value, ...]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      !{a => b}
+    RUBY
+  end
+
+  it 'adds parentheses when multi-argument `Hash[]` is an argument of `to_h`' do
+    expect_offense(<<~RUBY)
+      to_h Hash[a, b]
+           ^^^^^^^^^^ Prefer literal hash to `Hash[arg1, arg2, ...]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      to_h({a => b})
+    RUBY
+  end
+
+  it 'does not add parentheses when multi-argument `Hash[]` is an index argument' do
+    expect_offense(<<~RUBY)
+      foo[Hash[a, b]]
+          ^^^^^^^^^^ Prefer literal hash to `Hash[arg1, arg2, ...]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      foo[{a => b}]
+    RUBY
+  end
+
+  it 'does not add parentheses when hash argument `Hash[]` is assigned with a setter' do
+    expect_offense(<<~RUBY)
+      foo.bar = Hash[a => b]
+                ^^^^^^^^^^^^ Prefer literal hash to `Hash[key: value, ...]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      foo.bar = {a => b}
+    RUBY
+  end
+
+  it 'does not add parentheses when multi-argument `Hash[]` is an operand of a binary operator' do
+    expect_offense(<<~RUBY)
+      foo == Hash[a, b]
+             ^^^^^^^^^^ Prefer literal hash to `Hash[arg1, arg2, ...]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      foo == {a => b}
+    RUBY
+  end
+
+  it 'adds parentheses when multi-argument `Hash[]` is an argument of an operator method called with a dot' do
+    expect_offense(<<~RUBY)
+      foo.[] Hash[a, b]
+             ^^^^^^^^^^ Prefer literal hash to `Hash[arg1, arg2, ...]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      foo.[]({a => b})
     RUBY
   end
 

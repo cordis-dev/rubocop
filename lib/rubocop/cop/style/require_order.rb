@@ -88,6 +88,8 @@ module RuboCop
           return unless previous_older_sibling
 
           add_offense(node, message: format(MSG, name: node.method_name)) do |corrector|
+            next unless own_lines?(previous_older_sibling) && own_lines?(search_node(node))
+
             autocorrect(corrector, node, previous_older_sibling)
           end
         end
@@ -99,25 +101,40 @@ module RuboCop
         end
 
         def find_previous_older_sibling(node) # rubocop:disable Metrics
-          search_node(node).left_siblings.reverse.find do |sibling|
+          oldest = nil
+          search_node(node).left_siblings.reverse_each do |sibling|
             next unless sibling.is_a?(AST::Node)
 
-            sibling = sibling_node(sibling)
-            break unless sibling&.send_type? && sibling.method?(node.method_name)
-            break unless sibling.arguments? && !sibling.receiver
-            break unless in_same_section?(sibling, node)
-            break unless node.first_argument.str_type? && sibling.first_argument.str_type?
+            required = sibling_node(sibling)
+            break unless required&.send_type? && required.method?(node.method_name)
+            break unless required.arguments? && !required.receiver
+            break unless in_same_section?(required, node)
+            break unless node.first_argument.str_type? && required.first_argument.str_type?
 
-            node.first_argument.value < sibling.first_argument.value
+            oldest = sibling if node.first_argument.value < required.first_argument.value
           end
+          oldest
+        end
+
+        def own_lines?(node)
+          range = node.source_range
+          rest_of_line = range.source_buffer.source_line(range.last_line)[range.last_column..]
+
+          begins_its_line?(range) && rest_of_line.match?(/\A\s*(#.*)?\z/)
         end
 
         def autocorrect(corrector, node, previous_older_sibling)
           range1 = range_with_comments_and_lines(previous_older_sibling)
           range2 = range_with_comments_and_lines(node.parent.if_type? ? node.parent : node)
+          source = range2.source
+
+          unless source.end_with?("\n")
+            source += "\n"
+            range2 = range2.with(begin_pos: range2.begin_pos - 1)
+          end
 
           corrector.remove(range2)
-          corrector.insert_before(range1, range2.source)
+          corrector.insert_before(range1.begin, source)
         end
 
         def search_node(node)

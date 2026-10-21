@@ -5,6 +5,8 @@ module RuboCop
     # Checks for code on multiple lines that could be rewritten on a single line
     # without changing semantics or exceeding the `Max` parameter of `Layout/LineLength`.
     module CheckSingleLineSuitability
+      include LineLengthHelp
+
       def suitable_as_single_line?(node)
         !too_long?(node) &&
           !comment_within?(node) &&
@@ -14,10 +16,14 @@ module RuboCop
       private
 
       def too_long?(node)
+        too_long_as_single_line?(node.first_line..node.last_line)
+      end
+
+      def too_long_as_single_line?(line_range)
         return false unless max_line_length
 
-        lines = processed_source.lines[(node.first_line - 1)...node.last_line]
-        to_single_line(lines.join("\n")).length > max_line_length
+        lines = processed_source.lines[(line_range.begin - 1)...line_range.end]
+        line_length(to_single_line(lines.join("\n"))) > max_line_length
       end
 
       def to_single_line(source)

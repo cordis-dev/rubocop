@@ -152,6 +152,10 @@ module RuboCop
 
         MSG = 'Indent the first argument one step more than %<base>s.'
 
+        def self.autocorrect_incompatible_with
+          [Layout::ArgumentAlignment, Layout::HashAlignment]
+        end
+
         def on_send(node)
           return unless should_check?(node)
           return if same_line?(node, node.first_argument)
@@ -180,7 +184,13 @@ module RuboCop
 
           top_level_send = find_top_level_send(send_node)
           node_to_correct =
-            should_correct_entire_chain?(send_node, top_level_send) ? top_level_send : node
+            if should_correct_entire_chain?(send_node, top_level_send)
+              top_level_send
+            elsif hash_elements_aligned_by_argument_alignment?(node)
+              node.children.first
+            else
+              node
+            end
 
           AlignmentCorrector.correct(corrector, processed_source, node_to_correct, column_delta)
         end
@@ -189,6 +199,7 @@ module RuboCop
           return false unless style == :special_for_inner_method_call_in_parentheses
           return false unless inner_call?(top_level_send)
           return false unless display_column(send_node.source_range) < column_delta.abs
+          return false if column_delta.positive?
 
           top_level_send != send_node || begins_its_line?(top_level_send.loc.end)
         end
@@ -207,6 +218,21 @@ module RuboCop
             top_level_send = top_level_send.parent
           end
           top_level_send
+        end
+
+        # `Layout/ArgumentAlignment` with `with_fixed_indentation` indents the pairs of an
+        # unbraced hash to a fixed column, so they must not move along with the first element.
+        def hash_elements_aligned_by_argument_alignment?(node)
+          return false if !node.hash_type? || node.braces?
+          return false unless enforce_first_argument_with_fixed_indentation?
+
+          argument_alignment_applies?(node.parent) && !enforce_hash_argument_with_separator?
+        end
+
+        def enforce_hash_argument_with_separator?
+          HashAlignment::SEPARATOR_ALIGNMENT_STYLES.any? do |style|
+            config.for_enabled_cop('Layout/HashAlignment')[style]&.include?('separator')
+          end
         end
 
         def bare_operator?(node)

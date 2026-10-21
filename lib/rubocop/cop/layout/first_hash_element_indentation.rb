@@ -156,14 +156,20 @@ module RuboCop
           if first_pair
             return if same_line?(first_pair, left_brace)
 
-            if separator_style?(first_pair)
-              check_based_on_longest_key(hash_node, left_brace, left_parenthesis)
-            else
-              check_first(first_pair, left_brace, left_parenthesis, 0)
-            end
+            check_first_pair(hash_node, first_pair, left_brace, left_parenthesis)
           end
 
           check_right_brace(hash_node.loc.end, first_pair, left_brace, left_parenthesis)
+        end
+
+        def check_first_pair(hash_node, first_pair, left_brace, left_parenthesis)
+          return unless begins_its_line?(first_pair.source_range)
+
+          if separator_style?(first_pair)
+            check_based_on_longest_key(hash_node, left_brace, left_parenthesis)
+          else
+            check_first(first_pair, left_brace, left_parenthesis, 0)
+          end
         end
 
         def check_right_brace(right_brace, first_pair, left_brace, left_parenthesis)
@@ -187,9 +193,11 @@ module RuboCop
         end
 
         def check_based_on_longest_key(hash_node, left_brace, left_parenthesis)
-          key_lengths = hash_node.keys.map { |key| key.source_range.length }
-          check_first(hash_node.pairs.first, left_brace, left_parenthesis,
-                      key_lengths.max - key_lengths.first)
+          first_key = hash_node.keys.first
+          key_lengths = hash_node.keys.select(&:single_line?).map { |key| key.source_range.length }
+          offset = first_key.single_line? ? key_lengths.max - first_key.source_range.length : 0
+
+          check_first(hash_node.pairs.first, left_brace, left_parenthesis, offset)
         end
 
         # Returns the description of what the correct indentation is based on.

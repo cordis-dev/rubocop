@@ -196,6 +196,36 @@ RSpec.describe RuboCop::Cop::Style::ClassMethodsDefinitions, :config do
       RUBY
     end
 
+    it 'registers and corrects offenses when `class << self` is nested in a method of another one' do
+      expect_offense(<<~RUBY)
+        class A
+          class << self
+          ^^^^^^^^^^^^^ Do not define public methods within class << self.
+            def one
+              foo.instance_exec do
+                class << self
+                ^^^^^^^^^^^^^ Do not define public methods within class << self.
+                  def two
+                  end
+                end
+              end
+            end
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY, loop: true)
+        class A
+          def self.one
+            foo.instance_exec do
+              def self.two
+              end
+            end
+          end
+        end
+      RUBY
+    end
+
     it 'registers and corrects an offense when defining class methods with `class << self` with comment only body' do
       expect_offense(<<~RUBY)
         class Foo
@@ -236,6 +266,44 @@ RSpec.describe RuboCop::Cop::Style::ClassMethodsDefinitions, :config do
       RUBY
     end
 
+    it 'registers and corrects an offense when a method definition has a trailing comment after `end`' do
+      expect_offense(<<~RUBY)
+        class Foo
+          class << self
+          ^^^^^^^^^^^^^ Do not define public methods within class << self.
+            def do_something
+            end # TODO
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        class Foo
+          def self.do_something
+          end # TODO
+        end
+      RUBY
+    end
+
+    it 'registers and corrects an offense when a method definition has a trailing semicolon and comment' do
+      expect_offense(<<~RUBY)
+        class Foo
+          class << self
+          ^^^^^^^^^^^^^ Do not define public methods within class << self.
+            def do_something
+            end; # TODO
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        class Foo
+          def self.do_something
+          end; # TODO
+        end
+      RUBY
+    end
+
     it 'does not register an offense when `class << self` contains non public methods' do
       expect_no_offenses(<<~RUBY)
         class A
@@ -247,6 +315,22 @@ RSpec.describe RuboCop::Cop::Style::ClassMethodsDefinitions, :config do
 
             def two
             end
+          end
+        end
+      RUBY
+    end
+
+    it 'does not register an offense when `private` names several methods of `class << self`' do
+      expect_no_offenses(<<~RUBY)
+        class A
+          class << self
+            def one
+            end
+
+            def two
+            end
+
+            private :one, :two
           end
         end
       RUBY
@@ -289,6 +373,15 @@ RSpec.describe RuboCop::Cop::Style::ClassMethodsDefinitions, :config do
             def self.one
             end
           end
+        end
+      RUBY
+    end
+
+    it 'does not register an offense when a method definition shares its last line with the `class << self` end' do
+      expect_no_offenses(<<~RUBY)
+        class A
+          class << self
+            def b; end; end
         end
       RUBY
     end

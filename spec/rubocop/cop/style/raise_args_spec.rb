@@ -149,6 +149,18 @@ RSpec.describe RuboCop::Cop::Style::RaiseArgs, :config do
     it 'accepts exception constructor with keyword arguments and message argument' do
       expect_no_offenses('raise MyKwArgError.new(a: 1, b: 2), message')
     end
+
+    it 'registers an offense and corrects a raise nested in the arguments of another raise' do
+      expect_offense(<<~'RUBY')
+        raise Foo, "#{fetch { raise Bar, 'bad' }}"
+                              ^^^^^^^^^^^^^^^^ Provide an exception object as an argument to `raise`.
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Provide an exception object as an argument to `raise`.
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        raise Foo.new("#{fetch { raise Bar.new('bad') }}")
+      RUBY
+    end
   end
 
   context 'when enforced style is exploded' do
@@ -216,6 +228,123 @@ RSpec.describe RuboCop::Cop::Style::RaiseArgs, :config do
 
           expect_correction(<<~RUBY)
             bar || raise(Ex, 'error')
+          RUBY
+        end
+      end
+
+      context 'when used as a method argument' do
+        it 'registers an offense and autocorrects' do
+          expect_offense(<<~RUBY)
+            foo bar, raise(Ex.new('error'))
+                     ^^^^^^^^^^^^^^^^^^^^^^ Provide an exception class and message as arguments to `raise`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            foo bar, raise(Ex, 'error')
+          RUBY
+        end
+      end
+
+      context 'when used as a method receiver' do
+        it 'registers an offense and autocorrects' do
+          expect_offense(<<~RUBY)
+            raise(Ex.new('error')).foo
+            ^^^^^^^^^^^^^^^^^^^^^^ Provide an exception class and message as arguments to `raise`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            raise(Ex, 'error').foo
+          RUBY
+        end
+      end
+
+      context 'when used as an array element' do
+        it 'registers an offense and autocorrects' do
+          expect_offense(<<~RUBY)
+            [raise(Ex.new('error'))]
+             ^^^^^^^^^^^^^^^^^^^^^^ Provide an exception class and message as arguments to `raise`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            [raise(Ex, 'error')]
+          RUBY
+        end
+      end
+
+      context 'when used as a hash value' do
+        it 'registers an offense and autocorrects' do
+          expect_offense(<<~RUBY)
+            { foo: raise(Ex.new('error')) }
+                   ^^^^^^^^^^^^^^^^^^^^^^ Provide an exception class and message as arguments to `raise`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            { foo: raise(Ex, 'error') }
+          RUBY
+        end
+      end
+
+      context 'when used as the body of an endless method passed as an argument', :ruby30 do
+        it 'registers an offense and autocorrects' do
+          expect_offense(<<~RUBY)
+            private def foo = raise(Ex.new('error'))
+                              ^^^^^^^^^^^^^^^^^^^^^^ Provide an exception class and message as arguments to `raise`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            private def foo = raise(Ex, 'error')
+          RUBY
+        end
+      end
+
+      context 'when used as the body of an endless singleton method', :ruby30 do
+        it 'registers an offense and autocorrects' do
+          expect_offense(<<~RUBY)
+            private def self.foo = raise(Ex.new('error'))
+                                   ^^^^^^^^^^^^^^^^^^^^^^ Provide an exception class and message as arguments to `raise`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            private def self.foo = raise(Ex, 'error')
+          RUBY
+        end
+      end
+
+      context 'when used as an argument of `super`' do
+        it 'registers an offense and autocorrects' do
+          expect_offense(<<~RUBY)
+            super bar, raise(Ex.new('error'))
+                       ^^^^^^^^^^^^^^^^^^^^^^ Provide an exception class and message as arguments to `raise`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            super bar, raise(Ex, 'error')
+          RUBY
+        end
+      end
+
+      context 'when used as an argument of `yield`' do
+        it 'registers an offense and autocorrects' do
+          expect_offense(<<~RUBY)
+            yield bar, raise(Ex.new('error'))
+                       ^^^^^^^^^^^^^^^^^^^^^^ Provide an exception class and message as arguments to `raise`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            yield bar, raise(Ex, 'error')
+          RUBY
+        end
+      end
+
+      context 'when used as the body of an endless method', :ruby30 do
+        it 'registers an offense and autocorrects' do
+          expect_offense(<<~RUBY)
+            def foo = raise(Ex.new('error'))
+                      ^^^^^^^^^^^^^^^^^^^^^^ Provide an exception class and message as arguments to `raise`.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            def foo = raise(Ex, 'error')
           RUBY
         end
       end
@@ -348,6 +477,18 @@ RSpec.describe RuboCop::Cop::Style::RaiseArgs, :config do
 
     it 'accepts a raise with 2 args' do
       expect_no_offenses('raise RuntimeError, msg')
+    end
+
+    it 'registers an offense and corrects a raise nested in the arguments of another raise' do
+      expect_offense(<<~'RUBY')
+        raise Foo.new("#{fetch { raise Bar.new('bad') }}")
+                                 ^^^^^^^^^^^^^^^^^^^^ Provide an exception class and message as arguments to `raise`.
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Provide an exception class and message as arguments to `raise`.
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        raise Foo, "#{fetch { raise Bar, 'bad' }}"
+      RUBY
     end
 
     it 'accepts a raise when exception object is assigned to a local variable' do

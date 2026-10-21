@@ -73,12 +73,26 @@ module RuboCop
         end
 
         def find_pair_ancestor(node)
+          child = node
           node.each_ancestor do |ancestor|
             return ancestor if ancestor.pair_type?
             break if grouped_expression?(ancestor) || inside_arg_list_parentheses?(node, ancestor)
+            break if inside_body?(ancestor, child)
+
+            child = ancestor
           end
 
           nil
+        end
+
+        # A block, `begin`, `if` or loop body is a separate set of statements, so
+        # a method chain in it is not the value of a hash pair the body is nested in.
+        # The send node of a block is still part of the value.
+        def inside_body?(ancestor, child)
+          return !child.equal?(ancestor.send_node) if ancestor.any_block_type?
+          return !ancestor.ternary? if ancestor.if_type?
+
+          ancestor.type?(:kwbegin, :while, :until, :for)
         end
 
         def unwrap_block_node(node)
@@ -88,7 +102,7 @@ module RuboCop
         def autocorrect(corrector, node)
           if @send_node.block_node
             correct_selector_only(corrector, node)
-            correct_block(corrector, @send_node.block_node)
+            correct_block(corrector, @send_node.block_node, node.first_line)
           else
             AlignmentCorrector.correct(corrector, processed_source, node, @column_delta)
           end
@@ -100,10 +114,21 @@ module RuboCop
           AlignmentCorrector.correct(corrector, processed_source, selector_range, @column_delta)
         end
 
-        def correct_block(corrector, block_node)
-          AlignmentCorrector.correct(corrector, processed_source, block_node.body, @column_delta)
-          end_range = range_by_whole_lines(block_node.loc.end, include_final_newline: false)
-          AlignmentCorrector.correct(corrector, processed_source, end_range, @column_delta)
+        def correct_block(corrector, block_node, selector_line)
+          lines_to_shift = block_lines(block_node) - [selector_line]
+
+          lines_to_shift.each do |line|
+            line_range = processed_source.buffer.line_range(line)
+
+            AlignmentCorrector.correct(corrector, processed_source, line_range, @column_delta)
+          end
+        end
+
+        def block_lines(block_node)
+          body = block_node.body
+          lines = body ? (body.first_line..body.last_line).to_a : []
+
+          (lines << block_node.loc.end.line).uniq
         end
 
         def relevant_node?(send_node)

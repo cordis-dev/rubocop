@@ -69,8 +69,12 @@ module RuboCop
 
         # @!method variable_argument?(node)
         def_node_matcher :variable_argument?, <<~PATTERN
-          (send {str dstr} :% #autocorrectable?)
+          (send {str dstr} :% !#autocorrectable?)
         PATTERN
+
+        def on_new_investigation
+          @corrected_ranges = nil
+        end
 
         def on_send(node)
           formatter(node) do |selector|
@@ -86,10 +90,12 @@ module RuboCop
 
         private
 
+        # Only an argument that is provably not an array can be corrected,
+        # because `String#%` spreads an array argument and `format` does not.
         def autocorrectable?(node)
-          return true if node.lvar_type?
+          return true if node.literal?
 
-          node.send_type? && !AUTOCORRECTABLE_METHODS.include?(node.method_name)
+          node.call_type? && AUTOCORRECTABLE_METHODS.include?(node.method_name)
         end
 
         def message(detected_style)
@@ -101,7 +107,9 @@ module RuboCop
         end
 
         def autocorrect(corrector, node)
-          return if variable_argument?(node)
+          return if variable_argument?(node) || within_corrected_range?(node)
+
+          corrected_ranges << node.source_range
 
           case node.method_name
           when :%
@@ -114,6 +122,14 @@ module RuboCop
               corrector.replace(node.loc.selector, style.to_s)
             end
           end
+        end
+
+        def within_corrected_range?(node)
+          corrected_ranges.any? { |range| range.contains?(node.source_range) }
+        end
+
+        def corrected_ranges
+          @corrected_ranges ||= []
         end
 
         def autocorrect_from_percent(corrector, node)
@@ -146,12 +162,18 @@ module RuboCop
         def format_single_parameter(arg)
           # `format(fmt, *args)` is equivalent to `fmt % args`, so unwrap the splat
           # and render the argument it splats.
-          return format_single_parameter(arg.children.first) if arg.splat_type?
+          return format_splatted_parameter(arg.children.first) if arg.splat_type?
 
           source = arg.source
-          return "{ #{source} }" if arg.hash_type?
+          return "{ #{source} }" if arg.hash_type? && !arg.braces?
 
           requires_parentheses?(arg) ? "(#{source})" : source
+        end
+
+        def format_splatted_parameter(arg)
+          return "#{arg.source}.to_a" if arg.hash_type?
+
+          format_single_parameter(arg)
         end
 
         # An argument that binds looser than `%` (a ternary, range, assignment, or

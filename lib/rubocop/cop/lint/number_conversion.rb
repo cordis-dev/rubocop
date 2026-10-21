@@ -132,7 +132,7 @@ module RuboCop
 
         def handle_as_symbol(node)
           to_method_symbol(node) do |receiver, sym_node, to_method|
-            next if receiver.nil? || !node.arguments.one?
+            next if receiver.nil? || !node.arguments.one? || node.operator_method?
 
             message = format(
               MSG,
@@ -140,6 +140,8 @@ module RuboCop
               corrected_method: correct_sym_method(to_method)
             )
             add_offense(node, message: message) do |corrector|
+              next if part_of_ignored_node?(node)
+
               remove_parentheses(corrector, node) if node.parenthesized?
 
               corrector.replace(sym_node, correct_sym_method(to_method))

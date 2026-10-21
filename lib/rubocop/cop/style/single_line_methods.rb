@@ -35,6 +35,7 @@ module RuboCop
       #
       class SingleLineMethods < Base
         include Alignment
+        include EndlessMethodBodyHelp
         extend AutoCorrector
 
         MSG = 'Avoid single-line method definitions.'
@@ -67,10 +68,19 @@ module RuboCop
           return false if target_ruby_version < 3.0
           return false if disallow_endless_method_style?
           return false unless body_node
-          return false if body_node.basic_conditional? || body_node.parent.assignment_method? ||
-                          NOT_SUPPORTED_ENDLESS_METHOD_BODY_TYPES.include?(body_node.type)
+          return false if body_node.parent.assignment_method?
 
-          !body_node.type?(:begin, :kwbegin)
+          !unsupported_endless_method_body?(body_node) && endless_method_body?(body_node)
+        end
+
+        def unsupported_endless_method_body?(body_node)
+          body_node.basic_conditional? ||
+            NOT_SUPPORTED_ENDLESS_METHOD_BODY_TYPES.include?(body_node.type)
+        end
+
+        # The body gets parenthesized when it becomes endless, so it is no longer a command.
+        def command_body_in_argument?(body)
+          !require_parentheses?(body) && super
         end
 
         def correct_to_multiline(corrector, node)
@@ -89,8 +99,8 @@ module RuboCop
 
         def correct_to_endless(corrector, node)
           receiver = "#{node.receiver.source}." if node.receiver
-          arguments = node.arguments.any? ? node.arguments.source : '()'
           body_source = method_body_source(node.body)
+          arguments = endless_arguments(node)
           replacement = "def #{receiver}#{node.method_name}#{arguments} = #{body_source}"
 
           corrector.replace(node, replacement)
@@ -136,6 +146,13 @@ module RuboCop
           return false if method_body.arithmetic_operation?
 
           !method_body.arguments.empty? && !method_body.comparison_method?
+        end
+
+        def endless_arguments(node)
+          arguments = node.arguments
+          return '()' if arguments.none?
+
+          arguments.loc.begin ? arguments.source : "(#{arguments.source})"
         end
 
         def disallow_endless_method_style?

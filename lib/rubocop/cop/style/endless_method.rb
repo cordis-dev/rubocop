@@ -131,7 +131,9 @@ module RuboCop
       #
       class EndlessMethod < Base
         include ConfigurableEnforcedStyle
+        include LineLengthHelp
         include EndlessMethodRewriter
+        include EndlessMethodBodyHelp
         extend TargetRubyVersion
         extend AutoCorrector
 
@@ -143,8 +145,14 @@ module RuboCop
         MSG_REQUIRE_SINGLE = 'Use endless method definitions for single line methods.'
         MSG_REQUIRE_ALWAYS = 'Use endless method definitions.'
 
+        # `Style/MethodDefParentheses` adds the same parentheses a parameter list needs in
+        # an endless definition, so letting both correct in the same pass would double them.
+        # `Style/GuardClause` turns a single `if` body into several statements,
+        # which an endless definition cannot hold.
+        # `Style/RaiseArgs` would drop the parentheses of a `raise` that becomes
+        # the body in the same pass, which a method passed as an argument needs.
         def self.autocorrect_incompatible_with
-          [Style::MethodCallWithArgsParentheses]
+          [Style::GuardClause, Style::MethodCallWithArgsParentheses, Style::MethodDefParentheses, Style::RaiseArgs]
         end
 
         def on_def(node)
@@ -221,14 +229,32 @@ module RuboCop
         end
 
         def correct_to_endless(corrector, node)
-          corrector.replace(signature_to_body_range(node), ' = ')
-          corrector.remove(node.body.source_range.end.join(node.loc.end.end))
+          if unparenthesized_arguments?(node)
+            corrector.replace(name_to_arguments_range(node), '(')
+            corrector.replace(signature_to_body_range(node), ') = ')
+          else
+            corrector.replace(signature_to_body_range(node), ' = ')
+          end
+
+          corrector.remove(body_to_end_range(node))
+        end
+
+        def unparenthesized_arguments?(node)
+          node.arguments.any? && !node.arguments.loc.begin
+        end
+
+        def name_to_arguments_range(node)
+          node.loc.name.end.join(node.arguments.source_range.begin)
         end
 
         def signature_to_body_range(node)
           signature_end = node.arguments.any? ? node.arguments.source_range.end : node.loc.name.end
 
           signature_end.join(node.body.source_range.begin)
+        end
+
+        def body_to_end_range(node)
+          node.body.source_range.end.join(node.loc.end.end)
         end
 
         def endless_replacement(node)
@@ -242,14 +268,29 @@ module RuboCop
         end
 
         def arguments(node, missing = '')
-          node.arguments.any? ? node.arguments.source : missing
+          return missing unless node.arguments.any?
+          return parenthesized_arguments(node) if unparenthesized_arguments?(node)
+
+          node.arguments.source
+        end
+
+        def parenthesized_arguments(node)
+          padding = space_inside_parens? ? ' ' : ''
+
+          "(#{padding}#{node.arguments.source}#{padding})"
+        end
+
+        def space_inside_parens?
+          return false unless config.cop_enabled?('Layout/SpaceInsideParens')
+
+          config.for_cop('Layout/SpaceInsideParens')['EnforcedStyle'] != 'no_space'
         end
 
         def can_be_made_endless?(node)
           return false unless node.body
-          return false if node.body.type?(:begin, :kwbegin, :rescue, :ensure)
+          return false if comment_in_discarded_range?(node)
 
-          !ends_with_omitted_hash_value?(node.body)
+          endless_method_body?(node.body)
         end
 
         def single_line_when_made_endless?(node)
@@ -259,13 +300,24 @@ module RuboCop
         def too_long_when_made_endless?(node)
           return false unless config.cop_enabled?('Layout/LineLength')
 
-          endless_replacement(node).length + node.loc.column > max_line_length
+          line_length(line_when_made_endless(node)) > max_line_length
         end
 
-        def ends_with_omitted_hash_value?(body)
-          body.each_descendant(:pair).any? do |pair|
-            pair.value_omission? && pair.source_range.end_pos == body.source_range.end_pos
+        def comment_in_discarded_range?(node)
+          discarded_ranges = [signature_to_body_range(node), body_to_end_range(node)]
+
+          processed_source.each_comment_in_lines(node.first_line..node.last_line).any? do |comment|
+            discarded_ranges.any? { |range| range.contains?(comment.source_range) }
           end
+        end
+
+        def line_when_made_endless(node)
+          keyword_element = node.loc.keyword
+          code_before = keyword_element.source_line[0...keyword_element.column]
+          end_element = node.loc.end
+          code_after = end_element.source_line[end_element.last_column..]
+
+          "#{code_before}#{endless_replacement(node)}#{code_after}"
         end
       end
     end

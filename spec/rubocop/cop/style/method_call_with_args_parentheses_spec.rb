@@ -112,6 +112,116 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       end
     end
 
+    it 'registers an offense and keeps the parens of a grouped `and` expression argument' do
+      expect_offense(<<~RUBY)
+        top.test (a and b)
+        ^^^^^^^^^^^^^^^^^^ Use parentheses for method calls with arguments.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        top.test((a and b))
+      RUBY
+    end
+
+    it 'registers an offense and keeps the parens of a grouped `or` expression argument' do
+      expect_offense(<<~RUBY)
+        top.test (a or b)
+        ^^^^^^^^^^^^^^^^^ Use parentheses for method calls with arguments.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        top.test((a or b))
+      RUBY
+    end
+
+    it 'registers an offense and keeps the parens of a grouped `not` expression argument' do
+      expect_offense(<<~RUBY)
+        top.test (not a)
+        ^^^^^^^^^^^^^^^^ Use parentheses for method calls with arguments.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        top.test((not a))
+      RUBY
+    end
+
+    it 'registers an offense and keeps the parens of a grouped modifier `if` argument' do
+      expect_offense(<<~RUBY)
+        top.test (a if b)
+        ^^^^^^^^^^^^^^^^^ Use parentheses for method calls with arguments.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        top.test((a if b))
+      RUBY
+    end
+
+    it 'registers an offense and keeps the parens of a grouped modifier `while` argument' do
+      expect_offense(<<~RUBY)
+        top.test (a while b)
+        ^^^^^^^^^^^^^^^^^^^^ Use parentheses for method calls with arguments.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        top.test((a while b))
+      RUBY
+    end
+
+    it 'registers an offense and keeps the parens of a grouped `rescue` modifier argument' do
+      expect_offense(<<~RUBY)
+        top.test (a rescue b)
+        ^^^^^^^^^^^^^^^^^^^^^ Use parentheses for method calls with arguments.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        top.test((a rescue b))
+      RUBY
+    end
+
+    it 'registers an offense and keeps the parens of a grouped pattern match argument', :ruby30 do
+      expect_offense(<<~RUBY)
+        top.test (a in b)
+        ^^^^^^^^^^^^^^^^^ Use parentheses for method calls with arguments.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        top.test((a in b))
+      RUBY
+    end
+
+    it 'registers an offense and keeps the parens of a grouped multiple assignment argument' do
+      expect_offense(<<~RUBY)
+        top.test (a, b = 1, 2)
+        ^^^^^^^^^^^^^^^^^^^^^^ Use parentheses for method calls with arguments.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        top.test((a, b = 1, 2))
+      RUBY
+    end
+
+    it 'registers an offense and keeps the parens of a grouped multi-statement argument', :ruby33 do
+      expect_offense(<<~RUBY)
+        top.test (a; b)
+        ^^^^^^^^^^^^^^^ Use parentheses for method calls with arguments.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        top.test((a; b))
+      RUBY
+    end
+
+    it 'registers an offense and merges the parens of a grouped ternary argument' do
+      expect_offense(<<~RUBY)
+        top.test (a ? b : c)
+        ^^^^^^^^^^^^^^^^^^^^ Use parentheses for method calls with arguments.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        top.test(a ? b : c)
+      RUBY
+    end
+
     it 'registers an offense for non-receiver method call without parens' do
       expect_offense(<<~RUBY)
         def foo
@@ -519,6 +629,14 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
           end
         RUBY
       end
+
+      it 'does not register an offense when the anonymous rest argument is followed by other arguments' do
+        expect_no_offenses(<<~RUBY)
+          def foo(*)
+            bar(*, baz: 1)
+          end
+        RUBY
+      end
     end
 
     context 'anonymous keyword rest arguments in 3.2', :ruby32 do
@@ -881,6 +999,55 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       expect_no_offenses('foo a, b(1) || c(2, d(3))')
     end
 
+    it 'accepts parens in a call assigned to a variable before the `or` keyword', :ruby33 do
+      expect_no_offenses(<<~RUBY)
+        def foo
+          x = bar(1) or return
+        end
+      RUBY
+    end
+
+    it 'accepts parens in a call assigned to a variable before the `and` keyword', :ruby33 do
+      expect_no_offenses(<<~RUBY)
+        def foo
+          x = bar(1) and baz
+        end
+      RUBY
+    end
+
+    it 'accepts parens in a call assigned to an instance variable before the `or` keyword', :ruby33 do
+      expect_no_offenses(<<~RUBY)
+        def foo
+          @x = bar(1) or return
+        end
+      RUBY
+    end
+
+    it 'accepts parens in a call assigned before the `or` keyword with an op-assign', :ruby33 do
+      expect_no_offenses(<<~RUBY)
+        def foo
+          x = 0
+          x += bar(1) or return
+        end
+      RUBY
+    end
+
+    it 'accepts parens in a call assigned with a setter before the `or` keyword', :ruby33 do
+      expect_no_offenses(<<~RUBY)
+        def foo
+          a.b = bar(1) or return
+        end
+      RUBY
+    end
+
+    it 'accepts parens in a call assigned with a chained assignment before the `or` keyword', :ruby33 do
+      expect_no_offenses(<<~RUBY)
+        def foo
+          x = y = bar(1) or return
+        end
+      RUBY
+    end
+
     it 'accepts parens in literals with unary operators as first argument' do
       expect_no_offenses('foo(-1)')
       expect_no_offenses('foo(+1)')
@@ -1159,6 +1326,222 @@ RSpec.describe RuboCop::Cop::Style::MethodCallWithArgsParentheses, :config do
       it 'accepts parens in empty hashes for arguments calls' do
         expect_no_offenses(<<~RUBY)
           params.should eq({})
+        RUBY
+      end
+    end
+
+    context 'when the reparse verification is skipped for an oversized scope' do
+      before { stub_const('RuboCop::Cop::ReparsedEquivalence::MAX_VERIFICATION_FRAGMENT_SIZE', 0) }
+
+      it 'accepts parens when a `do` block follows the closing parenthesis on its own line' do
+        expect_no_offenses(<<~RUBY)
+          Foo = Struct.new(
+            :bar, :baz
+          ) do
+            def qux
+            end
+          end
+        RUBY
+      end
+
+      it 'accepts parens when a modifier follows the closing parenthesis on its own line' do
+        expect_no_offenses(<<~RUBY)
+          do_something(
+            :bar, :baz
+          ) if qux
+        RUBY
+      end
+
+      it 'registers an offense when only a comment follows the closing parenthesis on its own line' do
+        expect_offense(<<~RUBY)
+          do_something(
+                      ^ Omit parentheses for method calls with arguments.
+            :bar, :baz
+          ) # comment
+        RUBY
+
+        expect_correction(<<~RUBY)
+          do_something \\
+            :bar, :baz
+           # comment
+        RUBY
+      end
+
+      it 'accepts parens when a comment follows the opening parenthesis' do
+        expect_no_offenses(<<~RUBY)
+          do_something( # comment
+            :bar, :baz)
+        RUBY
+      end
+
+      it 'accepts parens when a comment precedes the first argument on its own line' do
+        expect_no_offenses(<<~RUBY)
+          do_something(
+            # comment
+            :bar, :baz
+          )
+        RUBY
+      end
+
+      it 'accepts parens when the last argument has a trailing comma' do
+        expect_no_offenses(<<~RUBY)
+          do_something(
+            :bar,
+            :baz,
+          )
+        RUBY
+      end
+
+      it 'accepts parens when the sole argument is a parenthesized expression that can be merged' do
+        expect_no_offenses(<<~RUBY)
+          do_something((bar))
+          obj.do_something((bar + baz))
+        RUBY
+      end
+
+      it 'registers an offense when the sole argument is a parenthesized expression that cannot be merged' do
+        expect_offense(<<~RUBY)
+          do_something((bar or baz))
+                      ^^^^^^^^^^^^^^ Omit parentheses for method calls with arguments.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          do_something (bar or baz)
+        RUBY
+      end
+
+      it 'registers an offense when a parenthesized expression is not the sole argument' do
+        expect_offense(<<~RUBY)
+          do_something((bar), baz)
+                      ^^^^^^^^^^^^ Omit parentheses for method calls with arguments.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          do_something (bar), baz
+        RUBY
+      end
+
+      it 'registers an offense when a comma appears only in a comment after the last argument' do
+        expect_offense(<<~RUBY)
+          do_something(:bar, :baz # comment, with a comma
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Omit parentheses for method calls with arguments.
+          )
+        RUBY
+
+        expect_correction(<<~RUBY)
+          do_something :bar, :baz # comment, with a comma
+
+        RUBY
+      end
+
+      it 'registers an offense when a comment follows the first argument' do
+        expect_offense(<<~RUBY)
+          do_something(:bar, # comment
+                      ^^^^^^^^^^^^^^^^ Omit parentheses for method calls with arguments.
+            :baz)
+        RUBY
+
+        expect_correction(<<~RUBY)
+          do_something :bar, # comment
+            :baz
+        RUBY
+      end
+
+      it 'registers an offense without a line continuation when the opening parenthesis of an argument ends the line' do
+        expect_offense(<<~RUBY)
+          if foo(bar(
+                ^^^^^ Omit parentheses for method calls with arguments.
+            baz))
+            qux
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          if foo bar(
+            baz)
+            qux
+          end
+        RUBY
+      end
+
+      it 'registers an offense only for the outer call when an assignment used as an argument assigns a call' do
+        expect_offense(<<~RUBY)
+          do_something(x = bar(1))
+                      ^^^^^^^^^^^^ Omit parentheses for method calls with arguments.
+          do_something(x += bar(1))
+                      ^^^^^^^^^^^^^ Omit parentheses for method calls with arguments.
+          do_something(x ||= bar(1))
+                      ^^^^^^^^^^^^^^ Omit parentheses for method calls with arguments.
+          do_something(x.y = bar(1))
+                      ^^^^^^^^^^^^^^ Omit parentheses for method calls with arguments.
+          do_something(x = y = bar(1))
+                      ^^^^^^^^^^^^^^^^ Omit parentheses for method calls with arguments.
+          do_something(x = bar(1) rescue nil)
+                      ^^^^^^^^^^^^^^^^^^^^^^^ Omit parentheses for method calls with arguments.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          do_something x = bar(1)
+          do_something x += bar(1)
+          do_something x ||= bar(1)
+          do_something x.y = bar(1)
+          do_something x = y = bar(1)
+          do_something x = bar(1) rescue nil
+        RUBY
+      end
+
+      it 'accepts parens for the value of an assignment with a block used as an argument' do
+        expect_no_offenses(<<~RUBY)
+          do_something(x = bar(1) do
+          end)
+        RUBY
+      end
+
+      it 'accepts parens for the value of an assignment used as an array element or a hash value' do
+        expect_no_offenses(<<~RUBY)
+          [x = bar(1)]
+          { key: x = bar(1) }
+        RUBY
+      end
+
+      it 'accepts parens for the value of an assignment used as an operand' do
+        expect_no_offenses(<<~RUBY)
+          foo && x = bar(1)
+          not x = bar(1)
+          1..x = bar(1)
+        RUBY
+      end
+
+      it 'accepts parens for the value of an assignment used as a default argument' do
+        expect_no_offenses(<<~RUBY)
+          def foo(arg = x = bar(1))
+          end
+        RUBY
+      end
+
+      it 'accepts parens for the value of an assignment used as a `return` value' do
+        expect_no_offenses(<<~RUBY)
+          return x = bar(1)
+        RUBY
+      end
+
+      it 'accepts parens for the value of an assignment used as the value of a multiple assignment' do
+        expect_no_offenses(<<~RUBY)
+          a, b = x = bar(1)
+        RUBY
+      end
+
+      it 'registers an offense for the value of chained assignments used as a statement' do
+        expect_offense(<<~RUBY)
+          x = y += bar(1)
+                      ^^^ Omit parentheses for method calls with arguments.
+          a, b = bar(1)
+                    ^^^ Omit parentheses for method calls with arguments.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          x = y += bar 1
+          a, b = bar 1
         RUBY
       end
     end

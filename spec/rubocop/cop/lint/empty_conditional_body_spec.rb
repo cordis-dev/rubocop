@@ -57,6 +57,21 @@ RSpec.describe RuboCop::Cop::Lint::EmptyConditionalBody, :config do
     RUBY
   end
 
+  it 'registers an offense and corrects for missing `if` body with `else` on the condition line' do
+    expect_offense(<<~RUBY)
+      if condition; else
+      ^^^^^^^^^^^^^^ Avoid `if` branches without a body.
+        do_something
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      unless condition
+        do_something
+      end
+    RUBY
+  end
+
   # This case is registered by `Style/IfWithSemicolon` cop. Therefore, this cop does not handle it.
   it 'does not register an offense for missing `if` body with present `else` body on single line' do
     expect_no_offenses(<<~RUBY)
@@ -117,6 +132,20 @@ RSpec.describe RuboCop::Cop::Lint::EmptyConditionalBody, :config do
       ^^^^^^^^^^^^^^^^^^^^^^ Avoid `elsif` branches without a body.
       elsif other_condition2
         do_something2
+      end
+    RUBY
+
+    expect_no_corrections
+  end
+
+  it 'registers an offense but does not correct for missing `elsif` body with `else`' do
+    expect_offense(<<~RUBY)
+      if condition
+        do_something
+      elsif other_condition
+      ^^^^^^^^^^^^^^^^^^^^^ Avoid `elsif` branches without a body.
+      else
+        do_something_else
       end
     RUBY
 

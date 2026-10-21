@@ -60,19 +60,22 @@ module RuboCop
       #   end
       #
       class CombinableLoops < Base
+        include RangeHelp
         extend AutoCorrector
 
         MSG = 'Combine this loop with the previous loop.'
 
-        # rubocop:disable-next Metrics/CyclomaticComplexity
+        def self.autocorrect_incompatible_with
+          [Layout::BlockEndNewline, Layout::RedundantLineBreak]
+        end
+
         def on_block(node)
           return unless node.parent&.begin_type?
           return unless collection_looping_method?(node)
-          return unless same_collection_looping_block?(node, node.left_sibling)
-          return unless node.body && node.left_sibling.body
+          return unless combinable_looping_blocks?(node, node.left_sibling)
 
           add_offense(node) do |corrector|
-            next unless node.arguments == node.left_sibling.arguments
+            next unless combinable_blocks?(node, node.left_sibling)
 
             combine_with_left_sibling(corrector, node)
           end
@@ -87,9 +90,7 @@ module RuboCop
           return unless node.body && node.left_sibling.body
 
           add_offense(node) do |corrector|
-            # Combining loops with different iteration variables would leave the second
-            # body referencing an undefined variable, so only autocorrect when they match.
-            next unless node.variable == node.left_sibling.variable
+            next unless combinable_fors?(node, node.left_sibling)
 
             combine_with_left_sibling(corrector, node)
           end
@@ -110,24 +111,101 @@ module RuboCop
             sibling.send_node.arguments == node.send_node.arguments
         end
 
+        def combinable_looping_blocks?(node, sibling)
+          same_collection_looping_block?(node, sibling) && node.body && sibling.body
+        end
+
         def same_collection_looping_for?(node, sibling)
           sibling&.for_type? && node.collection == sibling.collection
         end
 
+        def combinable_blocks?(node, sibling)
+          return false unless node.arguments == sibling.arguments
+          # Numbered and `it` parameters are implicit, so `arguments` is empty for both.
+          return false unless node.argument_list == sibling.argument_list
+          return false if directive_after_opening?(node)
+
+          !node.body.type?(:rescue, :ensure) && !sibling.body.type?(:rescue, :ensure)
+        end
+
+        # Combining loops with different iteration variables would leave the second
+        # body referencing an undefined variable, so only autocorrect when they match.
+        def combinable_fors?(node, sibling)
+          node.variable == sibling.variable && !directive_after_opening?(node)
+        end
+
+        # The opening is removed, so a directive after it would end up on a line of
+        # its own, where it covers the rest of the file instead of a single line.
+        def directive_after_opening?(node)
+          opening_line = loop_opening(node).line
+          return false if opening_line == node.body.first_line
+
+          comment = processed_source.comment_at_line(opening_line)
+          comment && DirectiveComment.new(comment).start_with_marker?
+        end
+
+        # The block arguments or `{`/`do` of a block, or the `do` or collection of a `for` loop.
+        def loop_opening(node)
+          if node.for_type?
+            node.loc.begin || node.collection.source_range
+          else
+            (node.block_type? && node.arguments.source_range) || node.loc.begin
+          end
+        end
+
         def combine_with_left_sibling(corrector, node)
-          corrector.remove(node.left_sibling.body.source_range.end.join(node.left_sibling.loc.end))
-          corrector.remove(node.source_range.begin.join(node.body.source_range.begin))
+          corrector.remove(closing_with_preceding_space(node.left_sibling, node))
+          corrector.remove(opening_with_following_space(node))
 
           correct_end_of_block(corrector, node)
         end
 
+        # Comments and heredoc bodies before the closing delimiter are kept. When
+        # the next loop starts on the delimiter's line, the line break before the
+        # delimiter is kept too, so that a comment doesn't swallow the next loop.
+        def closing_with_preceding_space(loop, next_loop)
+          separate_lines = !same_line?(loop.loc.end, next_loop)
+
+          range_with_surrounding_space(
+            loop.loc.end, side: :left, newlines: separate_lines, whitespace: separate_lines
+          )
+        end
+
+        # Comments between the opening and the body are kept.
+        def opening_with_following_space(node)
+          opening = node.source_range.begin.join(loop_opening(node))
+
+          range_with_surrounding_space(opening, side: :right, whitespace: true)
+        end
+
         def correct_end_of_block(corrector, node)
           return unless node.left_sibling.respond_to?(:braces?)
-          return if node.right_sibling&.any_block_type?
+          return if combined_with_right_sibling?(node)
 
-          end_of_block = node.left_sibling.braces? ? '}' : ' end'
+          end_of_block = first_combined_block(node).braces? ? '}' : ' end'
           corrector.remove(node.loc.end)
           corrector.insert_before(node.source_range.end, end_of_block)
+        end
+
+        def combined_with_right_sibling?(node)
+          sibling = node.right_sibling
+          return false unless sibling&.any_block_type?
+          # A disabled loop isn't corrected, so it doesn't get merged into this one.
+          return false unless enabled_lines?(sibling.source_range)
+
+          same_collection_looping_block?(sibling, node) && sibling.body &&
+            combinable_blocks?(sibling, node)
+        end
+
+        def first_combined_block(node)
+          first = node.left_sibling
+
+          while (previous = first.left_sibling) && enabled_lines?(first.source_range) &&
+                combinable_looping_blocks?(first, previous) && combinable_blocks?(first, previous)
+            first = previous
+          end
+
+          first
         end
       end
     end

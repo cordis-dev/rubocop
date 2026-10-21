@@ -545,6 +545,21 @@ RSpec.describe RuboCop::Cop::Style::MutableConstant, :config do
       it_behaves_like 'operator methods', '/'
       it_behaves_like 'operator methods', '%'
       it_behaves_like 'operator methods', '**'
+      it_behaves_like 'operator methods', '&&'
+      it_behaves_like 'operator methods', '||'
+    end
+
+    context 'when assigning with a ternary operator' do
+      it 'registers an offense and corrects with parens and freeze' do
+        expect_offense(<<~RUBY)
+          CONST = foo ? bar : baz
+                  ^^^^^^^^^^^^^^^ Freeze mutable objects assigned to constants.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          CONST = (foo ? bar : baz).freeze
+        RUBY
+      end
     end
 
     context 'when assigning with multiple operator calls' do
@@ -566,7 +581,54 @@ RSpec.describe RuboCop::Cop::Style::MutableConstant, :config do
       end
     end
 
+    context 'when assigning an unparenthesized method call with arguments' do
+      it 'registers an offense and corrects a call with a receiver with parens and freeze' do
+        expect_offense(<<~RUBY)
+          CONST = foo.bar baz
+                  ^^^^^^^^^^^ Freeze mutable objects assigned to constants.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          CONST = (foo.bar baz).freeze
+        RUBY
+      end
+
+      it 'registers an offense and corrects a parenthesized call with a receiver by appending freeze' do
+        expect_offense(<<~RUBY)
+          CONST = foo.bar(baz)
+                  ^^^^^^^^^^^^ Freeze mutable objects assigned to constants.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          CONST = foo.bar(baz).freeze
+        RUBY
+      end
+
+      it 'registers an offense and corrects a safe navigation call with parens and freeze' do
+        expect_offense(<<~RUBY)
+          CONST = foo&.bar baz
+                  ^^^^^^^^^^^^ Freeze mutable objects assigned to constants.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          CONST = (foo&.bar baz).freeze
+        RUBY
+      end
+    end
+
     context 'methods and operators that produce frozen objects' do
+      it 'accepts a parenthesized comparison' do
+        expect_no_offenses(<<~RUBY)
+          CONST = (foo == 'bar')
+        RUBY
+      end
+
+      it 'accepts a parenthesized range', :ruby30 do
+        expect_no_offenses(<<~RUBY)
+          CONST = (0..100)
+        RUBY
+      end
+
       it 'accepts assigning to an environment variable with a fallback' do
         expect_no_offenses(<<~RUBY)
           CONST = ENV['foo'] || 'foo'
@@ -678,6 +740,34 @@ RSpec.describe RuboCop::Cop::Style::MutableConstant, :config do
         FOO = <<-HERE.freeze
           SOMETHING
         HERE
+      RUBY
+    end
+
+    it 'registers an offense only for the inner constant of a chained constant assignment' do
+      expect_offense(<<~RUBY)
+        FOO = BAR = 'baz'
+                    ^^^^^ Freeze mutable objects assigned to constants.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        FOO = BAR = 'baz'.freeze
+      RUBY
+    end
+
+    it 'does not register an offense for a chained local variable assignment' do
+      expect_no_offenses(<<~RUBY)
+        FOO = bar = []
+      RUBY
+    end
+
+    it 'registers an offense and corrects a parenthesized assignment' do
+      expect_offense(<<~RUBY)
+        FOO = (bar = [])
+              ^^^^^^^^^^ Freeze mutable objects assigned to constants.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        FOO = (bar = []).freeze
       RUBY
     end
 
@@ -808,6 +898,28 @@ RSpec.describe RuboCop::Cop::Style::MutableConstant, :config do
       RUBY
     end
 
+    it 'wraps a nested hash without braces in braces when freezing' do
+      expect_offense(<<~RUBY)
+        CONST = [foo, a => []]
+                ^^^^^^^^^^^^^^ Freeze mutable objects assigned to constants.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        CONST = [foo, { a => [].freeze }.freeze].freeze
+      RUBY
+    end
+
+    it 'wraps a hash without braces in an already-frozen array in braces when freezing' do
+      expect_offense(<<~RUBY)
+        CONST = [foo, a => []].freeze
+                      ^^^^^^^ Freeze mutable objects assigned to constants.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        CONST = [foo, { a => [].freeze }.freeze].freeze
+      RUBY
+    end
+
     context 'with frozen_string_literal: true' do
       it 'does not add .freeze to nested string literals' do
         expect_offense(<<~RUBY)
@@ -849,6 +961,17 @@ RSpec.describe RuboCop::Cop::Style::MutableConstant, :config do
       RUBY
     end
 
+    it 'registers an offense and expands an omitted hash value in an already-frozen hash', :ruby31 do
+      expect_offense(<<~RUBY)
+        CONST = { foo:, bar: 1 }.freeze
+                  ^^^ Freeze mutable objects assigned to constants.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        CONST = { foo: foo.freeze, bar: 1 }.freeze
+      RUBY
+    end
+
     it 'descends into an already-frozen outer literal in strict mode' do
       expect_offense(<<~RUBY)
         CONST = [Something.new].freeze
@@ -857,6 +980,23 @@ RSpec.describe RuboCop::Cop::Style::MutableConstant, :config do
 
       expect_correction(<<~RUBY)
         CONST = [Something.new.freeze].freeze
+      RUBY
+    end
+
+    it 'does not register an offense for a splat element in an already-frozen array' do
+      expect_no_offenses(<<~RUBY)
+        CONST = [1, *foo, *1..2, *[bar]].freeze
+      RUBY
+    end
+
+    it 'does not freeze a splat element when freezing an array' do
+      expect_offense(<<~RUBY)
+        CONST = [1, *foo]
+                ^^^^^^^^^ Freeze mutable objects assigned to constants.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        CONST = [1, *foo].freeze
       RUBY
     end
   end

@@ -413,6 +413,99 @@ RSpec.describe RuboCop::Cop::Lint::LiteralInInterpolation, :config do
     RUBY
   end
 
+  it 'escapes a trailing `#` that the following `{` would turn into an interpolation' do
+    expect_offense(<<~'RUBY')
+      /^(#{'#'}{1,6})\s/
+           ^^^ Literal interpolation detected.
+    RUBY
+
+    expect_correction(<<~'RUBY')
+      /^(\#{1,6})\s/
+    RUBY
+  end
+
+  it 'escapes a trailing `#` that the following `@` would turn into an interpolation in a string' do
+    expect_offense(<<~'RUBY')
+      "#{'#'}@foo"
+         ^^^ Literal interpolation detected.
+    RUBY
+
+    expect_correction(<<~'RUBY')
+      "\#@foo"
+    RUBY
+  end
+
+  it 'does not register an offense when a preceding `#` would turn the value into an interpolation' do
+    expect_no_offenses(<<~'RUBY')
+      "##{'{'}foo}"
+    RUBY
+  end
+
+  it 'does not register an offense when removing an empty string would join a preceding `#` and a following `{`' do
+    expect_no_offenses(<<~'RUBY')
+      "##{''}{foo}"
+    RUBY
+  end
+
+  it 'does not register an offense when removing `nil` would join a preceding `#` and a following `@`' do
+    expect_no_offenses(<<~'RUBY')
+      "##{nil}@foo"
+    RUBY
+  end
+
+  it 'does not register an offense when removing `nil` would join a preceding `#` and a following `{` in a regexp' do
+    expect_no_offenses(<<~'RUBY')
+      /##{nil}{2}/
+    RUBY
+  end
+
+  it 'registers an offense when removing an empty string leaves an escaped `#` before a `{`' do
+    expect_offense(<<~'RUBY')
+      "\##{''}{foo}"
+           ^^ Literal interpolation detected.
+    RUBY
+
+    expect_correction(<<~'RUBY')
+      "\#{foo}"
+    RUBY
+  end
+
+  it 'does not join a `#` and a `{` from two adjacent interpolations' do
+    expect_offense(<<~'RUBY')
+      "#{'#'}#{'{'}foo}"
+         ^^^ Literal interpolation detected.
+               ^^^ Literal interpolation detected.
+    RUBY
+
+    expect_correction(<<~'RUBY')
+      "##{'{'}foo}"
+    RUBY
+  end
+
+  it 'does not join a `#` and a `{` across an adjacent empty interpolation' do
+    expect_offense(<<~'RUBY')
+      "#{'#'}#{''}{foo}"
+         ^^^ Literal interpolation detected.
+               ^^ Literal interpolation detected.
+    RUBY
+
+    expect_correction(<<~'RUBY')
+      "##{''}{foo}"
+    RUBY
+  end
+
+  it 'registers an offense and corrects two adjacent interpolations' do
+    expect_offense(<<~'RUBY')
+      "#{1}#{2}"
+         ^ Literal interpolation detected.
+             ^ Literal interpolation detected.
+    RUBY
+
+    expect_correction(<<~RUBY, loop: false)
+      "12"
+    RUBY
+  end
+
   it 'handles backslash in single quotes when autocorrecting' do
     expect_offense(<<~'RUBY')
       x = "ABC".gsub(/(A)(B)(C)/, "D#{'\2'}F")
@@ -454,6 +547,22 @@ RSpec.describe RuboCop::Cop::Lint::LiteralInInterpolation, :config do
     expect_no_offenses(<<~RUBY)
       <<~HERE
         Line with explicit space literal at the end. \#{'  '}
+      HERE
+    RUBY
+  end
+
+  it 'does not register an offense when space literal with spaces inside the interpolation is at the end of heredoc line' do
+    expect_no_offenses(<<~RUBY)
+      <<~HERE
+        Line with explicit space literal at the end. \#{ ' ' }
+      HERE
+    RUBY
+  end
+
+  it 'does not register an offense when an ideographic space literal is at the end of heredoc line' do
+    expect_no_offenses(<<~RUBY)
+      <<~HERE
+        Line with explicit ideographic space literal at the end. \#{'\u3000'}
       HERE
     RUBY
   end

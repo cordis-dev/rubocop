@@ -96,15 +96,22 @@ module RuboCop
         [parenthesized, first_line_comment(node)].compact.join(' ')
       end
 
+      # rubocop:disable-next Metrics/AbcSize
       def if_body_source(if_body)
-        if if_body.call_type? && !if_body.method?(:[]=) && omitted_value_in_last_hash_arg?(if_body)
+        if unparenthesized_call_with_omitted_value?(if_body)
           "#{method_source(if_body)}(#{if_body.arguments.map(&:source).join(', ')})"
+        elsif (value = wrapped_value(if_body))
+          prefix = if_body.source_range.begin.join(value.source_range.begin).source
+          suffix = value.source_range.end.join(if_body.source_range.end).source
+
+          "#{prefix}#{if_body_source(value)}#{suffix}"
         else
           if_body.source
         end
       end
 
-      def omitted_value_in_last_hash_arg?(if_body)
+      def unparenthesized_call_with_omitted_value?(if_body)
+        return false if !if_body.call_type? || if_body.method?(:[]=) || if_body.parenthesized?
         return false unless (last_argument = if_body.last_argument)
 
         last_argument.hash_type? && last_argument.pairs.last&.value_omission?
@@ -114,6 +121,14 @@ module RuboCop
         end_range = if_body.implicit_call? ? if_body.loc.dot.end : if_body.loc.selector
 
         if_body.source_range.begin.join(end_range).source
+      end
+
+      def wrapped_value(if_body)
+        if if_body.type?(:return, :next, :break)
+          if_body.first_argument if if_body.arguments.one?
+        elsif if_body.type?(:lvasgn, :ivasgn, :cvasgn, :gvasgn, :casgn)
+          if_body.expression
+        end
       end
 
       def first_line_comment(node)
@@ -137,9 +152,15 @@ module RuboCop
         parent = node.parent
         return false if parent.nil?
         return true if parent.assignment? || parent.operator_keyword?
-        return true if %i[array pair].include?(parent.type)
+        return true if parent.type?(:array, :pair, :call, :yield, :super)
 
-        node.parent.send_type?
+        ternary_branch_or_endless_method_body?(parent)
+      end
+
+      def ternary_branch_or_endless_method_body?(parent)
+        return parent.ternary? if parent.if_type?
+
+        parent.any_def_type? && parent.endless?
       end
 
       def comment_disables_cop?(comment)

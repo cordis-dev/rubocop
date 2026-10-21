@@ -139,7 +139,7 @@ module RuboCop
           offense_range = node.loc.begin
 
           add_offense(offense_range) do |corrector|
-            if node.parent&.assignment?
+            if node.parent&.assignment? || node.parent&.type?(:return, :next, :break)
               replace_begin_with_statement(corrector, offense_range, node)
             else
               remove_begin(corrector, offense_range, node)
@@ -156,12 +156,19 @@ module RuboCop
           first_child = node.children.first
 
           source = first_child.source
-          source = "(#{source})" if first_child.if_type? && first_child.modifier_form?
+          source = "(#{source})" if low_precedence_statement?(first_child)
 
           corrector.replace(offense_range, source)
           corrector.remove(range_between(offense_range.end_pos, first_child.source_range.end_pos))
 
           restore_removed_comments(corrector, offense_range, node, first_child)
+        end
+
+        def low_precedence_statement?(node)
+          return node.modifier_form? if node.basic_conditional?
+          return node.prefix_not? if node.send_type?
+
+          node.operator_keyword? && node.semantic_operator?
         end
 
         def remove_begin(corrector, offense_range, node)
@@ -184,7 +191,8 @@ module RuboCop
         def use_modifier_form_after_multiline_begin_block?(node)
           return false unless (parent = node.parent)
 
-          node.multiline? && parent.if_type? && parent.modifier_form?
+          node.multiline? && parent.if_type? && parent.modifier_form? &&
+            !parent.condition.equal?(node)
         end
 
         def correct_modifier_form_after_multiline_begin_block(corrector, node)
@@ -222,7 +230,17 @@ module RuboCop
         end
 
         def valid_begin_assignment?(node)
-          node.parent&.assignment? && !node.children.one?
+          node.parent&.assignment? && (!node.children.one? || too_long_when_joined?(node))
+        end
+
+        def too_long_when_joined?(node)
+          statement = node.children.first
+          max = config.for_enabled_cop('Layout/LineLength')['Max']
+          return false unless max && statement.single_line?
+
+          length = statement.source.length
+          length += 2 if low_precedence_statement?(statement)
+          node.loc.column + length > max
         end
 
         def inspect_branches(node)

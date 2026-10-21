@@ -23,6 +23,138 @@ RSpec.describe RuboCop::Cop::Style::IfWithSemicolon, :config do
     RUBY
   end
 
+  it 'registers an offense and corrects when the condition binds looser than the ternary operator' do
+    expect_offense(<<~RUBY)
+      x = if a and b; run else dont end
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if a and b;` - use a ternary operator instead.
+      x = if not a; run else dont end
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if not a;` - use a ternary operator instead.
+      x = if defined? a; run else dont end
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if defined? a;` - use a ternary operator instead.
+      x = if foo a; run else dont end
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if foo a;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x = (a and b) ? run : dont
+      x = (not a) ? run : dont
+      x = (defined? a) ? run : dont
+      x = foo(a) ? run : dont
+    RUBY
+  end
+
+  it 'registers an offense and corrects when a branch binds looser than the ternary operator' do
+    expect_offense(<<~RUBY)
+      if cond; foo if bar else baz end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+      if cond; not foo else foo and bar end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+      if cond; foo rescue bar else yield baz end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+      if cond; super foo else defined? bar end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      cond ? (foo if bar) : baz
+      cond ? (not foo) : (foo and bar)
+      cond ? (foo rescue bar) : (yield baz)
+      cond ? (super foo) : (defined? bar)
+    RUBY
+  end
+
+  it 'registers an offense and corrects when the condition is `!` applied to a method call with unparenthesized arguments' do
+    expect_offense(<<~RUBY)
+      x = if !foo a; run else dont end
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if !foo a;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x = (!foo a) ? run : dont
+    RUBY
+  end
+
+  it 'registers an offense and corrects when a branch is `!` applied to a method call with unparenthesized arguments' do
+    expect_offense(<<~RUBY)
+      if cond; !foo a else !bar.baz b end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      cond ? (!foo a) : (!bar.baz b)
+    RUBY
+  end
+
+  it 'does not parenthesize `!` applied to a method call with parenthesized arguments' do
+    expect_offense(<<~RUBY)
+      if !foo(a); !bar[b] else dont end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if !foo(a);` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      !foo(a) ? !bar[b] : dont
+    RUBY
+  end
+
+  it 'registers an offense and corrects when a branch is a `begin`/`end` loop with a `while` or `until` modifier' do
+    expect_offense(<<~RUBY)
+      if cond; begin foo end while bar else baz end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+      x = if cond; foo else begin bar end until baz end
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      cond ? (begin foo end while bar) : baz
+      x = cond ? foo : (begin bar end until baz)
+    RUBY
+  end
+
+  it 'registers an offense and corrects when `if` is the receiver of a method call' do
+    expect_offense(<<~RUBY)
+      x = if cond; foo else bar end.baz
+          ^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+      x = !if cond; foo else bar end
+           ^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x = (cond ? foo : bar).baz
+      x = !(cond ? foo : bar)
+    RUBY
+  end
+
+  it 'registers an offense and corrects when `if` is an operand of an operator' do
+    expect_offense(<<~RUBY)
+      x = if cond; foo else bar end || baz
+          ^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+      x = foo + if cond; bar else baz end
+                ^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x = (cond ? foo : bar) || baz
+      x = foo + (cond ? bar : baz)
+    RUBY
+  end
+
+  it 'registers an offense and corrects without parentheses when `if` is an argument' do
+    expect_offense(<<~RUBY)
+      foo(if cond; bar else baz end)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+      foo[if cond; bar else baz end]
+          ^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+      x = not(if cond; bar else baz end)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^ Do not use `if cond;` - use a ternary operator instead.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      foo(cond ? bar : baz)
+      foo[cond ? bar : baz]
+      x = not(cond ? bar : baz)
+    RUBY
+  end
+
   it 'registers an offense and corrects for one line if/;/end without then body' do
     expect_offense(<<~RUBY)
       if cond; else dont end

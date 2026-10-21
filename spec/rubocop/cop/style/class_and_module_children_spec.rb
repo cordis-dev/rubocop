@@ -239,6 +239,23 @@ RSpec.describe RuboCop::Cop::Style::ClassAndModuleChildren, :config do
         end
       RUBY
     end
+
+    it 'registers an offense and corrects a compact definition assigned to a constant' do
+      expect_offense(<<~RUBY)
+        X =
+        class FooClass::BarClass
+              ^^^^^^^^^^^^^^^^^^ Use nested module/class definitions instead of compact style.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        X =
+        module FooClass
+          class BarClass
+          end
+        end
+      RUBY
+    end
   end
 
   context 'compact style' do
@@ -255,6 +272,50 @@ RSpec.describe RuboCop::Cop::Style::ClassAndModuleChildren, :config do
 
       expect_correction(<<~RUBY)
         class FooClass::BarClass
+        end
+      RUBY
+    end
+
+    it 'registers an offense and corrects when the body is indented less than the configured width' do
+      expect_offense(<<~RUBY)
+        module FooModule
+               ^^^^^^^^^ Use compact module/class definition instead of nested style.
+          class BarClass
+         do_something
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        class FooModule::BarClass
+         do_something
+        end
+      RUBY
+    end
+
+    it 'registers an offense and corrects a nested definition that is not at the top level' do
+      expect_offense(<<~RUBY)
+        module Foo
+          do_something
+
+          module Bar
+                 ^^^ Use compact module/class definition instead of nested style.
+            module Baz
+              def qux
+              end
+            end
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        module Foo
+          do_something
+
+          module Bar::Baz
+            def qux
+            end
+          end
         end
       RUBY
     end
@@ -480,6 +541,67 @@ RSpec.describe RuboCop::Cop::Style::ClassAndModuleChildren, :config do
         RUBY
       end
 
+      it 'registers an offense and corrects a nested definition inside a namespace being compacted' do
+        expect_offense(<<~RUBY)
+          module Foo
+                 ^^^ Use compact module/class definition instead of nested style.
+          \tmodule Bar
+          \t\tdo_something
+
+          \t\tmodule Baz
+                   ^^^ Use compact module/class definition instead of nested style.
+          \t\t\tmodule Qux
+          \t\t\t\tdef quux
+          \t\t\t\tend
+          \t\t\tend
+          \t\tend
+          \tend
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          module Foo::Bar
+          \tdo_something
+
+          \tmodule Baz::Qux
+          \t\tdef quux
+          \t\tend
+          \tend
+          end
+        RUBY
+      end
+
+      it 'registers an offense and corrects a child whose body starts on the definition line' do
+        expect_offense(<<~RUBY)
+          module A
+                 ^ Use compact module/class definition instead of nested style.
+             class B; c; end
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          class A::B; c
+          end
+        RUBY
+      end
+
+      it 'registers an offense and corrects when the body continues past the definition line' do
+        expect_offense(<<~RUBY)
+          module A
+                 ^ Use compact module/class definition instead of nested style.
+             class B; c
+               d
+             end
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          class A::B; c
+          \t\td
+          end
+        RUBY
+      end
+
       context "when `Layout/IndentationStyle` has a different `IndentationWidth` than `Layout/IndentationWidth`'s `Width`" do
         let(:other_cops) do
           {
@@ -630,6 +752,34 @@ RSpec.describe RuboCop::Cop::Style::ClassAndModuleChildren, :config do
 
         expect_correction(<<~RUBY)
           class FooClass::BarClass
+          end
+        RUBY
+      end
+
+      it 'registers an offense and keeps the superclass of a one-liner child' do
+        expect_offense(<<~RUBY)
+          module A
+                 ^ Use compact module/class definition instead of nested style.
+            class C < D; end
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          class A::C < D
+          end
+        RUBY
+      end
+
+      it 'registers an offense and keeps the body of a one-liner child' do
+        expect_offense(<<~RUBY)
+          module A
+                 ^ Use compact module/class definition instead of nested style.
+            class C; x; end
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          class A::C; x
           end
         RUBY
       end

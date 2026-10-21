@@ -170,8 +170,209 @@ RSpec.describe RuboCop::Cop::Style::IfUnlessModifier, :config do
           expect_correction(<<~RUBY)
             if condition
               fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(<<~EOS)
+              string
+            EOS
+            end
+          RUBY
+        end
+      end
+
+      context 'when using a heredoc nested in an argument' do
+        it 'registers an offense' do
+          expect_offense(<<~RUBY)
+            raise Errorrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr.new(<<~EOS.squish) if condition
+                                                                                             ^^ Modifier form of `if` makes the line too long.
+              string
+            EOS
+          RUBY
+
+          expect_correction(<<~RUBY)
+            if condition
+              raise Errorrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr.new(<<~EOS.squish)
+              string
+            EOS
+            end
+          RUBY
+        end
+      end
+
+      context 'when using a heredoc with an empty body' do
+        it 'registers an offense' do
+          expect_offense(<<~RUBY)
+            fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(<<~EOS) if condition
+                                                                                 ^^ Modifier form of `if` makes the line too long.
+            EOS
+          RUBY
+
+          expect_correction(<<~RUBY)
+            if condition
+              fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(<<~EOS)
+            EOS
+            end
+          RUBY
+        end
+      end
+
+      context 'when using several heredocs in the branch body' do
+        it 'registers an offense' do
+          expect_offense(<<~RUBY)
+            fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(<<~EOS, <<~EOT) if condition
+                                                                                         ^^ Modifier form of `if` makes the line too long.
+              string
+            EOS
+              text
+            EOT
+          RUBY
+
+          expect_correction(<<~RUBY)
+            if condition
+              fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(<<~EOS, <<~EOT)
+              string
+            EOS
+              text
+            EOT
+            end
+          RUBY
+        end
+      end
+
+      context 'when using a heredoc inside the interpolation of another heredoc' do
+        it 'registers an offense and moves the inner heredoc only once' do
+          expect_offense(<<~'RUBY')
+            fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(<<~EOS) if condition
+                                                                                 ^^ Modifier form of `if` makes the line too long.
+              #{bar(<<~EOT)}
+                inner
+              EOT
+              outer
+            EOS
+          RUBY
+
+          expect_correction(<<~'RUBY')
+            if condition
+              fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(<<~EOS)
+              #{bar(<<~EOT)}
+                inner
+              EOT
+              outer
+            EOS
+            end
+          RUBY
+        end
+      end
+
+      context 'when using a heredoc whose body lines have different indentation' do
+        it 'registers an offense and keeps the heredoc body as is' do
+          expect_offense(<<~RUBY)
+            def do_something
+              fooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(bar(<<~EOS)) if condition
+                                                                                      ^^ Modifier form of `if` makes the line too long.
+                first
+                  second
+              EOS
+            end
+          RUBY
+
+          expect_correction(<<~RUBY)
+            def do_something
+              if condition
+                fooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(bar(<<~EOS))
+                first
+                  second
+              EOS
+              end
+            end
+          RUBY
+        end
+      end
+
+      context 'when using a dash heredoc' do
+        it 'registers an offense and keeps the heredoc body as is' do
+          expect_offense(<<~RUBY)
+            def do_something
+              fooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(bar(<<-EOS)) if condition
+                                                                                      ^^ Modifier form of `if` makes the line too long.
+              string
+              EOS
+            end
+          RUBY
+
+          expect_correction(<<~RUBY)
+            def do_something
+              if condition
+                fooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(bar(<<-EOS))
+              string
+              EOS
+              end
+            end
+          RUBY
+        end
+      end
+
+      context 'when using a heredoc whose terminator has to begin its line' do
+        it 'registers an offense and keeps the heredoc body as is' do
+          expect_offense(<<~RUBY)
+            def do_something
+              fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(bar(<<EOS)) if condition
+                                                                                       ^^ Modifier form of `if` makes the line too long.
+            string
+            EOS
+            end
+          RUBY
+
+          expect_correction(<<~RUBY)
+            def do_something
+              if condition
+                fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(bar(<<EOS))
+            string
+            EOS
+              end
+            end
+          RUBY
+        end
+      end
+
+      context 'when using a heredoc in the condition' do
+        it 'registers an offense and moves the heredoc after the condition' do
+          expect_offense(<<~RUBY)
+            def do_something
+              return if foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(<<~EOS)
+                     ^^ Modifier form of `if` makes the line too long.
                 string
               EOS
+            end
+          RUBY
+
+          expect_correction(<<~RUBY)
+            def do_something
+              if foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo(<<~EOS)
+                string
+              EOS
+                return
+              end
+            end
+          RUBY
+        end
+      end
+
+      context 'when using heredocs in both the branch body and the condition' do
+        it 'registers an offense and moves each heredoc after its own line' do
+          expect_offense(<<~RUBY)
+            fooooooooooooooooooooooooooooooo(<<~EOS) if baaaaaaaaaaaaaaaaaaaaaaaaaaaaar(<<~EOT)
+                                                     ^^ Modifier form of `if` makes the line too long.
+              string
+            EOS
+              text
+            EOT
+          RUBY
+
+          expect_correction(<<~RUBY)
+            if baaaaaaaaaaaaaaaaaaaaaaaaaaaaar(<<~EOT)
+              text
+            EOT
+              fooooooooooooooooooooooooooooooo(<<~EOS)
+              string
+            EOS
             end
           RUBY
         end
@@ -323,6 +524,25 @@ RSpec.describe RuboCop::Cop::Style::IfUnlessModifier, :config do
 
         expect_correction(<<~RUBY)
           do_this(**options) if condition
+        RUBY
+      end
+    end
+
+    context 'and has `next` with a parenthesized value' do
+      it 'registers an offense and keeps the closing parenthesis' do
+        expect_offense(<<~RUBY)
+          items.each do |item|
+            if condition
+            ^^ Favor modifier `if` usage when having a single-line body. Another good alternative is the usage of control flow `&&`/`||`.
+              next(item.foo)
+            end
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          items.each do |item|
+            next(item.foo) if condition
+          end
         RUBY
       end
     end
@@ -542,6 +762,53 @@ RSpec.describe RuboCop::Cop::Style::IfUnlessModifier, :config do
         obj.do_something(foo:) if condition
 
         obj&.do_something(foo:) if condition
+      RUBY
+    end
+
+    it 'registers an offense and adds parentheses to a method call returned by `return`' do
+      expect_offense(<<~RUBY)
+        def do_something(foo)
+          if condition
+          ^^ Favor modifier `if` usage when having a single-line body. Another good alternative is the usage of control flow `&&`/`||`.
+            return obj.do_something foo:
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def do_something(foo)
+          return obj.do_something(foo:) if condition
+        end
+      RUBY
+    end
+
+    it 'registers an offense and adds parentheses to a method call assigned to a variable' do
+      expect_offense(<<~RUBY)
+        if condition
+        ^^ Favor modifier `if` usage when having a single-line body. Another good alternative is the usage of control flow `&&`/`||`.
+          bar = obj.do_something foo:
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        bar = obj.do_something(foo:) if condition
+      RUBY
+    end
+
+    it 'registers an offense and keeps the spacing inside existing parentheses' do
+      expect_offense(<<~RUBY)
+        def do_something(foo)
+          if condition
+          ^^ Favor modifier `if` usage when having a single-line body. Another good alternative is the usage of control flow `&&`/`||`.
+            return obj.do_something( bar, foo: )
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def do_something(foo)
+          return obj.do_something( bar, foo: ) if condition
+        end
       RUBY
     end
   end
@@ -775,6 +1042,102 @@ RSpec.describe RuboCop::Cop::Style::IfUnlessModifier, :config do
 
       expect_correction(<<~RUBY)
         puts "string", (1 if a)
+      RUBY
+    end
+  end
+
+  context 'if-end is argument to a safe navigation method call' do
+    it 'adds parentheses because otherwise it would cause SyntaxError' do
+      expect_offense(<<~RUBY)
+        x&.push(if a
+                ^^ Favor modifier `if` usage when having a single-line body. [...]
+          1
+        end)
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x&.push((1 if a))
+      RUBY
+    end
+  end
+
+  context 'if-end is argument to `yield`' do
+    it 'adds parentheses because otherwise it would cause SyntaxError' do
+      expect_offense(<<~RUBY)
+        def foo
+          yield(if a
+                ^^ Favor modifier `if` usage when having a single-line body. [...]
+            1
+          end)
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo
+          yield((1 if a))
+        end
+      RUBY
+    end
+  end
+
+  context 'if-end is argument to `super`' do
+    it 'adds parentheses because otherwise it would cause SyntaxError' do
+      expect_offense(<<~RUBY)
+        def foo
+          super(if a
+                ^^ Favor modifier `if` usage when having a single-line body. [...]
+            1
+          end)
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo
+          super((1 if a))
+        end
+      RUBY
+    end
+  end
+
+  context 'if-end is a ternary branch' do
+    it 'adds parentheses because otherwise it would cause SyntaxError' do
+      expect_offense(<<~RUBY)
+        p(b ? if a
+              ^^ Favor modifier `if` usage when having a single-line body. [...]
+          1
+        end : 2)
+      RUBY
+
+      expect_correction(<<~RUBY)
+        p(b ? (1 if a) : 2)
+      RUBY
+    end
+  end
+
+  context 'if-end is the body of an endless method definition', :ruby30 do
+    it 'adds parentheses so as not to make the method definition conditional' do
+      expect_offense(<<~RUBY)
+        def foo(a) = if a
+                     ^^ Favor modifier `if` usage when having a single-line body. [...]
+          1
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def foo(a) = (1 if a)
+      RUBY
+    end
+
+    it 'adds parentheses for a singleton method definition' do
+      expect_offense(<<~RUBY)
+        def self.foo(a) = if a
+                          ^^ Favor modifier `if` usage when having a single-line body. [...]
+          1
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def self.foo(a) = (1 if a)
       RUBY
     end
   end
@@ -1481,6 +1844,58 @@ RSpec.describe RuboCop::Cop::Style::IfUnlessModifier, :config do
 
         expect_no_corrections
       end
+    end
+  end
+
+  context 'when multiple if/unless modifier forms are operands of a logical operator' do
+    context 'when the line is too long' do
+      it 'does not register an offense for `||`' do
+        expect_no_offenses(<<~RUBY)
+          x = (fooooooooooo if condition_onnnnnnnnnnne) || (baaaaaar if condition_twwwwwwwwwwo)
+        RUBY
+      end
+
+      it 'does not register an offense for `&&`' do
+        expect_no_offenses(<<~RUBY)
+          x = (fooooooooooo if condition_onnnnnnnnnnne) && (baaaaaar unless condition_twwwwwwwwwwo)
+        RUBY
+      end
+
+      it 'does not register an offense for chained `||`' do
+        expect_no_offenses(<<~RUBY)
+          x = (foooooooo if condition_onnnnne) || (baaaar if condition_twwwo) || (baz if qux)
+        RUBY
+      end
+    end
+  end
+
+  context 'when multiple if/unless normal forms are operands of a logical operator' do
+    it 'accepts multiline if when sibling if starts on end line' do
+      expect_no_offenses(<<~RUBY)
+        x = (if condition1
+               foo
+             end) || (if condition2
+                        bar
+                      end)
+      RUBY
+    end
+
+    it 'registers an offense and corrects when the operands are on separate lines' do
+      expect_offense(<<~RUBY)
+        x = (if condition1
+             ^^ Favor modifier `if` usage [...]
+               foo
+             end) ||
+            (if condition2
+             ^^ Favor modifier `if` usage [...]
+               bar
+             end)
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x = (foo if condition1) ||
+            (bar if condition2)
+      RUBY
     end
   end
 

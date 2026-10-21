@@ -59,9 +59,9 @@ module RuboCop
         puts "Removing the #{remove_count} oldest files from #{rubocop_cache_dir}" if verbose
         sorted = files.sort_by { |path| File.mtime(path) }
         remove_files(sorted, remove_count)
-      rescue Errno::ENOENT
+      rescue Errno::ENOENT, Errno::EACCES, Errno::EPERM, Errno::EROFS
         # This can happen if parallel RuboCop invocations try to remove the
-        # same files. No problem.
+        # same files, or if the cache can't be written to. No problem.
         puts $ERROR_INFO if verbose
       end
 
@@ -138,26 +138,17 @@ module RuboCop
 
       begin
         FileUtils.mkdir_p(dir)
-      rescue Errno::EACCES, Errno::EROFS => e
+      rescue Errno::EACCES, Errno::EPERM, Errno::EROFS => e
         warn "Couldn't create cache directory. Continuing without cache.\n  #{e.message}"
         return
       end
 
-      preliminary_path = "#{@path}_#{rand(1_000_000_000)}"
       # RuboCop must be in control of where its cached data is stored. A
       # symbolic link anywhere in the cache directory tree can be an
       # indication that a symlink attack is being waged.
       return if symlink_protection_triggered?(dir)
 
-      File.open(preliminary_path, 'w', encoding: Encoding::UTF_8) do |f|
-        f.write(@cached_data.to_json(offenses))
-      end
-      # The preliminary path is used so that if there are multiple RuboCop
-      # processes trying to save data for the same inspected file
-      # simultaneously, the only problem we run in to is a competition who gets
-      # to write to the final file. The contents are the same, so no corruption
-      # of data should occur.
-      FileUtils.mv(preliminary_path, @path)
+      write_cache_file(offenses)
     end
 
     private
@@ -175,6 +166,22 @@ module RuboCop
         path = File.dirname(path)
       end
       false
+    end
+
+    def write_cache_file(offenses)
+      preliminary_path = "#{@path}_#{rand(1_000_000_000)}"
+      File.open(preliminary_path, 'w', encoding: Encoding::UTF_8) do |f|
+        f.write(@cached_data.to_json(offenses))
+      end
+      # The preliminary path is used so that if there are multiple RuboCop
+      # processes trying to save data for the same inspected file
+      # simultaneously, the only problem we run in to is a competition who gets
+      # to write to the final file. The contents are the same, so no corruption
+      # of data should occur.
+      FileUtils.mv(preliminary_path, @path)
+    rescue Errno::EACCES, Errno::EPERM, Errno::EROFS => e
+      FileUtils.rm_f(preliminary_path)
+      warn "Couldn't write cache file. Continuing without cache.\n  #{e.message}"
     end
 
     def file_checksum(file, config_store)

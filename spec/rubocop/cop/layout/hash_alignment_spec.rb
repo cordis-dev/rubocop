@@ -866,6 +866,124 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
     end
   end
 
+  context 'when a later key is too wide to right-align with the first key' do
+    let(:cop_config) do
+      {
+        'EnforcedHashRocketStyle' => 'separator',
+        'EnforcedColonStyle' => 'separator',
+        'EnforcedLastArgumentHashStyle' => 'always_inspect'
+      }
+    end
+
+    it 'does not register an offense for a hash rocket pair' do
+      expect_no_offenses(<<~RUBY)
+        f(
+          'short'                   => a,
+          'considerably_longer_key' => b
+        )
+      RUBY
+    end
+
+    it 'does not register an offense for a colon pair' do
+      expect_no_offenses(<<~RUBY)
+        f(
+          short: a,
+          considerably_longer_key: b
+        )
+      RUBY
+    end
+
+    it 'still corrects pairs that can be right-aligned' do
+      expect_offense(<<~RUBY)
+        f(
+          'short'                   => a,
+          'tiny'                    => b,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Align the separators of a hash literal if they span more than one line.
+          'considerably_longer_key' => c
+        )
+      RUBY
+
+      expect_correction(<<~RUBY)
+        f(
+          'short'                   => a,
+           'tiny'                   => b,
+          'considerably_longer_key' => c
+        )
+      RUBY
+    end
+
+    context 'when the first pair has extra spacing after its separator' do
+      it 'aligns the value one space after the separator instead of copying the extra spacing' do
+        expect_offense(<<~RUBY)
+          f(
+            'a' =>  1,
+            'bb' => 2
+            ^^^^^^^^^ Align the separators of a hash literal if they span more than one line.
+          )
+        RUBY
+
+        expect_correction(<<~RUBY)
+          f(
+            'a' =>  1,
+           'bb' => 2
+          )
+        RUBY
+      end
+
+      it 'aligns a colon pair value one space after the colon' do
+        expect_offense(<<~RUBY)
+          f(
+            a:  1,
+            bb: 2
+            ^^^^^ Align the separators of a hash literal if they span more than one line.
+          )
+        RUBY
+
+        expect_correction(<<~RUBY)
+          f(
+            a:  1,
+           bb: 2
+          )
+        RUBY
+      end
+    end
+
+    context 'with multiple preferred(key and separator) alignment configuration' do
+      let(:cop_config) do
+        {
+          'EnforcedHashRocketStyle' => %w[key separator],
+          'EnforcedColonStyle' => %w[key separator]
+        }
+      end
+
+      it 'registers an offense and corrects misaligned keys' do
+        expect_offense(<<~RUBY)
+          {
+            'short' => a,
+              'considerably_longer_key' => b
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Align the keys of a hash literal if they span more than one line.
+          }
+        RUBY
+
+        expect_correction(<<~RUBY)
+          {
+            'short' => a,
+            'considerably_longer_key' => b
+          }
+        RUBY
+      end
+
+      it 'accepts keys aligned by the key style' do
+        expect_no_offenses(<<~RUBY)
+          {
+            'short' => a,
+            'considerably_longer_key' => b
+          }
+        RUBY
+      end
+    end
+  end
+
   context 'when the first pair omits its value', :ruby31 do
     let(:cop_config) { { 'EnforcedColonStyle' => 'separator' } }
 
@@ -902,19 +1020,10 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
     end
 
     it 'does not shift the key past the start of its line' do
-      expect_offense(<<~RUBY)
+      expect_no_offenses(<<~RUBY)
         f(
           a: "x",
           bbbbb:,
-          ^^^^^^ Align the separators of a hash literal if they span more than one line.
-          c: 1
-        )
-      RUBY
-
-      expect_correction(<<~RUBY)
-        f(
-          a: "x",
-        bbbbb:,
           c: 1
         )
       RUBY
@@ -1057,6 +1166,26 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
             :a,
           ]       => :val,
           'x'     => 2,
+        }
+      RUBY
+    end
+
+    it 'registers an offense and corrects a misaligned key spanning multiple lines without moving its separator' do
+      expect_offense(<<~RUBY)
+        hash = {
+          a => 1,
+          ^^^^^^ Align the keys and values of a hash literal if they span more than one line.
+        [:b,
+        ^^^^ Align the keys and values of a hash literal if they span more than one line.
+         :c] => 2
+        }
+      RUBY
+
+      expect_correction(<<~RUBY)
+        hash = {
+          a  => 1,
+          [:b,
+         :c] => 2
         }
       RUBY
     end
@@ -1267,19 +1396,12 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
       expect_no_offenses('h = {}')
     end
 
-    it 'registers an offense and corrects misaligned hash values' do
-      expect_offense(<<~RUBY)
+    it 'accepts values one space after aligned separators even when the first pair has extra ' \
+       'spacing' do
+      expect_no_offenses(<<~RUBY)
         hash = {
             'a' =>  0,
           'bbb' => 1
-          ^^^^^^^^^^ Align the separators of a hash literal if they span more than one line.
-        }
-      RUBY
-
-      expect_correction(<<~RUBY)
-        hash = {
-            'a' =>  0,
-          'bbb' =>  1
         }
       RUBY
     end
@@ -1297,6 +1419,57 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
         hash = {
             'a'  => 0,
           'bbb'  => 1
+        }
+      RUBY
+    end
+
+    it 'does not register an offense for a key spanning multiple lines' do
+      expect_no_offenses(<<~RUBY)
+        {
+          foo => 1,
+          [
+            bar,
+            baz
+          ] => 2,
+          qux => 3
+        }
+      RUBY
+    end
+
+    it 'registers an offense and corrects single line keys when another key spans multiple lines' do
+      expect_offense(<<~RUBY)
+        {
+          foo => 1,
+          [
+            bar,
+            baz
+          ] => 2,
+          quux => 3
+          ^^^^^^^^^ Align the separators of a hash literal if they span more than one line.
+        }
+      RUBY
+
+      expect_correction(<<~RUBY)
+        {
+          foo => 1,
+          [
+            bar,
+            baz
+          ] => 2,
+         quux => 3
+        }
+      RUBY
+    end
+
+    it 'does not register an offense when the first key spans multiple lines' do
+      expect_no_offenses(<<~RUBY)
+        {
+          [
+            bar,
+            baz
+          ] => 2,
+          foo => 1,
+          quux => 3
         }
       RUBY
     end
@@ -1337,18 +1510,10 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
 
     it "doesn't break code by moving long keys too far left" do
       # regression test; see GH issue 2582
-      expect_offense(<<~RUBY)
+      expect_no_offenses(<<~RUBY)
         {
           sjtjo: sjtjo,
           too_ono_ilitjion_tofotono_o: too_ono_ilitjion_tofotono_o,
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Align the separators of a hash literal if they span more than one line.
-        }
-      RUBY
-
-      expect_correction(<<~RUBY)
-        {
-          sjtjo: sjtjo,
-        too_ono_ilitjion_tofotono_o: too_ono_ilitjion_tofotono_o,
         }
       RUBY
     end
@@ -1622,7 +1787,7 @@ RSpec.describe RuboCop::Cop::Layout::HashAlignment, :config do
       expect_correction(<<~RUBY)
         hash1 = {
           a:   0,
-        bbb:   1
+        bbb: 1
         }
         hash2 = {
             'a' => 0,

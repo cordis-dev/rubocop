@@ -29,6 +29,10 @@ module RuboCop
         insert_arguments(corrector)
       end
 
+      def replace_delimiters?
+        !block_node.braces? && arg_to_unparenthesized_call?
+      end
+
       private
 
       attr_reader :block_node, :method, :arguments
@@ -72,12 +76,12 @@ module RuboCop
       end
 
       def remove_trailing_whitespace(corrector)
-        size = block_begin.begin_pos - arguments.source_range.end_pos - 1
-        corrector.remove_preceding(block_begin, size) if size.positive?
+        whitespace = arguments.source_range.end.join(block_begin.begin)
+        corrector.replace(whitespace, ' ') if whitespace.size > 1
       end
 
       def replace_delimiters(corrector)
-        return if block_node.braces? || !arg_to_unparenthesized_call?
+        return unless replace_delimiters?
 
         corrector.insert_after(block_begin, ' ') unless separating_space?
 
@@ -90,7 +94,7 @@ module RuboCop
         # `;`; joining everything with `,` would turn them into extra parameters
         # and change the lambda's arity.
         regular, shadow = arguments.children.partition { |arg| !arg.shadowarg_type? }
-        arg_string = regular.map(&:source).join(', ')
+        arg_string = regular.map { |arg| argument_source(arg) }.join(', ')
         arg_string += "; #{shadow.map(&:source).join(', ')}" unless shadow.empty?
         arg_string
       end
@@ -139,6 +143,23 @@ module RuboCop
 
       def separating_space?
         block_begin.source_buffer.source[block_begin.begin_pos + 2].match?(/\s/)
+      end
+
+      def argument_source(argument)
+        return argument.source unless argument.type?(:optarg, :kwoptarg)
+        return argument.source unless operator_expression?(argument.default_value)
+
+        default_value = argument.default_value
+        name = argument.source_range.begin.join(default_value.source_range.begin).source
+
+        "#{name}(#{default_value.source})"
+      end
+
+      def operator_expression?(node)
+        return true if node.type?(:range, :if, :and, :or)
+        return false unless node.call_type?
+
+        node.operator_method? && !node.method?(:[])
       end
     end
   end

@@ -53,11 +53,21 @@ module RuboCop
           return if node.each_descendant(:dstr).any?
 
           regexp_constructor(node) do |text|
+            next unless verbatim_string?(text)
+
             detect_offenses_in_tree(text, parse_regexp(text.value))
           end
         end
 
         private
+
+        # Offsets into the string's value only point at the right place in the source
+        # when the string has no escape sequences, so anything else is left alone.
+        def verbatim_string?(node)
+          return false unless node.loc?(:begin) && node.loc?(:end)
+
+          node.loc.begin.end.join(node.loc.end.begin).source == node.value
+        end
 
         # When a character class opens with a bare `]` (e.g. `[^]]`), `regexp_parser` parses
         # `[^]` / `[]` as an empty set and reports the closing `]` as a separate literal.
@@ -97,7 +107,7 @@ module RuboCop
             location = range_at_index(node, expr.ts, pos)
 
             add_offense(location) do |corrector|
-              corrector.replace(location, '\]')
+              corrector.replace(location, escaped_bracket(node))
             end
           end
 
@@ -107,6 +117,13 @@ module RuboCop
         def range_at_index(node, index, offset)
           adjustment = index + offset
           node.loc.begin.end.adjust(begin_pos: adjustment, end_pos: adjustment + 1)
+        end
+
+        # A double-quoted string turns `\]` into `]`, so its backslash needs escaping too.
+        def escaped_bracket(node)
+          return '\]' if node.regexp_type? || node.single_quoted? || node.percent_literal?(:q)
+
+          '\\\\]'
         end
       end
     end

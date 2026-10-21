@@ -40,6 +40,25 @@ RSpec.describe RuboCop::Cop::Style::RedundantCondition, :config do
         RUBY
       end
 
+      it 'registers an offense for the outer condition only and corrects a redundant condition nested in an else branch assignment' do
+        expect_offense(<<~RUBY)
+          if foo.bar
+          ^^^^^^^^^^ Use double pipes `||` instead.
+            x = foo.bar
+          else
+            x = if foo.bar
+                  foo.bar
+                else
+                  baz
+                end
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          x = foo.bar || foo.bar || baz
+        RUBY
+      end
+
       it 'registers an offense and does not autocorrect when if branch has a comment' do
         expect_offense(<<~RUBY)
           if b
@@ -165,6 +184,41 @@ RSpec.describe RuboCop::Cop::Style::RedundantCondition, :config do
 
         expect_correction(<<~RUBY)
           b || (c || d)
+        RUBY
+      end
+
+      %w[return next break yield super].each do |keyword|
+        it "registers an offense and corrects when `#{keyword}` with an argument is in `else`" do
+          expect_offense(<<~RUBY, keyword: keyword)
+            x = if b then b else %{keyword} 1 end
+                ^^^^^^^^^^^^^^^^^^{keyword}^^^^^^ Use double pipes `||` instead.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            x = b || (#{keyword} 1)
+          RUBY
+        end
+      end
+
+      it 'registers an offense and corrects when `yield` with parenthesized arguments is in `else`' do
+        expect_offense(<<~RUBY)
+          x = if b then b else yield(1) end
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use double pipes `||` instead.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          x = b || yield(1)
+        RUBY
+      end
+
+      it 'registers an offense and corrects when `not` is in `else`' do
+        expect_offense(<<~RUBY)
+          x = if b then b else not c end
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^ Use double pipes `||` instead.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          x = b || (not c)
         RUBY
       end
 
@@ -408,6 +462,53 @@ RSpec.describe RuboCop::Cop::Style::RedundantCondition, :config do
 
         expect_correction(<<~RUBY)
           @value - (foo || 'bar')
+        RUBY
+      end
+
+      %w[<< == < =~].each do |operator|
+        it "registers an offense and corrects when the branches contain the `#{operator}` operator" do
+          expect_offense(<<~RUBY)
+            if foo
+            ^^^^^^ Use double pipes `||` instead.
+              stack #{operator} foo
+            else
+              stack #{operator} :new
+            end
+          RUBY
+
+          expect_correction(<<~RUBY)
+            stack #{operator} (foo || :new)
+          RUBY
+        end
+      end
+
+      it 'registers an offense and corrects when the branches contain an operator method called with a dot' do
+        expect_offense(<<~RUBY)
+          if foo
+          ^^^^^^ Use double pipes `||` instead.
+            @value.-(foo)
+          else
+            @value.-('bar')
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          @value.-(foo || 'bar')
+        RUBY
+      end
+
+      it 'registers an offense and corrects when the condition is an arithmetic operation' do
+        expect_offense(<<~RUBY)
+          if a + b
+          ^^^^^^^^ Use double pipes `||` instead.
+            a + b
+          else
+            c
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          a + b || c
         RUBY
       end
 

@@ -132,10 +132,11 @@ module RuboCop
       #     private alias_method :qux, :foo
       #
       #   end
-      class AccessModifierDeclarations < Base
+      class AccessModifierDeclarations < Base # rubocop:disable Metrics/ClassLength
         extend AutoCorrector
 
         include ConfigurableEnforcedStyle
+        include EndlessMethodBodyHelp
         include RangeHelp
 
         GROUP_STYLE_MESSAGE = [
@@ -169,6 +170,10 @@ module RuboCop
             (send nil? :alias_method _ _))
         PATTERN
 
+        def self.autocorrect_incompatible_with
+          [Style::EndlessMethod, Style::SingleLineMethods]
+        end
+
         def on_send(node)
           return if allowed?(node)
 
@@ -187,9 +192,16 @@ module RuboCop
         def allowed?(node)
           !node.access_modifier? ||
             node.parent&.type?(:pair, :any_block) ||
+            dynamic_method_list?(node) ||
             allow_modifiers_on_symbols?(node) ||
             allow_modifiers_on_attrs?(node) ||
             allow_modifiers_on_alias_method?(node)
+        end
+
+        # `private(*names)` with a list computed at runtime names no definition
+        # the modifier could be grouped with.
+        def dynamic_method_list?(node)
+          node.arguments.any?(&:splat_type?) && !access_modifier_with_symbol?(node)
         end
 
         def autocorrect(corrector, node)
@@ -241,8 +253,31 @@ module RuboCop
 
             access_modifier_is_inlined?(node) && !right_siblings_same_inline_method?(node)
           else
-            access_modifier_is_not_inlined?(node) && select_grouped_def_nodes(node).any?
+            access_modifier_is_not_inlined?(node) && inlinable?(select_grouped_def_nodes(node))
           end
+        end
+
+        def inlinable?(def_nodes)
+          return false if def_nodes.empty?
+
+          def_nodes.none? { |def_node| def_node.endless? && body_unsafe_to_inline?(def_node.body) }
+        end
+
+        def body_unsafe_to_inline?(body)
+          return true if body.each_node(:any_block).any? { |block| do_end_block?(block) }
+
+          target_ruby_version < 4.0 && command_body?(body)
+        end
+
+        def do_end_block?(block)
+          block.keywords? && !block.send_node.lambda_literal?
+        end
+
+        def command_body?(body)
+          body = body.body while body.rescue_type?
+          return true if body.send_type? && body.prefix_not? && !body.parenthesized?
+
+          command_call?(body)
         end
 
         def correctable_group_offense?(node)

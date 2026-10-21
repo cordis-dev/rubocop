@@ -23,7 +23,6 @@ module RuboCop
         stderr: true,
         force_exclusion: true,
         formatters: ['RuboCop::Formatter::BaseFormatter'],
-        raise_cop_error: true,
         todo_file: nil,
         todo_ignore_files: []
       }.freeze
@@ -41,6 +40,13 @@ module RuboCop
       end
 
       def run(path, contents, options, prism_result: nil)
+        # The cops mobilized for a configuration are cached, which only holds while
+        # every run asks for the same ones.
+        selection = options.values_at(:only, :except)
+        unless selection == @cop_selection
+          forget_mobilized_cops
+          @cop_selection = selection
+        end
         @options = options.merge(DEFAULT_RUBOCOP_OPTIONS)
         @options[:stdin] = contents
 
@@ -86,10 +92,10 @@ module RuboCop
         @offenses = offenses
       end
 
-      def do_inspection_loop(file)
-        source, offenses = super
-        @processed_source = source
-        [source, offenses]
+      def do_inspection_loop(file, source = nil)
+        processed_source, offenses = super
+        @processed_source = processed_source
+        [processed_source, offenses]
       end
     end
   end

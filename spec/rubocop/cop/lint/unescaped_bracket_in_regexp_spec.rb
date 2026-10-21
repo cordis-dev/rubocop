@@ -140,6 +140,26 @@ RSpec.describe RuboCop::Cop::Lint::UnescapedBracketInRegexp, :config do
         RUBY
       end
     end
+
+    context 'escaped multibyte character in a character class' do
+      # See https://github.com/ammar/regexp_parser/issues/104
+      it 'does not register an offense' do
+        expect_no_offenses(<<~'RUBY')
+          /[\§]/
+        RUBY
+      end
+
+      it 'registers an offense and corrects an unescaped bracket after the class' do
+        expect_offense(<<~'RUBY')
+          /[\é]]/
+               ^ Regular expression has `]` without escape.
+        RUBY
+
+        expect_correction(<<~'RUBY')
+          /[\é]\]/
+        RUBY
+      end
+    end
   end
 
   context '%r{} Regexp' do
@@ -242,6 +262,19 @@ RSpec.describe RuboCop::Cop::Lint::UnescapedBracketInRegexp, :config do
         end
       end
 
+      context 'unescaped bracket in a double-quoted string' do
+        it 'registers an offense and corrects' do
+          expect_offense(<<~RUBY, method: method)
+            Regexp.#{method}("abc]123")
+                   _{method}     ^ Regular expression has `]` without escape.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            Regexp.#{method}("abc\\\\]123")
+          RUBY
+        end
+      end
+
       context 'unescaped bracket in regexp with regexp options' do
         it 'registers an offense and corrects' do
           expect_offense(<<~RUBY, method: method)
@@ -289,6 +322,15 @@ RSpec.describe RuboCop::Cop::Lint::UnescapedBracketInRegexp, :config do
         it 'does not register an offense' do
           expect_no_offenses(<<~RUBY)
             Regexp.#{method}("(?:\#{arr[1]}:\\s*)")
+          RUBY
+        end
+      end
+
+      context 'string with an escape sequence' do
+        # Offsets into the string's value would not match its source.
+        it 'does not register an offense' do
+          expect_no_offenses(<<~RUBY)
+            Regexp.#{method}("a\\\\.b]")
           RUBY
         end
       end

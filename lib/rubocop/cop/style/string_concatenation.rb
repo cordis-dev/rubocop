@@ -160,7 +160,9 @@ module RuboCop
         end
 
         def adjust_str_literal(part)
-          if single_quoted?(part)
+          if file_keyword?(part)
+            "\#{#{part.source}}"
+          elsif single_quoted?(part)
             part.value.gsub(/(\\|"|#\{|#@|#\$)/, '\\\\\&')
           elsif double_quoted?(part)
             # Reuse the source as written - rebuilding it from the value via
@@ -178,12 +180,16 @@ module RuboCop
           end
         end
 
+        def file_keyword?(str_node)
+          str_node.source == '__FILE__' && !str_node.parent.dstr_type?
+        end
+
         def single_quoted?(str_node)
-          str_node.source.start_with?("'")
+          str_node.loc.begin && str_node.source.start_with?("'")
         end
 
         def double_quoted?(str_node)
-          str_node.source.start_with?('"')
+          str_node.loc.begin && str_node.source.start_with?('"')
         end
 
         def mode

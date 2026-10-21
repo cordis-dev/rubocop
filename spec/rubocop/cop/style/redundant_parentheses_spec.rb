@@ -201,6 +201,10 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
   it_behaves_like 'plausible', 'unless (var = 42); end'
   it_behaves_like 'plausible', 'while (var = 42); end'
   it_behaves_like 'plausible', 'until (var = 42); end'
+  it_behaves_like 'plausible', 'if (foo.bar = 42); end'
+  it_behaves_like 'plausible', 'if (foo&.bar = 42); end'
+  it_behaves_like 'plausible', 'while (foo[0] = 42); end'
+  it_behaves_like 'plausible', 'baz if (foo[0] = 42)'
   it_behaves_like 'plausible', '(var + 42) > do_something'
   it_behaves_like 'plausible', 'foo((bar rescue baz))'
   it_behaves_like 'plausible', 'foo((x and y))'
@@ -1982,6 +1986,170 @@ RSpec.describe RuboCop::Cop::Style::RedundantParentheses, :config do
         2
       )
     RUBY
+  end
+
+  it 'registers an offense and corrects a heredoc with a method chained after its terminator' do
+    expect_offense(<<~RUBY)
+      x = (<<-STRING
+          ^^^^^^^^^^ Don't use parentheses around a literal.
+        foo
+      STRING
+      ).strip
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x = <<-STRING
+        foo
+      STRING
+      .strip
+    RUBY
+  end
+
+  it 'registers an offense and corrects a heredoc with a method chained after a blank line below its terminator' do
+    expect_offense(<<~RUBY)
+      x = (<<-STRING
+          ^^^^^^^^^^ Don't use parentheses around a literal.
+        foo
+      STRING
+
+      ).strip
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x = <<-STRING
+        foo
+      STRING
+      .strip
+    RUBY
+  end
+
+  it 'registers an offense and corrects a heredoc with a method chained on the line where it is opened' do
+    expect_offense(<<~RUBY)
+      x = (<<-STRING).strip
+          ^^^^^^^^^^^ Don't use parentheses around a literal.
+        foo
+      STRING
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x = <<-STRING.strip
+        foo
+      STRING
+    RUBY
+  end
+
+  it 'registers an offense and corrects a heredoc with a safe navigation call on the line where it is opened' do
+    expect_offense(<<~RUBY)
+      x = (<<-STRING)&.strip
+          ^^^^^^^^^^^ Don't use parentheses around a literal.
+        foo
+      STRING
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x = <<-STRING&.strip
+        foo
+      STRING
+    RUBY
+  end
+
+  it 'registers an offense and corrects a heredoc followed by a binary operator on the line where it is opened' do
+    expect_offense(<<~RUBY)
+      x = (<<-STRING) + 'bar'
+          ^^^^^^^^^^^ Don't use parentheses around a literal.
+        foo
+      STRING
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x = <<-STRING + 'bar'
+        foo
+      STRING
+    RUBY
+  end
+
+  context 'when the reparse check is skipped for a large scope' do
+    before { stub_const('RuboCop::Cop::ReparsedEquivalence::MAX_VERIFICATION_FRAGMENT_SIZE', 0) }
+
+    it 'registers an offense and corrects a heredoc with a method chained after its terminator' do
+      expect_offense(<<~RUBY)
+        x = (<<-STRING
+            ^^^^^^^^^^ Don't use parentheses around a literal.
+          foo
+        STRING
+        ).strip
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x = <<-STRING
+          foo
+        STRING
+        .strip
+      RUBY
+    end
+
+    it 'does not register an offense for a heredoc followed by a binary operator after its terminator' do
+      expect_no_offenses(<<~RUBY)
+        x = (<<-STRING
+          foo
+        STRING
+        ) + 'bar'
+      RUBY
+    end
+
+    it 'does not register an offense for a heredoc followed by an index after its terminator' do
+      expect_no_offenses(<<~RUBY)
+        x = (<<-STRING
+          foo
+        STRING
+        )[0]
+      RUBY
+    end
+
+    it 'registers an offense and corrects a heredoc with a method chained on the line where it is opened' do
+      expect_offense(<<~RUBY)
+        x = (<<-STRING).strip
+            ^^^^^^^^^^^ Don't use parentheses around a literal.
+          foo
+        STRING
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x = <<-STRING.strip
+          foo
+        STRING
+      RUBY
+    end
+
+    it 'registers an offense and corrects a heredoc followed by a binary operator on the line where it is opened' do
+      expect_offense(<<~RUBY)
+        x = (<<-STRING) + 'bar'
+            ^^^^^^^^^^^ Don't use parentheses around a literal.
+          foo
+        STRING
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x = <<-STRING + 'bar'
+          foo
+        STRING
+      RUBY
+    end
+
+    it 'registers an offense and corrects a heredoc followed by an index on the line where it is opened' do
+      expect_offense(<<~RUBY)
+        x = (<<-STRING)[0]
+            ^^^^^^^^^^^ Don't use parentheses around a literal.
+          foo
+        STRING
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x = <<-STRING[0]
+          foo
+        STRING
+      RUBY
+    end
   end
 
   it 'registers an offense and corrects an array of multiple heredocs' do

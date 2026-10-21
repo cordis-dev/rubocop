@@ -104,6 +104,7 @@ module RuboCop
           ['{', '}'] => /\\.|[{}]/,
           ['<', '>'] => /\\.|[<>]/
         }.freeze
+        DELIMITERS_KEEPING_ESCAPE = %w[$ * + . ? ^ | ( ) [ ] { } < >].freeze
 
         def on_regexp(node)
           return if slash_literal?(node) && percent_r_delimiters_conflict?(node)
@@ -119,6 +120,7 @@ module RuboCop
           add_offense(node, message: message) do |corrector|
             correct_delimiters(node, corrector)
             correct_inner_slashes(node, corrector)
+            correct_escaped_delimiters(node, corrector)
           end
         end
 
@@ -174,9 +176,8 @@ module RuboCop
           cop_config['AllowInnerSlashes']
         end
 
-        def node_body(node, include_begin_nodes: false)
-          types = include_begin_nodes ? %i[str begin] : %i[str]
-          node.each_child_node(*types).map(&:source).join
+        def node_body(node)
+          node.each_child_node(:str).map(&:source).join
         end
 
         def slash_literal?(node)
@@ -190,10 +191,18 @@ module RuboCop
         def allowed_omit_parentheses_with_percent_r_literal?(node)
           return false unless node.parent&.call_type?
           return true if node.content.start_with?(' ', '=')
+          return true if first_argument_of_command?(node) && node.content.match?(/\A\s/)
 
           enforced_style = config.for_cop('Style/MethodCallWithArgsParentheses')['EnforcedStyle']
 
           enforced_style == 'omit_parentheses'
+        end
+
+        def first_argument_of_command?(node)
+          call = node.parent
+          return false unless call.first_argument.equal?(node)
+
+          !call.parenthesized? && !call.operator_method? && !call.setter_method?
         end
 
         def correct_delimiters(node, corrector)
@@ -203,32 +212,16 @@ module RuboCop
         end
 
         def correct_inner_slashes(node, corrector)
-          regexp_begin = node.loc.begin.end_pos
-
-          inner_slash_indices(node).each do |index|
-            start = regexp_begin + index
-
-            corrector.replace(
-              range_between(
-                start,
-                start + inner_slash_before_correction(node).length
-              ),
-              inner_slash_after_correction(node)
-            )
-          end
-        end
-
-        def inner_slash_indices(node)
-          text    = node_body(node, include_begin_nodes: true)
           pattern = inner_slash_before_correction(node)
-          index   = -1
-          indices = []
+          replacement = inner_slash_after_correction(node)
 
-          while (index = text.index(pattern, index + 1))
-            indices << index
+          node.each_child_node(:str) do |str_node|
+            inner_slash_indices(str_node.source, pattern).each do |index|
+              start = str_node.source_range.begin_pos + index
+
+              corrector.replace(range_between(start, start + pattern.length), replacement)
+            end
           end
-
-          indices
         end
 
         def inner_slash_before_correction(node)
@@ -237,6 +230,17 @@ module RuboCop
 
         def inner_slash_after_correction(node)
           inner_slash_for(calculate_replacement(node).first)
+        end
+
+        def inner_slash_indices(text, pattern)
+          index = -1
+          indices = []
+
+          while (index = text.index(pattern, index + 1))
+            indices << index
+          end
+
+          indices
         end
 
         def inner_slash_for(opening_delimiter)
@@ -253,6 +257,51 @@ module RuboCop
           else
             %w[/ /]
           end
+        end
+
+        def correct_escaped_delimiters(node, corrector)
+          return unless (delimiter = delimiter_to_unescape(node))
+
+          node.each_child_node(:str) do |str_node|
+            text = str_node.source
+
+            escaped_delimiter_indices(text, delimiter).each do |index|
+              start = str_node.source_range.begin_pos + index
+              replacement = escaped_delimiter_replacement(node, delimiter, text[index + 2])
+
+              corrector.replace(range_between(start, start + 2), replacement)
+            end
+          end
+        end
+
+        def delimiter_to_unescape(node)
+          return if slash_literal?(node)
+
+          delimiter = node.delimiters.first
+
+          delimiter unless delimiter == '/' || DELIMITERS_KEEPING_ESCAPE.include?(delimiter)
+        end
+
+        def escaped_delimiter_indices(text, delimiter)
+          indices = []
+          index = 0
+
+          while (index = text.index('\\', index))
+            indices << index if text[index + 1] == delimiter
+            index += 2
+          end
+
+          indices
+        end
+
+        # A bare `#` before `{`, `@` or `$` would start an interpolation between slashes.
+        # `\#` still reads as a literal `#` there, except in extended mode, where `%r#a\#{b}#x`
+        # reads `#{b}` as a comment; `#\{` keeps both that comment and a `#` inside
+        # a character class.
+        def escaped_delimiter_replacement(node, delimiter, next_char)
+          return delimiter unless delimiter == '#' && next_char&.match?(/[{@$]/)
+
+          node.extended? ? '#\\' : '\\#'
         end
       end
     end

@@ -90,6 +90,7 @@ module RuboCop
         def on_send(node)
           numeric, replacement = check(node)
           return unless numeric
+          return if handled_by_bitwise_predicate?(node)
 
           return if allowed_method_name?(node.method_name) ||
                     node.each_ancestor(:send, :any_block).any? do |ancestor|
@@ -108,6 +109,12 @@ module RuboCop
           allowed_method?(name) || matches_allowed_pattern?(name)
         end
 
+        def handled_by_bitwise_predicate?(node)
+          bitwise_predicate_candidate?(node) &&
+            config.for_cop('Style/BitwisePredicate').fetch('Enabled') &&
+            BitwisePredicate.support_target_ruby_version?(target_ruby_version)
+        end
+
         def check(node)
           numeric, operator =
             if style == :predicate
@@ -124,7 +131,7 @@ module RuboCop
         def replacement(node, numeric, operation)
           if style == :predicate
             [parenthesized_source(numeric), REPLACEMENTS.invert[operation.to_s]].join('.')
-          elsif negated?(node)
+          elsif comparison_requires_parentheses?(node)
             "(#{numeric.source} #{REPLACEMENTS[operation.to_s]} 0)"
           else
             [numeric.source, REPLACEMENTS[operation.to_s], 0].join(' ')
@@ -140,7 +147,7 @@ module RuboCop
         end
 
         def require_parentheses?(node)
-          node.send_type? && node.binary_operation? && !node.parenthesized?
+          node.send_type? && node.operator_method? && !node.parenthesized?
         end
 
         def replacement_supported?(operator)
@@ -159,10 +166,11 @@ module RuboCop
           end
         end
 
-        def negated?(node)
-          return false unless (parent = node.parent)
+        def comparison_requires_parentheses?(node)
+          return false unless (parent = node.parent)&.call_type?
+          return true if parent.receiver.equal?(node)
 
-          parent.send_type? && parent.method?(:!)
+          parent.operator_method? && !parent.method?(:[]) && !parent.method?(:[]=)
         end
 
         # @!method predicate(node)
@@ -178,6 +186,14 @@ module RuboCop
         # @!method inverted_comparison(node)
         def_node_matcher :inverted_comparison, <<~PATTERN
           (send (int 0) ${:== :> :<} [$(...) !gvar_type?])
+        PATTERN
+
+        # @!method bitwise_predicate_candidate?(node)
+        def_node_matcher :bitwise_predicate_candidate?, <<~PATTERN
+          {
+            (send {(begin (send _ :& _)) (send _ :& _)} {:positive? :zero?})
+            (send {(begin (send _ :& _)) (send _ :& _)} {:> :==} (int 0))
+          }
         PATTERN
       end
     end

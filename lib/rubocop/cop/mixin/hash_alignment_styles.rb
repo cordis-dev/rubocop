@@ -60,8 +60,9 @@ module RuboCop
 
         def deltas(first_pair, current_pair)
           key_delta = key_delta(first_pair, current_pair)
-          separator_delta = separator_delta(first_pair, current_pair, key_delta)
-          value_delta = value_delta(first_pair, current_pair) - key_delta - separator_delta
+          shift = separator_shift(current_pair, key_delta)
+          separator_delta = separator_delta(first_pair, current_pair, shift)
+          value_delta = value_delta(first_pair, current_pair) - shift - separator_delta
 
           { key: key_delta, separator: separator_delta, value: value_delta }
         end
@@ -78,9 +79,13 @@ module RuboCop
           pair.value && pair.key.last_line != pair.value.first_line
         end
 
-        def separator_delta(first_pair, current_pair, key_delta)
+        def separator_shift(current_pair, key_delta)
+          current_pair.key.multiline? ? 0 : key_delta
+        end
+
+        def separator_delta(first_pair, current_pair, shift)
           if current_pair.hash_rocket?
-            hash_rocket_delta(first_pair, current_pair) - key_delta
+            hash_rocket_delta(first_pair, current_pair) - shift
           else
             0
           end
@@ -152,6 +157,17 @@ module RuboCop
           {}
         end
 
+        # Keys are right-aligned by the column their last line ends on.
+        # A key spanning several lines ends on a line other than the one it starts on,
+        # so moving its first line would never change that column and the correction
+        # would be repeated on every pass. Such pairs are left alone, and so is every pair
+        # when the first key spans several lines, since there is then no column to right-align to.
+        def deltas(first_pair, current_pair)
+          return {} if first_pair.key.multiline? || current_pair.key.multiline?
+
+          super
+        end
+
         private
 
         def key_delta(first_pair, current_pair)
@@ -163,7 +179,10 @@ module RuboCop
         end
 
         def value_delta(first_pair, current_pair)
-          current_pair.value_omission? ? 0 : first_pair.value_delta(current_pair)
+          return 0 if first_pair.equal?(current_pair) || current_pair.value_omission?
+
+          expected_value_column = first_pair.loc.operator.end.column + 1
+          expected_value_column - current_pair.value.loc.column
         end
       end
 

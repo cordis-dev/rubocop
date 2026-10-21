@@ -345,6 +345,29 @@ RSpec.describe RuboCop::Cop::Style::MethodDefParentheses, :config do
       RUBY
     end
 
+    it 'requires parens when the first parameter is a destructuring parameter' do
+      expect_no_offenses(<<~RUBY)
+        def func((a, b))
+        end
+
+        def func((a, b), c)
+        end
+      RUBY
+    end
+
+    it 'reports an offense when a destructuring parameter is not the first one' do
+      expect_offense(<<~RUBY)
+        def func(a, (b, c))
+                ^^^^^^^^^^^ Use def without parentheses.
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def func a, (b, c)
+        end
+      RUBY
+    end
+
     it 'requires parens when a sole parameter begins on a line below the method name' do
       expect_no_offenses(<<~RUBY)
         def func(
@@ -366,6 +389,39 @@ RSpec.describe RuboCop::Cop::Style::MethodDefParentheses, :config do
         def func a,
           b
         end
+      RUBY
+    end
+
+    it 'reports an offense and separates the parameters from a body on the same line' do
+      expect_offense(<<~RUBY)
+        def func(a, b) do_something(a, b) end
+                ^^^^^^ Use def without parentheses.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def func a, b; do_something(a, b) end
+      RUBY
+    end
+
+    it 'reports an offense and separates the parameters from `end` on the same line' do
+      expect_offense(<<~RUBY)
+        def func(a) end
+                ^^^ Use def without parentheses.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def func a; end
+      RUBY
+    end
+
+    it 'reports an offense and keeps a semicolon after the parameters' do
+      expect_offense(<<~RUBY)
+        def func(a); do_something(a); end
+                ^^^ Use def without parentheses.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def func a; do_something(a); end
       RUBY
     end
   end

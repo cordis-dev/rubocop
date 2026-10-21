@@ -519,6 +519,39 @@ RSpec.describe RuboCop::Cop::Style::HashSyntax, :config do
         method(:puts).(:a => 0)
       RUBY
     end
+
+    it 'registers an offense and joins a value written on the following line' do
+      expect_offense(<<~RUBY)
+        x = {
+          bb:
+          ^^^ Use hash rockets syntax.
+            cc
+        }
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x = {
+          :bb =>     cc
+        }
+      RUBY
+    end
+
+    context 'Ruby >= 3.1', :ruby31 do
+      it 'registers an offense and keeps the line break following an omitted value' do
+        expect_offense(<<~RUBY)
+          cc(
+            bb:
+            ^^^ Use hash rockets syntax.
+          )
+        RUBY
+
+        expect_correction(<<~RUBY)
+          cc(
+            :bb => bb
+          )
+        RUBY
+      end
+    end
   end
 
   context 'configured to enforce ruby 1.9 style with no mixed keys' do
@@ -1743,6 +1776,21 @@ RSpec.describe RuboCop::Cop::Style::HashSyntax, :config do
         RUBY
       end
 
+      it 'registers and corrects an offense only for the hash value that is not named after a keyword' do
+        expect_offense(<<~RUBY)
+          def do_something(if:, next:, bar:)
+            {if:, next:, bar:}
+                         ^^^ Include the hash value.
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def do_something(if:, next:, bar:)
+            {if:, next:, bar: bar}
+          end
+        RUBY
+      end
+
       it 'does not register an offense when hash key and hash value are not the same' do
         expect_no_offenses(<<~RUBY)
           {foo: bar, bar: foo}
@@ -1844,6 +1892,14 @@ RSpec.describe RuboCop::Cop::Style::HashSyntax, :config do
 
         expect_correction(<<~RUBY)
           {foo: foo, bar: baz}
+        RUBY
+      end
+
+      it 'does not register an offense when an omitted hash value named after a keyword is mixed with a value that cannot be omitted' do
+        expect_no_offenses(<<~RUBY)
+          def do_something(if:)
+            {if:, bar: baz}
+          end
         RUBY
       end
 
@@ -1985,6 +2041,14 @@ RSpec.describe RuboCop::Cop::Style::HashSyntax, :config do
         RUBY
       end
 
+      it 'does not register an offense when an omitted hash value named after a keyword is mixed with a value that cannot be omitted' do
+        expect_no_offenses(<<~RUBY)
+          def do_something(if:)
+            {if:, bar: baz}
+          end
+        RUBY
+      end
+
       it 'does not register an offense when all hash values are present, but no values can be omitted' do
         expect_no_offenses(<<~RUBY)
           {foo: bar, bar: foo}
@@ -2029,6 +2093,21 @@ RSpec.describe RuboCop::Cop::Style::HashSyntax, :config do
           f(:a => a)
         RUBY
       end
+
+      it 'registers an offense only for the omitted hash value that is not named after a keyword' do
+        expect_offense(<<~RUBY)
+          def do_something(if:, bar:)
+            f(if:, bar:)
+                   ^^^^ Use hash rockets syntax.
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def do_something(if:, bar:)
+            f(if:, :bar => bar)
+          end
+        RUBY
+      end
     end
 
     context 'by EnforcedStyle `no_mixed_keys`' do
@@ -2055,6 +2134,21 @@ RSpec.describe RuboCop::Cop::Style::HashSyntax, :config do
 
         expect_correction(<<~RUBY)
           f(:a => a, :b => b)
+        RUBY
+      end
+
+      it 'does not convert an omitted hash value named after a keyword to hash rockets' do
+        expect_offense(<<~RUBY)
+          def do_something(if:, bar:)
+            f(:a => a, if:, bar:)
+                            ^^^^ Don't mix styles in the same hash.
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def do_something(if:, bar:)
+            f(:a => a, if:, :bar => bar)
+          end
         RUBY
       end
 

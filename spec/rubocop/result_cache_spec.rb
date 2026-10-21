@@ -373,6 +373,12 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
       it 'writes non UTF-8 encodable data to file with no exception' do
         expect { cache.save(offenses) }.not_to raise_error
       end
+
+      it 'reads back a binary-tagged message that holds valid UTF-8' do
+        cache.save(offenses)
+
+        expect(cache.load.map(&:message)).to eq(["unused var \uFFFD", 'unused var あ'])
+      end
     end
 
     shared_examples 'invalid cache location' do |error, message|
@@ -392,7 +398,34 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
       let(:cache_root) { '/permission_denied_dir' }
 
       it_behaves_like 'invalid cache location', Errno::EACCES, 'Permission denied'
+      it_behaves_like 'invalid cache location', Errno::EPERM, 'Operation not permitted'
       it_behaves_like 'invalid cache location', Errno::EROFS, 'Read-only file system'
+    end
+
+    shared_examples 'unwritable cache file' do |error, message|
+      include_context 'mock console output'
+
+      it 'warns and leaves no cache file behind' do
+        allow(File).to receive(:open).and_call_original
+        allow(File).to receive(:open).with(start_with(cache.path), 'w', any_args) do |path|
+          # Fail partway through writing the preliminary file.
+          File.write(path, '{')
+          raise error
+        end
+
+        expect { cache.save(offenses) }.not_to raise_error
+        expect($stderr.string).to eq(<<~WARN)
+          Couldn't write cache file. Continuing without cache.
+            #{message}
+        WARN
+        expect(Dir.children(File.dirname(cache.path))).to be_empty
+      end
+    end
+
+    context 'when the cache file is not writable' do
+      it_behaves_like 'unwritable cache file', Errno::EACCES, 'Permission denied'
+      it_behaves_like 'unwritable cache file', Errno::EPERM, 'Operation not permitted'
+      it_behaves_like 'unwritable cache file', Errno::EROFS, 'Read-only file system'
     end
   end
 
@@ -441,6 +474,23 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
       custom_cache.class.cleanup(config_store, :verbose, custom_cache_root)
       expect(File).not_to exist(underscore_dir)
       expect($stdout.string).to eq("Removing the 2 oldest files from #{custom_rubocop_cache_dir}\n")
+    end
+
+    shared_examples 'unwritable cache' do |error|
+      it 'leaves the cache as it is' do
+        cache.save(offenses)
+        described_class.new('other.rb', team, options, config_store, cache_root).save(offenses)
+        allow(File).to receive(:delete).and_raise(error)
+
+        expect { cache.class.cleanup(config_store, false, cache_root) }.not_to raise_error
+        expect(Dir["#{rubocop_cache_dir}/*/*/*"].size).to eq(2)
+      end
+    end
+
+    context 'when the cache is not writable' do
+      it_behaves_like 'unwritable cache', Errno::EACCES
+      it_behaves_like 'unwritable cache', Errno::EPERM
+      it_behaves_like 'unwritable cache', Errno::EROFS
     end
 
     context 'when MaxFilesInCache is `false`' do

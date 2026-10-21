@@ -79,7 +79,7 @@ RSpec.describe RuboCop::Cop::Style::SymbolProc, :config do
     it 'registers lambda `->` with 1 argument' do
       expect_offense(<<~RUBY)
         ->(x) { x.method }
-              ^^^^^^^^^^^^ Pass `&:method` as an argument to `lambda` instead of a block.
+        ^^^^^^^^^^^^^^^^^^ Use `lambda(&:method)` instead of `->(x) { x.method }`.
       RUBY
 
       expect_correction(<<~RUBY)
@@ -90,13 +90,24 @@ RSpec.describe RuboCop::Cop::Style::SymbolProc, :config do
     it 'registers lambda `->` with 1 argument and multiline `do`...`end` block' do
       expect_offense(<<~RUBY)
         ->(arg) do
-                ^^ Pass `&:do_something` as an argument to `lambda` instead of a block.
+        ^^^^^^^^^^ Use `lambda(&:do_something)` instead of a lambda literal with a block.
           arg.do_something
         end
       RUBY
 
       expect_correction(<<~RUBY)
         lambda(&:do_something)
+      RUBY
+    end
+
+    it 'registers `lambda` with 1 argument' do
+      expect_offense(<<~RUBY)
+        lambda { |x| x.method }
+               ^^^^^^^^^^^^^^^^ Pass `&:method` as an argument to `lambda` instead of a block.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        lambda(&:method)
       RUBY
     end
 
@@ -131,6 +142,56 @@ RSpec.describe RuboCop::Cop::Style::SymbolProc, :config do
       expect_correction(<<~RUBY)
         ::Proc.new(&:method)
       RUBY
+    end
+
+    context 'with a lambda literal in a pattern', :ruby27 do
+      it 'does not register an offense for a lambda literal as an `in` pattern' do
+        expect_no_offenses(<<~RUBY)
+          case value
+          in ->(x) { x.positive? } then 1
+          end
+        RUBY
+      end
+
+      it 'does not register an offense for a multiline lambda literal as an `in` pattern' do
+        expect_no_offenses(<<~RUBY)
+          case value
+          in ->(x) do
+            x.positive?
+          end
+            1
+          end
+        RUBY
+      end
+
+      it 'does not register an offense for a lambda literal with a numbered parameter nested in an array pattern' do
+        expect_no_offenses(<<~RUBY)
+          case value
+          in [Integer, -> { _1.positive? }] then 1
+          end
+        RUBY
+      end
+
+      it 'does not register an offense for a lambda literal in a one-line pattern match' do
+        expect_no_offenses(<<~RUBY)
+          value in ->(x) { x.positive? }
+        RUBY
+      end
+
+      it 'registers an offense for a lambda literal in a pinned expression', :ruby31 do
+        expect_offense(<<~RUBY)
+          case value
+          in ^(->(x) { x.positive? }) then 1
+               ^^^^^^^^^^^^^^^^^^^^^ Use `lambda(&:positive?)` instead of `->(x) { x.positive? }`.
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          case value
+          in ^(lambda(&:positive?)) then 1
+          end
+        RUBY
+      end
     end
   end
 
@@ -558,7 +619,18 @@ RSpec.describe RuboCop::Cop::Style::SymbolProc, :config do
       it 'registers lambda with 1 numbered parameter' do
         expect_offense(<<~RUBY)
           -> { _1.method }
-             ^^^^^^^^^^^^^ Pass `&:method` as an argument to `lambda` instead of a block.
+          ^^^^^^^^^^^^^^^^ Use `lambda(&:method)` instead of `-> { _1.method }`.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          lambda(&:method)
+        RUBY
+      end
+
+      it 'registers lambda with an `it` parameter' do
+        expect_offense(<<~RUBY)
+          -> { it.method }
+          ^^^^^^^^^^^^^^^^ Use `lambda(&:method)` instead of `-> { it.method }`.
         RUBY
 
         expect_correction(<<~RUBY)

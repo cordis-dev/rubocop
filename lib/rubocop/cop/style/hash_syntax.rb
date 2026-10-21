@@ -142,6 +142,13 @@ module RuboCop
         MSG_HASH_ROCKETS = 'Use hash rockets syntax.'
         NO_MIXED_KEYS_STYLES = %i[ruby19_no_mixed_keys no_mixed_keys].freeze
 
+        # Omitting the last hash value of a call without parentheses adds the parentheses,
+        # which `Style/MethodCallWithArgsParentheses` and `Style/SuperWithArgsParentheses`
+        # would add again in the same pass.
+        def self.autocorrect_incompatible_with
+          [Style::MethodCallWithArgsParentheses, Style::SuperWithArgsParentheses]
+        end
+
         def on_hash(node)
           pairs = node.pairs
 
@@ -241,6 +248,8 @@ module RuboCop
         def check(pairs, delim, msg)
           pairs.each do |pair|
             if pair.delimiter == delim
+              next if pair.value_omission? && keyword_value?(pair)
+
               location = pair.source_range.begin.join(pair.loc.operator)
               add_offense(location, message: msg) do |corrector|
                 autocorrect(corrector, pair)
@@ -283,12 +292,16 @@ module RuboCop
         end
 
         def autocorrect_hash_rockets(corrector, pair_node)
-          op = pair_node.loc.operator
-
           key_with_hash_rocket = ":#{pair_node.key.source}#{pair_node.inverse_delimiter(true)}"
           key_with_hash_rocket += pair_node.key.source if pair_node.value_omission?
           corrector.replace(pair_node.key, key_with_hash_rocket)
-          corrector.remove(range_with_surrounding_space(op))
+          corrector.remove(operator_range(pair_node))
+        end
+
+        def operator_range(pair_node)
+          op = pair_node.loc.operator
+
+          range_with_surrounding_space(op, newlines: !pair_node.value_omission?)
         end
 
         def autocorrect_no_mixed_keys(corrector, pair_node)

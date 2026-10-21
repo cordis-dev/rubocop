@@ -26,7 +26,7 @@ module RuboCop
 
           node.each_descendant(:if).select(&:ternary?).each do |nested_ternary|
             add_offense(nested_ternary) do |corrector|
-              next if part_of_ignored_node?(node)
+              next if part_of_ignored_node?(node) || contains_heredoc?(node)
 
               autocorrect(corrector, node)
               ignore_node(node)
@@ -36,19 +36,37 @@ module RuboCop
 
         private
 
+        def contains_heredoc?(node)
+          node.each_descendant(:any_str).any?(&:heredoc?)
+        end
+
         def autocorrect(corrector, if_node)
           replace_loc_and_whitespace(corrector, if_node.loc.question, "\n")
           replace_loc_and_whitespace(corrector, if_node.loc.colon, "\nelse\n")
-          corrector.replace(if_node.if_branch, remove_parentheses(if_node.if_branch.source))
-          corrector.wrap(if_node, 'if ', "\nend")
+          remove_parentheses(corrector, if_node.if_branch)
+
+          if modifier_position?(if_node)
+            corrector.wrap(if_node, '(if ', "\nend)")
+          else
+            corrector.wrap(if_node, 'if ', "\nend")
+          end
         end
 
-        def remove_parentheses(source)
-          if source.start_with?('(') && source.end_with?(')')
-            source.delete_prefix('(').delete_suffix(')')
-          else
-            source
-          end
+        def remove_parentheses(corrector, node)
+          return unless node.begin_type? && node.parenthesized_call?
+
+          corrector.remove(node.loc.begin)
+          corrector.remove(node.loc.end)
+        end
+
+        # An `if` right after `return`, as the operand of `not` or `defined?`, or as
+        # the first argument of a call without parentheses would be parsed as a modifier.
+        def modifier_position?(node)
+          return false unless (parent = node.parent)
+          return true if parent.type?(:return, :break, :next)
+          return false if !parent.type?(:call, :super, :yield, :defined?) || parent.parenthesized?
+
+          parent.prefix_not? || parent.first_argument.equal?(node)
         end
 
         def replace_loc_and_whitespace(corrector, range, replacement)

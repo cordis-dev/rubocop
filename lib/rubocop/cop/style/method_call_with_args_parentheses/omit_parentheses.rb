@@ -30,7 +30,7 @@ module RuboCop
 
           private
 
-          def omit_parentheses(node) # rubocop:disable Metrics/PerceivedComplexity
+          def omit_parentheses(node) # rubocop:disable Metrics/AbcSize, Metrics/PerceivedComplexity
             return unless node.parenthesized?
             return if inside_endless_method_def?(node)
             return if require_parentheses_for_hash_value_omission?(node)
@@ -40,6 +40,9 @@ module RuboCop
             return if legitimate_call_with_parentheses?(node)
             return if allowed_camel_case_method_call?(node)
             return if allowed_string_interpolation_method_call?(node)
+            return if code_after_closing_parenthesis_on_its_own_line?(node)
+            return if comment_before_first_argument?(node)
+            return if args_parenthesized?(node)
 
             (@pending_omit_offenses ||= []) << node
           end
@@ -104,14 +107,33 @@ module RuboCop
               inside_string_interpolation?(node)
           end
 
-          def parentheses_at_the_end_of_multiline_call?(node)
-            node.multiline? &&
-              node.loc.begin.source_line
-                  .gsub(TRAILING_WHITESPACE_REGEX, '')
-                  .end_with?('(')
+          def code_after_closing_parenthesis_on_its_own_line?(node)
+            closing = node.loc.end
+            return false if node.arguments.none? || node.last_argument.last_line == closing.line
+
+            rest = closing.source_line[(closing.column + 1)..].strip
+
+            !rest.empty? && !rest.start_with?('#')
           end
 
-          def legitimate_call_with_parentheses?(node) # rubocop:disable Metrics/PerceivedComplexity
+          # Without the parentheses, a comment before the first argument would end the call there,
+          # and a line continuation can't carry the call past a comment.
+          def comment_before_first_argument?(node)
+            return false unless (first_argument = node.first_argument)
+
+            lines = node.loc.begin.line...first_argument.first_line
+            processed_source.each_comment_in_lines(lines).any?
+          end
+
+          def parentheses_at_the_end_of_multiline_call?(node)
+            return false unless node.multiline?
+
+            opening = node.loc.begin
+
+            opening.source_line[(opening.column + 1)..].gsub(TRAILING_WHITESPACE_REGEX, '').empty?
+          end
+
+          def legitimate_call_with_parentheses?(node) # rubocop:disable Metrics/AbcSize, Metrics/PerceivedComplexity
             call_in_literals?(node) ||
               node.parent&.when_type? ||
               call_with_ambiguous_arguments?(node) ||
@@ -121,7 +143,9 @@ module RuboCop
               allowed_multiline_call_with_parentheses?(node) ||
               allowed_chained_call_with_parentheses?(node) ||
               assignment_in_condition?(node) ||
-              forwards_anonymous_rest_arguments?(node)
+              command_assignment_in_expression?(node) ||
+              forwards_anonymous_rest_arguments?(node) ||
+              trailing_comma?(node)
           end
 
           def call_in_literals?(node)
@@ -137,9 +161,13 @@ module RuboCop
             parent = node.parent&.any_block_type? ? node.parent.parent : node.parent
             return false unless parent
 
-            logical_operator?(parent) ||
-              (parent.send_type? &&
-              parent.arguments.any? { |argument| logical_operator?(argument) })
+            if logical_operator?(parent) || command_assignment_before_keyword_operator?(parent)
+              return true
+            end
+
+            parent.send_type? && parent.arguments.any? do |argument|
+              logical_operator?(argument)
+            end
           end
 
           def call_in_optional_arguments?(node)
@@ -229,6 +257,15 @@ module RuboCop
             node.operator_keyword? && node.logical_operator?
           end
 
+          def command_assignment_before_keyword_operator?(node)
+            return false unless node.assignment?
+
+            node = node.parent while node.parent&.assignment?
+            return false unless (operator = node.parent)
+
+            operator.operator_keyword? && operator.semantic_operator?
+          end
+
           def hash_literal?(node)
             node.hash_type? && node.braces?
           end
@@ -244,7 +281,7 @@ module RuboCop
           end
 
           def assigned_before?(node, target)
-            node.assignment? && node.loc.operator.begin < target.loc.begin
+            node.assignment? && node.loc.operator.begin < target.source_range.begin
           end
 
           def inside_string_interpolation?(node)
@@ -261,11 +298,41 @@ module RuboCop
             parent.assignment? && (grandparent.conditional? || grandparent.when_type?)
           end
 
-          def forwards_anonymous_rest_arguments?(node)
-            return false unless (last_argument = node.last_argument)
-            return true if last_argument.forwarded_restarg_type?
+          # rubocop:disable-next Metrics/PerceivedComplexity
+          def command_assignment_in_expression?(node)
+            value = node.parent&.type?(:any_block, :rescue) ? node.parent : node
+            assignment = outermost_assignment(value)
+            return false if assignment.equal?(value)
 
-            last_argument.hash_type? && last_argument.children.any?(&:forwarded_kwrestarg_type?)
+            call_in_literals?(assignment) ||
+              call_in_logical_operators?(assignment) ||
+              call_in_optional_arguments?(assignment) ||
+              call_as_argument_or_chain?(assignment) ||
+              assignment.parent&.type?(:masgn, :return, :next, :break, :defined?)
+          end
+
+          def outermost_assignment(value)
+            parent = value.parent
+            return value if !parent&.assignment? || parent.masgn_type?
+            return value unless assigned_before?(parent, value)
+
+            outermost_assignment(parent)
+          end
+
+          def forwards_anonymous_rest_arguments?(node)
+            node.arguments.any? do |argument|
+              next true if argument.forwarded_restarg_type?
+
+              argument.hash_type? && argument.children.any?(&:forwarded_kwrestarg_type?)
+            end
+          end
+
+          def trailing_comma?(node)
+            return false unless (last_argument = node.last_argument)
+
+            range = last_argument.source_range.end.join(node.loc.end.begin)
+
+            processed_source.tokens_within(range).any?(&:comma?)
           end
         end
       end

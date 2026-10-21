@@ -121,7 +121,6 @@ module RuboCop
           tokens[1]&.type == :tSTRING_DBEG && tokens[2]&.semicolon?
         end
 
-        # rubocop:disable-next Metrics/AbcSize, Metrics/MethodLength
         def register_semicolon(line, column, after_expression, token_before_semicolon = nil)
           range = source_range(processed_source.buffer, line, column)
 
@@ -134,13 +133,11 @@ module RuboCop
               # See: https://github.com/rubocop/rubocop/issues/10791
               if token_before_semicolon&.regexp_dots?
                 node = find_node(range_nodes, token_before_semicolon)
+                corrector.wrap(node, '(', ')') if node
               elsif token_before_semicolon&.type == :tLABEL
-                node = find_node(value_omission_pair_nodes, token_before_semicolon).parent
-                space = node.parent.loc.selector.end.join(node.source_range.begin)
-                corrector.remove(space)
+                parenthesize_arguments(corrector, value_omission_hash(token_before_semicolon))
               end
 
-              corrector.wrap(node, '(', ')') if node
               corrector.remove(range)
             end
           end
@@ -159,6 +156,20 @@ module RuboCop
             heredoc.first_line == semicolon_range.line &&
               heredoc.source_range.end_pos <= semicolon_range.begin_pos
           end
+        end
+
+        def value_omission_hash(token_before_semicolon)
+          find_node(value_omission_pair_nodes, token_before_semicolon)&.parent
+        end
+
+        def parenthesize_arguments(corrector, hash_node)
+          return unless hash_node
+
+          call = hash_node.parent
+          before_arguments = args_begin(call).begin.join(call.first_argument.source_range.begin)
+
+          corrector.replace(before_arguments, '(')
+          corrector.insert_after(call.last_argument, ')')
         end
 
         def expressions_per_line(exprs)

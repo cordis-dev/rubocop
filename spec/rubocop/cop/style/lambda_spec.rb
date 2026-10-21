@@ -24,6 +24,153 @@ RSpec.describe RuboCop::Cop::Style::Lambda, :config do
         end
       end
 
+      context 'with a default value that needs parentheses between pipes' do
+        it 'registers an offense and corrects a range default' do
+          expect_offense(<<~RUBY)
+            f = ->(x = ..y) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x = (..y)| x }
+          RUBY
+        end
+
+        it 'registers an offense and corrects an endless range default' do
+          expect_offense(<<~RUBY)
+            f = ->(x = y..) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x = (y..)| x }
+          RUBY
+        end
+
+        it 'registers an offense and corrects an exclusive range default' do
+          expect_offense(<<~RUBY)
+            f = ->(x = y...z) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x = (y...z)| x }
+          RUBY
+        end
+
+        it 'registers an offense and corrects a binary operator default' do
+          expect_offense(<<~RUBY)
+            f = ->(x = y + z) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x = (y + z)| x }
+          RUBY
+        end
+
+        it 'registers an offense and corrects a unary operator default' do
+          expect_offense(<<~RUBY)
+            f = ->(x = -y) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x = (-y)| x }
+          RUBY
+        end
+
+        it 'registers an offense and corrects a negated default' do
+          expect_offense(<<~RUBY)
+            f = ->(x = !y) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x = (!y)| x }
+          RUBY
+        end
+
+        it 'registers an offense and corrects a ternary default' do
+          expect_offense(<<~RUBY)
+            f = ->(x = y ? z : w) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x = (y ? z : w)| x }
+          RUBY
+        end
+
+        it 'registers an offense and corrects an `&&` default' do
+          expect_offense(<<~RUBY)
+            f = ->(x = y && z) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x = (y && z)| x }
+          RUBY
+        end
+
+        it 'registers an offense and corrects an `||` default' do
+          expect_offense(<<~RUBY)
+            f = ->(x = y || z) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x = (y || z)| x }
+          RUBY
+        end
+
+        it 'registers an offense and corrects a keyword argument default' do
+          expect_offense(<<~RUBY)
+            f = ->(x: ..y) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x: (..y)| x }
+          RUBY
+        end
+      end
+
+      context 'with a default value that does not need parentheses' do
+        it 'registers an offense and corrects an index default' do
+          expect_offense(<<~RUBY)
+            f = ->(x = y[1]) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x = y[1]| x }
+          RUBY
+        end
+
+        it 'registers an offense and corrects an already parenthesized default' do
+          expect_offense(<<~RUBY)
+            f = ->(x = (..y)) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x = (..y)| x }
+          RUBY
+        end
+
+        it 'registers an offense and corrects a literal default' do
+          expect_offense(<<~RUBY)
+            f = ->(x = 1) { x }
+                ^^ Use the `lambda` method for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = lambda { |x = 1| x }
+          RUBY
+        end
+      end
+
       context 'with block-local (shadow) arguments' do
         it 'preserves the shadow argument separator' do
           expect_offense(<<~RUBY)
@@ -99,6 +246,60 @@ RSpec.describe RuboCop::Cop::Style::Lambda, :config do
         end
       end
     end
+
+    context 'with a lambda literal in a pattern', :ruby27 do
+      it 'does not register an offense for a lambda literal as an `in` pattern' do
+        expect_no_offenses(<<~RUBY)
+          case value
+          in -> { _1.positive? }
+          end
+        RUBY
+      end
+
+      it 'does not register an offense for a lambda literal nested in an array pattern' do
+        expect_no_offenses(<<~RUBY)
+          case value
+          in [String, Hash | -> { _1.positive? }]
+          end
+        RUBY
+      end
+
+      it 'does not register an offense for a lambda literal in a one-line pattern match' do
+        expect_no_offenses(<<~RUBY)
+          value in -> { _1.positive? }
+        RUBY
+      end
+
+      it 'registers an offense for a lambda literal in a pinned expression', :ruby31 do
+        expect_offense(<<~RUBY)
+          case value
+          in ^(-> { _1.positive? }) => x
+               ^^ Use the `lambda` method for all lambdas.
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          case value
+          in ^(lambda { _1.positive? }) => x
+          end
+        RUBY
+      end
+
+      it 'registers an offense for a lambda literal in a guard clause' do
+        expect_offense(<<~RUBY)
+          case value
+          in x if -> { _1.positive? }.call(x)
+                  ^^ Use the `lambda` method for all lambdas.
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          case value
+          in x if lambda { _1.positive? }.call(x)
+          end
+        RUBY
+      end
+    end
   end
 
   context 'with enforced `literal` style' do
@@ -140,6 +341,76 @@ RSpec.describe RuboCop::Cop::Style::Lambda, :config do
 
           expect_correction(<<~RUBY)
             f = ->(x; y) { x }
+          RUBY
+        end
+      end
+
+      context 'when `Layout/SpaceInsideParens` is `EnforcedStyle: space`' do
+        let(:other_cops) do
+          { 'Layout/SpaceInsideParens' => { 'Enabled' => true, 'EnforcedStyle' => 'space' } }
+        end
+
+        it 'registers an offense and corrects with spaces inside the parentheses' do
+          expect_offense(<<~RUBY)
+            f = lambda { |x, y| x }
+                ^^^^^^ Use the `-> { ... }` lambda literal syntax for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = ->( x, y ) { x }
+          RUBY
+        end
+      end
+
+      context 'when `Layout/SpaceInsideParens` is `EnforcedStyle: space` but disabled' do
+        let(:other_cops) do
+          { 'Layout/SpaceInsideParens' => { 'Enabled' => false, 'EnforcedStyle' => 'space' } }
+        end
+
+        it 'registers an offense and corrects without spaces inside the parentheses' do
+          expect_offense(<<~RUBY)
+            f = lambda { |x, y| x }
+                ^^^^^^ Use the `-> { ... }` lambda literal syntax for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = ->(x, y) { x }
+          RUBY
+        end
+      end
+
+      context 'when `Layout/SpaceInLambdaLiteral` is `EnforcedStyle: require_space`' do
+        let(:other_cops) do
+          { 'Layout/SpaceInLambdaLiteral' => { 'Enabled' => true,
+                                               'EnforcedStyle' => 'require_space' } }
+        end
+
+        it 'registers an offense and corrects with a space before the parentheses' do
+          expect_offense(<<~RUBY)
+            f = lambda { |x, y| x }
+                ^^^^^^ Use the `-> { ... }` lambda literal syntax for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = -> (x, y) { x }
+          RUBY
+        end
+      end
+
+      context 'when `Layout/SpaceInLambdaLiteral` is `EnforcedStyle: require_space` but disabled' do
+        let(:other_cops) do
+          { 'Layout/SpaceInLambdaLiteral' => { 'Enabled' => false,
+                                               'EnforcedStyle' => 'require_space' } }
+        end
+
+        it 'registers an offense and corrects without a space before the parentheses' do
+          expect_offense(<<~RUBY)
+            f = lambda { |x, y| x }
+                ^^^^^^ Use the `-> { ... }` lambda literal syntax for all lambdas.
+          RUBY
+
+          expect_correction(<<~RUBY)
+            f = ->(x, y) { x }
           RUBY
         end
       end
@@ -555,6 +826,68 @@ RSpec.describe RuboCop::Cop::Style::Lambda, :config do
           has_many :kittens, lambda {
             where(cats: Cat.young.where_values_hash)
           }, source: cats
+        RUBY
+      end
+    end
+
+    context 'with a multiline lambda literal with `rescue` as an argument' do
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          do_something :foo, ->(x) do
+            x.bar
+          rescue
+            nil
+          end
+        RUBY
+      end
+    end
+
+    context 'with a multiline lambda literal with `ensure` as an argument' do
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          do_something :foo, ->(x) do
+            x.bar
+          ensure
+            x.baz
+          end
+        RUBY
+      end
+    end
+
+    context 'with a multiline lambda literal with a modifier `rescue` as an argument' do
+      it 'registers an offense' do
+        expect_offense(<<~RUBY)
+          do_something :foo, ->(x) do
+                             ^^ Use the `lambda` method for multiline lambdas.
+            x.bar rescue nil
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          do_something :foo, lambda { |x|
+            x.bar rescue nil
+          }
+        RUBY
+      end
+    end
+
+    context 'with a multiline lambda literal with `rescue` as a parenthesized argument' do
+      it 'registers an offense' do
+        expect_offense(<<~RUBY)
+          do_something(:foo, ->(x) do
+                             ^^ Use the `lambda` method for multiline lambdas.
+            x.bar
+          rescue
+            nil
+          end)
+        RUBY
+
+        expect_correction(<<~RUBY)
+          do_something(:foo, lambda do |x|
+            x.bar
+          rescue
+            nil
+          end)
         RUBY
       end
     end

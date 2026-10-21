@@ -48,6 +48,10 @@ module RuboCop
 
         MSG = 'Use `%<prefer>s` instead of `%<current>s`.'
 
+        def self.autocorrect_incompatible_with
+          [Style::MethodCallWithArgsParentheses, Style::ReturnNil, Style::ReturnNilInPredicateMethodDefinition]
+        end
+
         def on_and(node)
           process_logical_operator(node) if style == :always
         end
@@ -69,7 +73,7 @@ module RuboCop
           message = message(node)
           add_offense(node.loc.operator, message: message) do |corrector|
             node.each_child_node do |expr|
-              if expr.send_type?
+              if expr.call_type?
                 correct_send(expr, corrector)
               elsif expr.type?(:return, :next, :break, :yield) || expr.assignment?
                 correct_other(expr, corrector)
@@ -116,7 +120,7 @@ module RuboCop
         # however, 'not x' also parses as (send x :!)
         def correct_not(node, receiver, corrector)
           if node.prefix_bang?
-            return unless receiver.send_type?
+            return unless receiver.call_type?
 
             correct_send(receiver, corrector)
           elsif node.prefix_not?

@@ -102,6 +102,7 @@ module RuboCop
           return replaced_node unless node.parent
           return "(#{replaced_node})" if node.parent.operator_keyword?
           return "(#{replaced_node})" if node.parent.send_type? && node.parent.operator_method?
+          return "(#{replaced_node})" if parent_binds_tighter_than_ternary?(node)
 
           replaced_node
         end
@@ -124,6 +125,14 @@ module RuboCop
             "#{expr_replacement(else_branch)}"
         end
 
+        def parent_binds_tighter_than_ternary?(node)
+          parent = node.parent
+          return parent.receiver.equal?(node) if parent.call_type?
+          return parent.namespace.equal?(node) if parent.type?(:const, :casgn)
+
+          parent.if_type? && parent.ternary? && parent.condition.equal?(node)
+        end
+
         def expr_replacement(node)
           return 'nil' if node.nil?
 
@@ -131,7 +140,9 @@ module RuboCop
         end
 
         def requires_parentheses?(node)
-          return true if %i[and or if].include?(node.type)
+          return true if node.type?(
+            :and, :or, :if, :rescue, :while, :until, :while_post, :until_post, :any_match_pattern
+          )
           return true if node.assignment?
           return true if method_call_with_changed_precedence?(node)
 
@@ -139,7 +150,7 @@ module RuboCop
         end
 
         def method_call_with_changed_precedence?(node)
-          return false unless node.send_type? && node.arguments?
+          return false unless node.call_type? && node.arguments?
           return false if node.parenthesized_call?
 
           !node.operator_method?

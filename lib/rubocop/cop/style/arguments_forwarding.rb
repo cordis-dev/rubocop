@@ -153,7 +153,7 @@ module RuboCop
         BLOCK_MSG = 'Use anonymous block arguments forwarding (`&`).'
 
         def self.autocorrect_incompatible_with
-          [Naming::BlockForwarding, Style::MethodDefParentheses]
+          [Naming::BlockForwarding, Style::EndlessMethod, Style::MethodDefParentheses]
         end
 
         def on_def(node)
@@ -169,7 +169,7 @@ module RuboCop
 
           return if send_classifications.empty?
 
-          if only_forwards_all?(send_classifications)
+          if forward_all?(send_nodes, send_classifications)
             add_forward_all_offenses(node, send_classifications, forwardable_args)
           elsif target_ruby_version >= 3.2
             add_post_ruby_32_offenses(node, send_classifications, forwardable_args)
@@ -192,9 +192,31 @@ module RuboCop
           [restarg_node, kwrestarg_node, blockarg_node]
         end
 
+        def forward_all?(send_nodes, send_classifications)
+          only_forwards_all?(send_classifications) &&
+            !anonymous_forwarding_elsewhere?(send_nodes, send_classifications)
+        end
+
         def only_forwards_all?(send_classifications)
           all_classifications = %i[all all_anonymous].freeze
           send_classifications.all? { |_, c, _, _| all_classifications.include?(c) }
+        end
+
+        def anonymous_forwarding_elsewhere?(send_nodes, send_classifications)
+          classified = send_classifications.map(&:first)
+
+          send_nodes.any? do |send_node|
+            classified.none? { |node| node.equal?(send_node) } &&
+              forwards_anonymous_args?(send_node)
+          end
+        end
+
+        def forwards_anonymous_args?(send_node)
+          send_node.arguments.any? do |arg|
+            next arg.children.any?(&:forwarded_kwrestarg_type?) if arg.hash_type?
+
+            arg.forwarded_restarg_type?
+          end
         end
 
         # rubocop:disable-next Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
@@ -376,9 +398,14 @@ module RuboCop
 
         def add_parens_if_missing(node, corrector)
           return if parentheses?(node)
-          return if node.send_type? && node.method?(:[])
+          return if node.call_type? && operator_or_setter_call?(node)
+          return unless (@parenthesized_nodes ||= Set.new.compare_by_identity).add?(node)
 
           add_parentheses(node, corrector)
+        end
+
+        def operator_or_setter_call?(node)
+          node.setter_method? || (node.operator_method? && !node.loc.dot)
         end
 
         # Classifies send nodes for possible rest/kwrest/all (including block) forwarding.
@@ -499,6 +526,8 @@ module RuboCop
           end
 
           def offensive_block_forwarding?
+            return false if @send_node.block_literal?
+
             @block_arg ? forwarded_block_arg : allow_offense_for_no_block?
           end
 

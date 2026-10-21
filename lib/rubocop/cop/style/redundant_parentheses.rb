@@ -66,7 +66,8 @@ module RuboCop
             rescue?(node) ||
             in_pattern_matching_in_method_argument?(node) ||
             allowed_pin_operator?(node) ||
-            allowed_expression?(node)
+            allowed_expression?(node) ||
+            ParenthesesCorrector.heredoc_strands_code_after_close_paren?(node)
         end
 
         def ignore_syntax?(node)
@@ -232,10 +233,20 @@ module RuboCop
           node = node.send_node if node.any_block_type?
 
           return check_unary(begin_node, node) if node.unary_operation?
+          return if setter_in_condition?(begin_node, node)
 
           return unless method_call_with_redundant_parentheses?(begin_node, node)
 
           offense(begin_node, 'a method call')
+        end
+
+        # Like a variable assignment, `if (foo.bar = baz)` is a safe assignment
+        # that `Lint/AssignmentInCondition` asks for, not redundant parentheses.
+        def setter_in_condition?(begin_node, node)
+          return false unless node.setter_method?
+          return false unless (parent = begin_node.parent)&.basic_conditional?
+
+          parent.condition.equal?(begin_node)
         end
 
         def check_unary(begin_node, node)

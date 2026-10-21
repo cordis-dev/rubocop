@@ -242,7 +242,13 @@ module RuboCop
         extend AutoCorrector
 
         def self.autocorrect_incompatible_with
-          [Style::NestedParenthesizedCalls, Style::RescueModifier, Style::TrailingCommaInArguments]
+          [
+            Style::NestedParenthesizedCalls,
+            Style::RedundantParentheses,
+            Style::RescueModifier,
+            Style::TernaryParentheses,
+            Style::TrailingCommaInArguments
+          ]
         end
 
         def on_send(node)
@@ -269,7 +275,24 @@ module RuboCop
           return false unless node.arguments.one?
 
           first_node = node.first_argument
-          first_node.begin_type? && first_node.parenthesized_call?
+          return false unless first_node.begin_type? && first_node.parenthesized_call?
+
+          first_node.children.one? && mergeable_parentheses?(first_node.children.first)
+        end
+
+        def mergeable_parentheses?(node)
+          case node.type
+          when :and, :or
+            !node.semantic_operator?
+          when :if, :while, :until
+            !node.modifier_form?
+          when :send
+            !node.keyword?
+          when :rescue, :masgn, :match_pattern, :match_pattern_p
+            false
+          else
+            true
+          end
         end
       end
     end

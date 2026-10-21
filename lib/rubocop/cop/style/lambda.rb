@@ -48,6 +48,8 @@ module RuboCop
       #       end
       class Lambda < Base
         include ConfigurableEnforcedStyle
+        include PatternMatchingHelp
+        include RescueNode
         extend AutoCorrector
 
         LITERAL_MESSAGE = 'Use the `-> { ... }` lambda literal syntax for %<modifier>s lambdas.'
@@ -71,6 +73,7 @@ module RuboCop
           selector = node.send_node.source
 
           return unless offending_selector?(node, selector)
+          return if uncorrectable_lambda_literal?(node)
 
           add_offense(node.send_node, message: message(node, selector)) do |corrector|
             if node.send_node.lambda_literal?
@@ -89,6 +92,21 @@ module RuboCop
           lines = node.multiline? ? :multiline : :single_line
 
           selector == OFFENDING_SELECTORS[:style][style][lines]
+        end
+
+        def uncorrectable_lambda_literal?(node)
+          return false unless node.send_node.lambda_literal?
+          return true if in_pattern?(node)
+          return false unless rescue_or_ensure_clause?(node.body)
+
+          LambdaLiteralToMethodCorrector.new(node).replace_delimiters?
+        end
+
+        def rescue_or_ensure_clause?(body)
+          return false unless body
+          return true if body.ensure_type?
+
+          body.rescue_type? && !rescue_modifier?(body.resbody_branches.first)
         end
 
         def message(node, selector)
@@ -111,10 +129,25 @@ module RuboCop
 
           return unless node.arguments?
 
-          arg_str = "(#{lambda_arg_string(node.arguments)})"
+          arg_str = lambda_arg_string(node.arguments)
+          arg_str = " #{arg_str} " if space_inside_parens?
+          arg_str = "(#{arg_str})"
+          arg_str = " #{arg_str}" if space_in_lambda_literal_required?
 
           corrector.insert_after(node.send_node, arg_str)
           corrector.remove(arguments_with_whitespace(node))
+        end
+
+        def space_inside_parens?
+          return false unless config.cop_enabled?('Layout/SpaceInsideParens')
+
+          %w[space compact].include?(config.for_cop('Layout/SpaceInsideParens')['EnforcedStyle'])
+        end
+
+        def space_in_lambda_literal_required?
+          return false unless config.cop_enabled?('Layout/SpaceInLambdaLiteral')
+
+          config.for_cop('Layout/SpaceInLambdaLiteral')['EnforcedStyle'] == 'require_space'
         end
 
         def arguments_with_whitespace(node)

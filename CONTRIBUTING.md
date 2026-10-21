@@ -17,7 +17,7 @@ do so.
 
 ```console
 $ rubocop -V
-1.91.0 (using Parser 3.3.7.2, rubocop-ast 1.49.0, analyzing as Ruby 3.4, running on ruby 3.4.8) [x86_64-linux]
+1.92.0 (using Parser 3.3.7.2, rubocop-ast 1.49.0, analyzing as Ruby 3.4, running on ruby 3.4.8) [x86_64-linux]
   - rubocop-performance 1.26.1
   - rubocop-rspec 3.9.0
 ```
@@ -30,6 +30,10 @@ $ rubocop -V
 * If you're adding or making changes to cops, read the [Development docs](https://docs.rubocop.org/rubocop/development.html)
 * Use a topic/feature branch to easily amend a pull request later, if necessary.
 * Write [good commit messages][3].
+* Keep AI attribution out of commit messages and pull request descriptions. That
+  means trailers like `Co-authored-by: Claude` or `Assisted-by: Codex`, and
+  "generated with" footers. Which tools you use is up to you; the history should
+  read as your work.
 * Use the same coding conventions as the rest of the project.
 * Commit and push until you are happy with your contribution.
 * If your change has a corresponding open GitHub issue, prefix the commit message with `[Fix #github-issue-number]`.

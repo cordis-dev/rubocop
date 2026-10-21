@@ -17,7 +17,7 @@ module RuboCop
                       'cops are enabled (via eg. Include/Exclude), and so that certain cops ' \
                       'like Naming/FileName can be checked.'
     EXITING_OPTIONS = %i[
-      version verbose_version show_cops list_enabled_cops_for show_docs_url lsp mcp
+      version verbose_version show_cops list_enabled_cops_for show_docs_url explain lsp mcp
     ].freeze
     DEFAULT_MAXIMUM_EXCLUSION_ITEMS = 15
 
@@ -33,6 +33,7 @@ module RuboCop
 
       define_options.parse!(args)
 
+      return_path_given_to_changed(args)
       imply_autocorrect_for_diff
 
       @validator.validate_compatibility
@@ -52,6 +53,12 @@ module RuboCop
     end
 
     private
+
+    # `--changed lib` hands the path to `--changed` as its optional argument,
+    # so it goes back among the paths to inspect.
+    def return_path_given_to_changed(args)
+      args.unshift(@path_given_to_changed) if @path_given_to_changed
+    end
 
     # `--diff` is a dry run of autocorrection, so it turns autocorrection on
     # unless the user already picked a mode with `-a`, `-A` or `-x`.
@@ -111,8 +118,11 @@ module RuboCop
         option(opts, '--ignore-unrecognized-cops')
         option(opts, '--force-default-config')
         option(opts, '--changed [REVISION]') do |revision|
+          if @validator.path_given_to_changed?(revision)
+            @path_given_to_changed = revision
+            revision = nil
+          end
           @options[:changed] = revision || ChangedFiles::DEFAULT_REVISION
-          @validator.validate_changed_revision(revision)
         end
         option(opts, '-s', '--stdin FILE')
         option(opts, '--editor-mode')
@@ -148,6 +158,9 @@ module RuboCop
         option(opts, '--display-only-correctable')
         option(opts, '--display-only-safe-correctable')
         option(opts, '--display-suppressed')
+        option(opts, '--max-offenses-per-cop COUNT') do
+          @validator.validate_max_offenses_per_cop_option
+        end
       end
     end
 
@@ -266,6 +279,9 @@ module RuboCop
         end
         option(opts, '--show-docs-url [COP1,COP2,...]') do |list|
           @options[:show_docs_url] = list.nil? ? [] : list.split(',')
+        end
+        option(opts, '--explain COP1,COP2,...') do |list|
+          @options[:explain] = list.split(',')
         end
       end
     end
@@ -509,7 +525,7 @@ module RuboCop
     end
 
     def disable_parallel_when_invalid_option_combo
-      return unless @options.key?(:parallel)
+      return unless @options[:parallel]
 
       invalid_flags = invalid_arguments_for_parallel
 
@@ -517,7 +533,9 @@ module RuboCop
 
       @options.delete(:parallel)
 
-      puts '-P/--parallel is being ignored because ' \
+      # On stderr, so that it can't end up in the middle of a formatter's
+      # output, such as `--format json`.
+      warn '-P/--parallel is being ignored because ' \
            "it is not compatible with #{invalid_flags.join(', ')}."
     end
 
@@ -546,14 +564,22 @@ module RuboCop
     end
 
     # OptionParser hands `--changed lib/` the path as the revision, which is a
-    # natural thing to type, so point at the fix rather than at git's error.
-    def validate_changed_revision(revision)
-      return unless revision && File.exist?(revision)
+    # natural thing to type, so an argument that names an existing path is
+    # taken as one. When it also names a revision there is no telling which
+    # was meant, and git itself refuses such an argument as ambiguous.
+    def path_given_to_changed?(revision)
+      return false unless revision && File.exist?(revision)
+      return true unless ChangedFiles.revision?(revision)
 
       raise OptionArgumentError,
-            "--changed takes a git revision, but `#{revision}` is a path. Write the revision " \
-            "as `--changed=#{revision}` if that is really what you meant, or drop it to " \
-            'compare against HEAD.'
+            "--changed got `#{revision}`, which is both a path and a git revision. Write " \
+            "`./#{revision}` for the path, or `--changed=#{revision}^0` for the revision."
+    end
+
+    def validate_max_offenses_per_cop_option
+      return if /^[1-9]\d*$/.match?(@options[:max_offenses_per_cop])
+
+      raise OptionParser::InvalidArgument, '--max-offenses-per-cop must be a positive integer'
     end
 
     def validate_exclude_limit_option
@@ -611,6 +637,11 @@ module RuboCop
                                          'when running --auto-gen-config, except if the',
                                          'number of files with offenses is bigger than',
                                          'exclude-limit. Default is false.'],
+      max_offenses_per_cop:             ['Report at most COUNT offenses per cop across the',
+                                         'whole run, so a single noisy cop cannot bury the',
+                                         'rest. Offenses beyond the limit are not reported',
+                                         'and do not count towards the totals, the same way',
+                                         'the other display filters work.'],
       exclude_limit:                    ['Set the limit for how many files to explicitly exclude.',
                                          'If there are more files than the limit, the cop will',
                                          "be disabled instead. Default is #{MAX_EXCL}."],
@@ -674,6 +705,10 @@ module RuboCop
                                          'default, and their configurations for the',
                                          'current directory.',
                                          'You can use `*` as a wildcard.'],
+      explain:                          ['Explain what the given cops do: their',
+                                         'description, configuration, whether they',
+                                         'correct, and the examples from their own',
+                                         'documentation.'],
       show_docs_url:                    ['Display url to documentation for the given',
                                          'cops, or base url by default.'],
       fail_fast:                        ['Inspect files in order of modification',

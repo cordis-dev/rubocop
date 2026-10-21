@@ -222,6 +222,70 @@ RSpec.describe RuboCop::Cop::Style::MultilineTernaryOperator, :config do
     RUBY
   end
 
+  it 'registers an offense and corrects when passing a multiline ternary operator expression to `yield`' do
+    expect_offense(<<~RUBY)
+      def foo
+        yield cond ?
+              ^^^^^^ Avoid multi-line ternary operators, use single-line instead.
+              foo :
+              bar
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def foo
+        yield cond ? foo : bar
+      end
+    RUBY
+  end
+
+  it 'registers an offense and corrects when passing a multiline ternary operator expression to `super`' do
+    expect_offense(<<~RUBY)
+      def foo
+        super cond ?
+              ^^^^^^ Avoid multi-line ternary operators, use single-line instead.
+              foo :
+              bar
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def foo
+        super cond ? foo : bar
+      end
+    RUBY
+  end
+
+  it 'registers an offense and corrects when passing a multiline ternary operator expression to `defined?`' do
+    expect_offense(<<~RUBY)
+      defined? cond ?
+               ^^^^^^ Avoid multi-line ternary operators, use single-line instead.
+               foo :
+               bar
+    RUBY
+
+    expect_correction(<<~RUBY)
+      defined? cond ? foo : bar
+    RUBY
+  end
+
+  it 'registers an offense and corrects when passing a multiline ternary operator expression to `defined?` with parentheses' do
+    expect_offense(<<~RUBY)
+      defined?(cond ?
+               ^^^^^^ Avoid multi-line ternary operators, use `if` or `unless` instead.
+               foo :
+               bar)
+    RUBY
+
+    expect_correction(<<~RUBY)
+      defined?(if cond
+        foo
+      else
+        bar
+      end)
+    RUBY
+  end
+
   it 'accepts a single line ternary operator expression' do
     expect_no_offenses('a = cond ? b : c')
   end

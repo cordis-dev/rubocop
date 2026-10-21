@@ -428,9 +428,9 @@ RSpec.describe RuboCop::Cop::Layout::ClassStructure, :config do
         CONSTANT = <<~EOS
           str
         EOS
-
         def do_something
         end
+
       end
     RUBY
   end
@@ -453,9 +453,9 @@ RSpec.describe RuboCop::Cop::Layout::ClassStructure, :config do
         CONSTANT = <<~EOS
           #{str}
         EOS
-
         def do_something
         end
+
       end
     RUBY
   end
@@ -478,9 +478,115 @@ RSpec.describe RuboCop::Cop::Layout::ClassStructure, :config do
         CONSTANT = <<~`EOS`
           str
         EOS
-
         def do_something
         end
+
+      end
+    RUBY
+  end
+
+  it 'registers an offense and corrects when heredoc constant is the last element without a preceding blank line' do
+    expect_offense(<<~RUBY)
+      class Foo
+        def do_something
+        end
+        CONSTANT = <<~EOS
+        ^^^^^^^^^^^^^^^^^ `constants` is supposed to appear before `public_methods`.
+          str
+        EOS
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      class Foo
+        CONSTANT = <<~EOS
+          str
+        EOS
+        def do_something
+        end
+      end
+    RUBY
+  end
+
+  it 'registers an offense and corrects when heredoc constant is followed by another element' do
+    expect_offense(<<~RUBY)
+      class Foo
+        def do_something
+        end
+        CONSTANT = <<~EOS
+        ^^^^^^^^^^^^^^^^^ `constants` is supposed to appear before `public_methods`.
+          str
+        EOS
+        def do_something_else
+        end
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      class Foo
+        CONSTANT = <<~EOS
+          str
+        EOS
+        def do_something
+        end
+        def do_something_else
+        end
+      end
+    RUBY
+  end
+
+  it 'registers an offense and corrects when constant has code after a heredoc' do
+    expect_offense(<<~RUBY)
+      class Foo
+        def do_something
+        end
+
+        CONSTANT = {
+        ^^^^^^^^^^^^ `constants` is supposed to appear before `public_methods`.
+          foo: <<~EOS,
+            str
+          EOS
+          bar: 1
+        }.freeze
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      class Foo
+        CONSTANT = {
+          foo: <<~EOS,
+            str
+          EOS
+          bar: 1
+        }.freeze
+        def do_something
+        end
+
+      end
+    RUBY
+  end
+
+  it 'registers an offense and corrects when macro has a heredoc argument after public method' do
+    expect_offense(<<~RUBY)
+      class Foo
+        def do_something
+        end
+
+        include Module.new(<<~EOS)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^ `module_inclusion` is supposed to appear before `public_methods`.
+          str
+        EOS
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      class Foo
+        include Module.new(<<~EOS)
+          str
+        EOS
+        def do_something
+        end
+
       end
     RUBY
   end
@@ -688,6 +794,147 @@ RSpec.describe RuboCop::Cop::Layout::ClassStructure, :config do
           end
           private :foo
 
+        end
+      RUBY
+    end
+
+    it 'registers an offense and corrects public method after private method named in a list' do
+      expect_offense(<<~RUBY)
+        class A
+          def foo
+          end
+
+          def baz
+          end
+          private :foo, :baz
+
+          def bar
+          ^^^^^^^ `public_methods` is supposed to appear before `private_methods`.
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        class A
+          def bar
+          end
+          def foo
+          end
+
+          def baz
+          end
+          private :foo, :baz
+
+        end
+      RUBY
+    end
+
+    it 'does not register an offense when a method named in a list is declared after a public method' do
+      expect_no_offenses(<<~RUBY)
+        class A
+          def bar
+          end
+
+          def foo
+          end
+          private :foo, :baz
+        end
+      RUBY
+    end
+
+    it 'registers an offense and corrects public class method after class method named by `private_class_method`' do
+      expect_offense(<<~RUBY)
+        class A
+          def self.do_internal_work
+          end
+          private_class_method :do_internal_work
+
+          def self.do_something
+          ^^^^^^^^^^^^^^^^^^^^^ `public_class_methods` is supposed to appear before `private_class_methods`.
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        class A
+          def self.do_something
+          end
+          def self.do_internal_work
+          end
+          private_class_method :do_internal_work
+
+        end
+      RUBY
+    end
+
+    it 'registers an offense and corrects public class method after class methods named in a list' do
+      expect_offense(<<~RUBY)
+        class A
+          def self.first_internal
+          end
+
+          def self.second_internal
+          end
+          private_class_method :first_internal, :second_internal
+
+          def self.do_something
+          ^^^^^^^^^^^^^^^^^^^^^ `public_class_methods` is supposed to appear before `private_class_methods`.
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        class A
+          def self.do_something
+          end
+          def self.first_internal
+          end
+
+          def self.second_internal
+          end
+          private_class_method :first_internal, :second_internal
+
+        end
+      RUBY
+    end
+
+    it 'does not register an offense when the public class method precedes the named private one' do
+      expect_no_offenses(<<~RUBY)
+        class A
+          def self.do_something
+          end
+
+          def self.do_internal_work
+          end
+          private_class_method :do_internal_work
+        end
+      RUBY
+    end
+
+    it 'treats a class method named by `public_class_method` after `private_class_method` as public' do
+      expect_no_offenses(<<~RUBY)
+        class A
+          def self.do_something
+          end
+          private_class_method :do_something
+          public_class_method :do_something
+
+          def do_other_thing
+          end
+        end
+      RUBY
+    end
+
+    it 'does not treat a bare `private` as reaching a singleton method' do
+      expect_no_offenses(<<~RUBY)
+        class A
+          private
+
+          def self.still_public
+          end
+
+          def instance_method
+          end
         end
       RUBY
     end

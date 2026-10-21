@@ -967,7 +967,7 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
           1  Layout/SpaceAroundOperators [Safe Correctable]
           1  Layout/TrailingWhitespace [Safe Correctable]
           --
-          6  Total in 1 files
+          6  Total in 1 file
 
         RESULT
       end
@@ -992,7 +992,7 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
             1  Style/FrozenStringLiteralComment [Unsafe Correctable]
             1  Style/NumericLiterals [Safe Correctable]
             --
-            7  Total in 1 files
+            7  Total in 1 file
 
           RESULT
       end
@@ -1127,7 +1127,7 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
             1  Style/FrozenStringLiteralComment [Unsafe Correctable]
             1  Style/NumericPredicate [Unsafe Correctable]
             --
-            5  Total in 1 files
+            5  Total in 1 file
 
           RESULT
       end
@@ -1152,7 +1152,7 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
             1  Style/FrozenStringLiteralComment [Unsafe Correctable]
             1  Style/NumericPredicate [Unsafe Correctable]
             --
-            9  Total in 1 files
+            9  Total in 1 file
 
           RESULT
       end
@@ -1170,7 +1170,7 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
 
         expect($stderr.string).to eq('')
         expect(without_option.split($RS) - with_option.split($RS))
-          .to eq(['1  Style/IfUnlessModifier [Safe Correctable]', '7  Total in 1 files'])
+          .to eq(['1  Style/IfUnlessModifier [Safe Correctable]', '7  Total in 1 file'])
       end
     end
 
@@ -1197,7 +1197,7 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
               1  Style/FrozenStringLiteralComment [Unsafe Correctable]
               1  Style/NumericLiterals [Safe Correctable]
               --
-              4  Total in 1 files
+              4  Total in 1 file
 
             RESULT
         end
@@ -1596,9 +1596,181 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
     end
   end
 
+  describe '--explain' do
+    let(:stdout) { $stdout.string }
+    let(:stderr) { $stderr.string }
+
+    it 'reports the description, properties and references of a cop' do
+      cli.run(['--explain', 'Style/StringLiterals'])
+
+      expect(stdout).to include('Style/StringLiterals')
+      expect(stdout).to include('Checks if uses of quotes match the configured preference.')
+      expect(stdout).to include('Autocorrect: safe, applied by -a')
+      expect(stdout).to include('https://docs.rubocop.org/rubocop/cops_style.html#stylestringliterals')
+    end
+
+    it 'reports the configurable options with their current values' do
+      cli.run(['--explain', 'Style/StringLiterals'])
+
+      expect(stdout).to include('EnforcedStyle: single_quotes')
+      expect(stdout).to include('SupportedStyles: single_quotes, double_quotes')
+    end
+
+    it 'reports the examples from the cop documentation' do
+      cli.run(['--explain', 'Style/StringLiterals'])
+
+      expect(stdout).to include('Example: EnforcedStyle: single_quotes (default)')
+      expect(stdout).to include('# bad')
+      expect(stdout).to include('# good')
+    end
+
+    it 'reports the files a cop is scoped to' do
+      cli.run(['--explain', 'Bundler/OrderedGems'])
+
+      expect(stdout).to match(/^  Applies to:\s+.*Gemfile/)
+    end
+
+    it 'reports the files a cop is kept away from, relative to the project' do
+      create_file('.rubocop.yml', <<~YAML)
+        Style/Semicolon:
+          Exclude:
+            - 'db/schema.rb'
+      YAML
+      cli.run(['--explain', 'Style/Semicolon'])
+
+      expect(stdout).to match(%r{^  Excludes:\s+db/schema\.rb$})
+    end
+
+    it 'says nothing about scope for a cop that runs everywhere' do
+      cli.run(['--explain', 'Style/Semicolon'])
+
+      expect(stdout).not_to include('Applies to:')
+      expect(stdout).not_to include('Excludes:')
+    end
+
+    it 'reports the safety note of a cop that is unsafe to autocorrect' do
+      cli.run(['--explain', 'Style/FrozenStringLiteralComment'])
+
+      expect(stdout).to include('Autocorrect: unsafe, applied by -A only')
+      expect(stdout).to include('Safety')
+    end
+
+    it 'reports autocorrection as disabled when the configuration turns it off' do
+      create_file('.rubocop.yml', <<~YAML)
+        Style/StringLiterals:
+          AutoCorrect: false
+      YAML
+      cli.run(['--explain', 'Style/StringLiterals'])
+
+      expect(stdout).to include('Autocorrect: disabled')
+    end
+
+    it 'reports that a contextual correction is not applied through LSP or MCP' do
+      cli.run(['--explain', 'Lint/UselessAssignment'])
+
+      expect(stdout)
+        .to include('Autocorrect: safe, applied by -a, but through LSP or MCP only on request')
+    end
+
+    it 'does not repeat the description as a details section' do
+      cli.run(['--explain', 'Style/Semicolon'])
+
+      description = 'Checks for multiple expressions placed on the same line.'
+      expect(stdout.scan(description).size).to eq(1)
+    end
+
+    it 'fails with a suggestion when the cop name is not recognized' do
+      expect(cli.run(['--explain', 'Style/StringLiteral'])).to eq(2)
+      expect(stderr).to include('Unrecognized cop: Style/StringLiteral.')
+      expect(stderr).to include('Did you mean? Style/StringLiterals')
+    end
+
+    it 'fails without a suggestion when nothing is close' do
+      expect(cli.run(['--explain', 'Totally/Made Up'])).to eq(2)
+      expect(stderr).to include('Unrecognized cop: Totally/Made Up.')
+      expect(stderr).not_to include('Did you mean?')
+    end
+
+    it 'explains every cop in a comma separated list' do
+      cli.run(['--explain', 'Style/Semicolon,Layout/LineLength'])
+
+      expect(stdout).to match(%r{^Style/Semicolon$})
+      expect(stdout).to match(%r{^Layout/LineLength$})
+    end
+
+    it 'still explains the cops it recognized when one name is wrong' do
+      expect(cli.run(['--explain', 'Style/Semicolon,Style/StringLiteral'])).to eq(2)
+
+      expect(stdout).to match(%r{^Style/Semicolon$})
+      expect(stderr).to include('Unrecognized cop: Style/StringLiteral.')
+    end
+
+    it 'says so when given a department rather than a cop' do
+      expect(cli.run(['--explain', 'Metrics'])).to eq(2)
+
+      expect(stderr).to include('Metrics is a department, not a cop.')
+      expect(stderr).to include('Metrics/')
+    end
+  end
+
+  describe '--show-cops with names it does not recognize' do
+    let(:stdout) { $stdout.string }
+    let(:stderr) { $stderr.string }
+
+    it 'reports an unrecognized cop rather than printing nothing' do
+      expect(cli.run(['--show-cops', 'Foo/Bar'])).to eq(2)
+      expect(stderr).to include('Unrecognized cop: Foo/Bar.')
+    end
+
+    it 'says so when given a department' do
+      expect(cli.run(['--show-cops', 'Layout'])).to eq(2)
+      expect(stderr).to include('Layout is a department, not a cop.')
+    end
+
+    it 'still prints the config of the cops it recognized' do
+      expect(cli.run(['--show-cops', 'Layout/LineLength,Foo/Bar'])).to eq(2)
+      expect(stdout).to include('Layout/LineLength:')
+      expect(stderr).to include('Unrecognized cop: Foo/Bar.')
+    end
+
+    it 'accepts a wildcard that matches nothing, since it is a pattern' do
+      expect(cli.run(['--show-cops', 'Foo/*'])).to eq(0)
+      expect(stderr).to be_empty
+    end
+  end
+
   describe '--show-docs-url' do
     let(:stdout) { $stdout.string }
+    let(:stderr) { $stderr.string }
     let(:cmd) { cli.run(['--show-docs-url'] + arguments) }
+
+    context 'with an unrecognized cop' do
+      let(:arguments) { ['Foo/Bar'] }
+
+      it 'reports the name rather than silently skipping it' do
+        expect(cmd).to eq(2)
+        expect(stderr).to include('Unrecognized cop: Foo/Bar.')
+      end
+    end
+
+    context 'with a department' do
+      let(:arguments) { ['Layout'] }
+
+      it 'says it is a department and names a cop in it' do
+        expect(cmd).to eq(2)
+        expect(stderr).to include('Layout is a department, not a cop.')
+      end
+    end
+
+    context 'with a good cop and a bad one' do
+      let(:arguments) { ['Layout/IndentationStyle,Foo/Bar'] }
+
+      it 'still prints the url it could resolve' do
+        expect(cmd).to eq(2)
+        expect(stdout).to include('cops_layout.html#layoutindentationstyle')
+        expect(stderr).to include('Unrecognized cop: Foo/Bar.')
+      end
+    end
 
     context 'with no args' do
       let(:arguments) { [] }
@@ -2537,6 +2709,19 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
       argv   = ['--autocorrect-all',
                 '--only=Style/SpecialGlobalVars',
                 '--format=j',
+                '--stdin',
+                'fake.rb']
+      expect(cli.run(argv)).to eq(0)
+      expect { JSON.parse($stdout.string) }.not_to raise_error(JSON::ParserError)
+    ensure
+      $stdin = STDIN
+    end
+
+    it 'can parse SARIF result when specifying `--format=sarif` and `--stdin` options' do
+      $stdin = StringIO.new('p $/')
+      argv   = ['--autocorrect-all',
+                '--only=Style/SpecialGlobalVars',
+                '--format=sarif',
                 '--stdin',
                 'fake.rb']
       expect(cli.run(argv)).to eq(0)

@@ -21,6 +21,10 @@ module RuboCop
         MSG_NEWLINE = 'Do not use `%<keyword>s %<expr>s;` - use a newline instead.'
         MSG_TERNARY = 'Do not use `%<keyword>s %<expr>s;` - use a ternary operator instead.'
 
+        LOWER_PRECEDENCE_THAN_TERNARY_TYPES = %i[
+          and or if rescue any_match_pattern while until while_post until_post
+        ].freeze
+
         def on_normal_if_unless(node)
           return if node.parent&.if_type?
           return if part_of_ignored_node?(node)
@@ -77,12 +81,14 @@ module RuboCop
         def replacement(node)
           return correct_elsif(node) if node.else_branch&.if_type?
 
-          then_code = node.if_branch ? build_expression(node.if_branch) : 'nil'
-          else_code = node.else_branch ? build_expression(node.else_branch) : 'nil'
+          then_code = node.if_branch ? ternary_operand(node.if_branch) : 'nil'
+          else_code = node.else_branch ? ternary_operand(node.else_branch) : 'nil'
 
           then_code, else_code = else_code, then_code if node.unless?
 
-          "#{ternary_condition(node)} ? #{then_code} : #{else_code}"
+          ternary = "#{ternary_condition(node)} ? #{then_code} : #{else_code}"
+
+          operand_of_parent?(node) ? "(#{ternary})" : ternary
         end
 
         def correct_elsif(node)
@@ -108,7 +114,34 @@ module RuboCop
         # `(a = b) ? c : d`), changing what gets assigned.
         def ternary_condition(node)
           condition = node.condition
-          condition.assignment? ? "(#{condition.source})" : condition.source
+          condition.assignment? ? "(#{condition.source})" : ternary_operand(condition)
+        end
+
+        def ternary_operand(expr)
+          lower_precedence_than_ternary?(expr) ? "(#{expr.source})" : build_expression(expr)
+        end
+
+        # Expressions that bind looser than `?:` (or cannot appear unparenthesized
+        # inside it) would otherwise absorb or break the ternary.
+        def lower_precedence_than_ternary?(node)
+          return true if node.type?(*LOWER_PRECEDENCE_THAN_TERNARY_TYPES)
+          return true if node.send_type? && (node.prefix_not? || prefix_bang_on_command?(node))
+
+          node.type?(:yield, :super, :defined?) && node.arguments.any? && !node.parenthesized?
+        end
+
+        def operand_of_parent?(node)
+          return false unless (parent = node.parent)
+          return true if parent.operator_keyword?
+
+          parent.call_type? && call_operand?(parent, node)
+        end
+
+        def call_operand?(call, node)
+          return false if call.prefix_not?
+          return true if call.receiver.equal?(node)
+
+          call.operator_method? && !call.method?(:[]) && !call.method?(:[]=)
         end
 
         def build_else_branch(second_condition)
@@ -129,6 +162,16 @@ module RuboCop
           end
 
           result
+        end
+
+        # `!foo a` leaves the arguments of `foo` unparenthesized at the end of the operand,
+        # where they would absorb the rest of the ternary.
+        def prefix_bang_on_command?(node)
+          return false unless node.prefix_bang?
+
+          receiver = node.receiver
+
+          require_argument_parentheses?(receiver) || lower_precedence_than_ternary?(receiver)
         end
 
         def require_argument_parentheses?(node)

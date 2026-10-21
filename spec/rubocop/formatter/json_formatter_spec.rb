@@ -61,8 +61,57 @@ RSpec.describe RuboCop::Formatter::JSONFormatter do
     end
   end
 
+  describe '#file_problems' do
+    let(:file) { File.expand_path('lib/foo.rb') }
+    let(:other_file) { File.expand_path('lib/bar.rb') }
+    let(:entries) { formatter.output_hash[:files].to_h { |entry| [entry[:path], entry] } }
+    let(:summary) { formatter.output_hash[:summary] }
+
+    def crash_message(location)
+      "An error occurred while Style/Foo cop was inspecting #{location}."
+    end
+
+    before do
+      formatter.file_problems(file, [crash_message("#{file}:1:2"), crash_message("#{file}:3:4")],
+                              ["Careful (from file: #{file}:5:6)"])
+      formatter.file_finished(file, [])
+      formatter.file_finished(other_file, [])
+      formatter.finished([file, other_file])
+    end
+
+    it 'adds them to the entry of the file they belong to, listing repeats once' do
+      expect(entries['lib/foo.rb']).to include(
+        errors: [crash_message('lib/foo.rb:1:2')],
+        warnings: ['Careful (from file: lib/foo.rb:5:6)']
+      )
+    end
+
+    it 'keeps a file name that looks like a backreference intact' do
+      skip 'Windows paths use backslashes as separators' if RuboCop::Platform.windows?
+
+      file = File.expand_path('lib/a\\1b.rb')
+
+      expect(formatter.hash_for_problems(file, [crash_message("#{file}:1:2")], [])).to eq(
+        errors: [crash_message('lib/a\\1b.rb:1:2')]
+      )
+    end
+
+    it 'leaves the keys out of the entry of a file without any' do
+      expect(entries['lib/bar.rb'].keys).to eq(%i[path offenses])
+    end
+
+    it 'counts them in the summary' do
+      expect(summary).to include(error_count: 1, warning_count: 1)
+    end
+  end
+
   describe '#finished' do
     let(:summary) { formatter.output_hash[:summary] }
+
+    it 'leaves error and warning counts out of the summary when there are none' do
+      formatter.finished(files)
+      expect(summary.keys).not_to include(:error_count, :warning_count)
+    end
 
     it 'sets inspected file count in summary' do
       expect(summary[:inspected_file_count]).to be_nil
@@ -142,6 +191,59 @@ RSpec.describe RuboCop::Formatter::JSONFormatter do
       it 'includes the suppression keys' do
         expect(hash[:suppressed]).to be(true)
         expect(hash[:justification]).to eq('a fine reason')
+      end
+    end
+
+    it 'does not include a :correction key when the offense has no correction' do
+      expect(hash).not_to have_key(:correction)
+    end
+
+    context 'for an offense that has a correction' do
+      let(:corrector) do
+        RuboCop::Cop::Corrector.new(location.source_buffer).tap do |c|
+          c.replace(location, 'replacement')
+        end
+      end
+      let(:offense) do
+        RuboCop::Cop::Offense.new(:convention, location, 'This is message', 'CopName',
+                                  :uncorrected, corrector)
+      end
+
+      it 'includes the edits autocorrection would make' do
+        expect(hash[:correction][:edits]).to eq(
+          [{ start_line: 2, start_column: 1, last_line: 3, last_column: 6,
+             begin_pos: 2, end_pos: 10, replacement: 'replacement' }]
+        )
+      end
+
+      it 'reports the correction as safe by default' do
+        expect(hash[:correction][:safe]).to be(true)
+      end
+
+      context 'when the cop is not safe to autocorrect' do
+        let(:offense) do
+          RuboCop::Cop::Offense.new(:convention, location, 'This is message', 'CopName',
+                                    :uncorrected, corrector, correction_safe: false)
+        end
+
+        it 'reports the correction as unsafe' do
+          expect(hash[:correction][:safe]).to be(false)
+        end
+      end
+
+      context 'when multibyte characters precede the edit' do
+        let(:source) { "x = 'é'\ny = \"b\"" }
+        let(:location) do
+          source_buffer = Parser::Source::Buffer.new('test', 1)
+          source_buffer.source = source
+          Parser::Source::Range.new(source_buffer, 12, 15)
+        end
+
+        it 'counts positions in characters, not bytes' do
+          edit = hash[:correction][:edits].first
+
+          expect(source[edit[:begin_pos]...edit[:end_pos]]).to eq('"b"')
+        end
       end
     end
 

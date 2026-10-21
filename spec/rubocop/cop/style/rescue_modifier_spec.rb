@@ -56,6 +56,74 @@ RSpec.describe RuboCop::Cop::Style::RescueModifier, :config do
     RUBY
   end
 
+  it 'registers an offense when using modifier rescue for method call with a nested heredoc argument' do
+    expect_offense(<<~RUBY)
+      foo(bar(<<~EOS)) rescue handle
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `rescue` in its modifier form.
+        str
+      EOS
+    RUBY
+
+    expect_correction(<<~RUBY)
+      begin
+        foo(bar(<<~EOS))
+        str
+      EOS
+      rescue
+        handle
+      end
+    RUBY
+  end
+
+  it 'registers an offense when using modifier rescue for method call on a heredoc receiver' do
+    expect_offense(<<~RUBY)
+      x = <<~EOS.strip rescue handle
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `rescue` in its modifier form.
+        str
+      EOS
+    RUBY
+
+    expect_correction(<<~RUBY)
+      x = begin
+            <<~EOS.strip
+        str
+      EOS
+          rescue
+            handle
+          end
+    RUBY
+  end
+
+  it 'registers an offense when using modifier rescue for a heredoc' do
+    expect_offense(<<~RUBY)
+      <<~EOS rescue handle
+      ^^^^^^^^^^^^^^^^^^^^ Avoid using `rescue` in its modifier form.
+        str
+      EOS
+    RUBY
+
+    expect_correction(<<~RUBY)
+      begin
+        <<~EOS
+        str
+      EOS
+      rescue
+        handle
+      end
+    RUBY
+  end
+
+  it 'registers an offense but does not autocorrect when the rescue body contains a heredoc' do
+    expect_offense(<<~RUBY)
+      raise rescue puts(<<~EOS)
+      ^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `rescue` in its modifier form.
+        str
+      EOS
+    RUBY
+
+    expect_no_corrections
+  end
+
   it 'registers an offense when using modifier rescue for method call with heredoc argument and variable' do
     expect_offense(<<~RUBY)
       method(<<~EOS, var) rescue handle
@@ -306,6 +374,22 @@ RSpec.describe RuboCop::Cop::Style::RescueModifier, :config do
         end
         rescue
           2
+        end
+      RUBY
+    end
+
+    it 'corrects a rescue modifier nested in the rescue body of another one' do
+      expect_offense(<<~RUBY)
+        foo rescue (bar rescue baz)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid using `rescue` in its modifier form.
+                    ^^^^^^^^^^^^^^ Avoid using `rescue` in its modifier form.
+      RUBY
+
+      expect_correction(<<~RUBY, loop: false)
+        begin
+          foo
+        rescue
+          (bar rescue baz)
         end
       RUBY
     end

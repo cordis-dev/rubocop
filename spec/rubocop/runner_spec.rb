@@ -2,12 +2,6 @@
 
 require 'io/wait'
 
-module RuboCop
-  class Runner
-    attr_writer :errors # Needed only for testing.
-  end
-end
-
 RSpec.describe RuboCop::Runner, :isolated_environment do
   include FileHelper
 
@@ -339,8 +333,8 @@ RSpec.describe RuboCop::Runner, :isolated_environment do
           let(:third_fragment) { '"third"' }
 
           it 'applies all corrections with a single write' do
-            allow(File).to receive(:write).and_call_original
-            expect(File).to receive(:write)
+            allow(RuboCop::Util).to receive(:replace_file_contents).and_call_original
+            expect(RuboCop::Util).to receive(:replace_file_contents)
               .with(a_string_matching(/example\.rb\z/), anything)
               .once
               .and_call_original
@@ -451,15 +445,32 @@ RSpec.describe RuboCop::Runner, :isolated_environment do
         allow(RuboCop::ResultCache).to receive(:new) { cache }
       end
 
-      context 'if a cop crashes' do
-        before { runner.errors = ['An error occurred in ...'] }
+      context 'if a cop crashes on one of the files' do
+        include FailingCopHelper
 
-        let(:source) { '' }
+        include_context 'mock console output'
 
-        it 'does not call ResultCache#save' do
-          # The double doesn't define #save, so we'd get an error if it were
-          # called.
-          expect(runner.run([])).to be true
+        let(:source) { "# frozen_string_literal: true\n\nputs 'crash'\n" }
+        let(:later_file_cache) { instance_double(RuboCop::ResultCache, 'valid?' => false) }
+
+        before do
+          create_file('later.rb', "# frozen_string_literal: true\n\nputs 1\n")
+          make_cop_fail(RuboCop::Cop::Style::StringLiterals, :on_str, RuntimeError, 'boom')
+
+          # The crashing file's double doesn't define #save, so we'd get an
+          # error if it were called.
+          crashing_file_cache = instance_double(RuboCop::ResultCache, 'valid?' => false)
+          allow(RuboCop::ResultCache).to receive(:new) do |file|
+            file.end_with?('later.rb') ? later_file_cache : crashing_file_cache
+          end
+        end
+
+        it 'still saves the results of the files that did not crash' do
+          expect(later_file_cache).to receive(:save)
+
+          runner.run([])
+
+          expect(runner.errors).to contain_exactly(include('example.rb'))
         end
       end
 
@@ -476,6 +487,80 @@ RSpec.describe RuboCop::Runner, :isolated_environment do
                                              'UselessAssignment. Run `rubocop -a --only ' \
                                              'Migration/DepartmentName` to fix.')
         end
+      end
+    end
+
+    # A parallel worker inspects files in its own copy of the runner.
+    if RUBY_ENGINE == 'ruby' && !RuboCop::Platform.windows?
+      context 'when files are inspected in parallel' do
+        include FailingCopHelper
+
+        include_context 'mock console output'
+
+        let(:options) { { parallel: true, formatters: [['progress', formatter_output_path]] } }
+        let(:source) { "# frozen_string_literal: true\n\nputs 1\n" }
+
+        before { create_file('other.rb', source) }
+
+        it 'records the errors of a cop that crashes, in file order' do
+          make_cop_fail(RuboCop::Cop::Style::FrozenStringLiteralComment, :on_new_investigation,
+                        RuntimeError, 'boom')
+          runner.run([])
+
+          expect(runner.errors).to match([include('example.rb'), include('other.rb')])
+        end
+
+        it 'records the warnings a cop raises, in file order' do
+          make_cop_fail(RuboCop::Cop::Style::FrozenStringLiteralComment, :on_new_investigation,
+                        RuboCop::Warning, 'careful')
+          runner.run([])
+
+          expect(runner.warnings).to match([include('example.rb'), include('other.rb')])
+        end
+
+        context 'with the JSON formatter' do
+          let(:options) { { parallel: true, formatters: [['json', formatter_output_path]] } }
+
+          it 'lists the errors of each file in its entry' do
+            make_cop_fail(RuboCop::Cop::Style::FrozenStringLiteralComment, :on_new_investigation,
+                          RuntimeError, 'boom')
+            runner.run([])
+
+            expect(JSON.parse(formatter_output)['files']).to match(
+              %w[example.rb other.rb].map do |path|
+                include('path' => path,
+                        'errors' => ['An error occurred while Style/FrozenStringLiteralComment ' \
+                                     "cop was inspecting #{path}."])
+              end
+            )
+          end
+        end
+      end
+    end
+
+    context 'when a cop crashes and a formatter reports it' do
+      include FailingCopHelper
+
+      include_context 'mock console output'
+
+      let(:options) { { formatters: [['json', formatter_output_path]] } }
+      let(:source) { "# frozen_string_literal: true\n\nputs 'crash'\n" }
+
+      around do |example|
+        Rainbow.enabled = true
+        example.run
+      ensure
+        Rainbow.enabled = false
+      end
+
+      it 'gives the formatter the messages without terminal colors' do
+        make_cop_fail(RuboCop::Cop::Style::StringLiterals, :on_str, RuntimeError, 'boom')
+        runner.run([])
+
+        expect(JSON.parse(formatter_output)['files']).to contain_exactly(
+          include('errors' => ['An error occurred while Style/StringLiterals cop ' \
+                               'was inspecting example.rb:3:5.'])
+        )
       end
     end
 
@@ -571,6 +656,24 @@ RSpec.describe RuboCop::Runner, :isolated_environment do
               "Infinite loop detected in #{source_file_path} and caused by " \
               'Test/ClassMustBeAModuleCop -> Test/ModuleMustBeAClassCop'
             )
+          end
+        end
+
+        if RUBY_ENGINE == 'ruby' && !RuboCop::Platform.windows?
+          context 'when files are inspected in parallel' do
+            let(:options) { { autocorrect: true, parallel: true } }
+            let!(:other_file_path) { create_file('other.rb', source) }
+
+            it 'records the infinite loop error of each file' do
+              runner.run([])
+
+              expect(runner.errors.map(&:message)).to eq(
+                [source_file_path, other_file_path].map do |path|
+                  "Infinite loop detected in #{path} and caused by " \
+                    'Test/ClassMustBeAModuleCop -> Test/ModuleMustBeAClassCop'
+                end
+              )
+            end
           end
         end
       end
@@ -670,6 +773,57 @@ RSpec.describe RuboCop::Runner, :isolated_environment do
         subject(:runner) { described_class.new(options, RuboCop::ConfigStore.new) }
 
         before { create_file('example.rb', source) }
+
+        context '--max-offenses-per-cop' do
+          let(:options) do
+            {
+              formatters: [['progress', formatter_output_path]],
+              max_offenses_per_cop: '1'
+            }
+          end
+          let(:source) { <<~RUBY }
+            # frozen_string_literal: true
+
+            x = "a"
+            y = "b"
+            z = "c"
+            puts x, y, z
+          RUBY
+
+          it 'reports only the first offense of a cop that fires repeatedly' do
+            runner.run([])
+
+            expect(formatter_output.scan('Style/StringLiterals').size).to eq(1)
+          end
+
+          it 'counts only the offenses it reported' do
+            runner.run([])
+
+            expect(formatter_output).to include('1 file inspected, 1 offense detected')
+          end
+
+          it 'still fails the run' do
+            expect(runner.run([])).to be false
+          end
+
+          it 'names the cops it held back on stderr' do
+            expect { runner.run([]) }.to output(
+              %r{2 more offenses were not reported .*max-offenses-per-cop=1.*Style/StringLiterals}m
+            ).to_stderr
+          end
+
+          context 'when no cop exceeds the limit' do
+            let(:source) { <<~RUBY }
+              # frozen_string_literal: true
+
+              puts "a"
+            RUBY
+
+            it 'says nothing on stderr' do
+              expect { runner.run([]) }.not_to output.to_stderr
+            end
+          end
+        end
 
         context '--display-only-safe-correctable' do
           let(:options) do

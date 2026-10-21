@@ -62,6 +62,139 @@ RSpec.describe RuboCop::Cop::Style::ConcatArrayLiterals, :config do
     RUBY
   end
 
+  it 'registers an offense when using `concat` with multiple multiline array literal arguments' do
+    expect_offense(<<~RUBY)
+      arr.concat([
+          ^^^^^^^^ Use `push(foo, bar)` instead of `concat([[...]
+        foo
+      ], [
+        bar
+      ])
+    RUBY
+
+    expect_correction(<<~RUBY)
+      arr.push(
+        foo,#{trailing_whitespace}
+        bar
+      )
+    RUBY
+  end
+
+  it 'registers an offense when using `concat` with multiple multiline array literal arguments with trailing commas' do
+    expect_offense(<<~RUBY)
+      arr.concat([
+          ^^^^^^^^ Use `push(foo, bar)` instead of `concat([[...]
+        foo,
+      ], [
+        bar,
+      ])
+    RUBY
+
+    expect_correction(<<~RUBY)
+      arr.push(
+        foo,#{trailing_whitespace}
+        bar,
+      )
+    RUBY
+  end
+
+  it 'registers an offense when using `concat` without parentheses with a line break after the opening bracket' do
+    expect_offense(<<~RUBY)
+      arr.concat [
+          ^^^^^^^^ Use `push(foo, bar)` instead of `concat [[...]
+        foo,
+        bar,
+      ]
+    RUBY
+
+    expect_correction(<<~RUBY)
+      arr.push(
+        foo,
+        bar,
+      )
+    RUBY
+  end
+
+  it 'registers an offense when using `concat` without parentheses with a line break before the closing bracket' do
+    expect_offense(<<~RUBY)
+      arr.concat [foo,
+          ^^^^^^^^^^^^ Use `push(foo, bar)` instead of `concat [foo,[...]
+        bar
+      ] if baz
+    RUBY
+
+    expect_correction(<<~RUBY)
+      arr.push(foo,
+        bar
+      ) if baz
+    RUBY
+  end
+
+  it 'registers an offense when using safe navigation `concat` without parentheses with multiple multiline array literal arguments' do
+    expect_offense(<<~RUBY)
+      arr&.concat [foo], [
+           ^^^^^^^^^^^^^^^ Use `push(foo, bar)` instead of `concat [foo], [[...]
+        bar
+      ]
+    RUBY
+
+    expect_correction(<<~RUBY)
+      arr&.push(foo,#{trailing_whitespace}
+        bar
+      )
+    RUBY
+  end
+
+  it 'registers an offense when using single-line `concat` without parentheses' do
+    expect_offense(<<~RUBY)
+      arr.concat [foo], [bar]
+          ^^^^^^^^^^^^^^^^^^^ Use `push(foo, bar)` instead of `concat [foo], [bar]`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      arr.push foo, bar
+    RUBY
+  end
+
+  it 'registers an offense when using `concat` with a trailing comma in an array literal argument that is not the last' do
+    expect_offense(<<~RUBY)
+      arr.concat([foo,], [bar])
+          ^^^^^^^^^^^^^^^^^^^^^ Use `push(foo, bar)` instead of `concat([foo,], [bar])`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      arr.push(foo, bar)
+    RUBY
+  end
+
+  it 'registers an offense but does not autocorrect when a comment precedes the closing bracket of an array literal argument that is not the last' do
+    expect_offense(<<~RUBY)
+      arr.concat([
+          ^^^^^^^^ Use `push(foo, bar)` instead of `concat([[...]
+        foo # comment
+      ], [
+        bar
+      ])
+    RUBY
+
+    expect_no_corrections
+  end
+
+  it 'registers an offense but does not autocorrect when a heredoc ends an array literal argument that is not the last' do
+    expect_offense(<<~RUBY)
+      arr.concat([
+          ^^^^^^^^ Use `push(<<~TEXT, bar)` instead of `concat([[...]
+        <<~TEXT
+          foo
+        TEXT
+      ], [
+        bar
+      ])
+    RUBY
+
+    expect_no_corrections
+  end
+
   it 'registers an offense when using `concat` with single element `%i` array literal argument' do
     expect_offense(<<~RUBY)
       arr.concat(%i[item])
@@ -161,5 +294,39 @@ RSpec.describe RuboCop::Cop::Style::ConcatArrayLiterals, :config do
     expect_correction(<<~RUBY)
       arr.push(a, b)
     RUBY
+  end
+
+  it 'registers an offense but does not autocorrect when an argument is an empty array literal and the call contains comments' do
+    expect_offense(<<~RUBY)
+      arr.concat([ # keep me
+          ^^^^^^^^^^^^^^^^^^ Use `push('b')` instead of `concat([ # keep me[...]
+      ], [
+        'b' # and me
+      ])
+    RUBY
+
+    expect_no_corrections
+  end
+
+  it 'registers an offense and corrects when an argument is an empty array literal and a comment follows the call' do
+    expect_offense(<<~RUBY)
+      arr.concat([], [b]) # comment
+          ^^^^^^^^^^^^^^^ Use `push(b)` instead of `concat([], [b])`.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      arr.push(b) # comment
+    RUBY
+  end
+
+  it 'registers an offense but does not autocorrect when using `concat` with `%w` array literal argument and the call contains a comment' do
+    expect_offense(<<~RUBY)
+      arr.concat(%w[a], [
+          ^^^^^^^^^^^^^^^ Use `push("a", b)` instead of `concat(%w[a], [[...]
+        b # comment
+      ])
+    RUBY
+
+    expect_no_corrections
   end
 end

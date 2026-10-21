@@ -178,6 +178,21 @@ RSpec.describe RuboCop::Server::Cache do
 
         it { expect(restart_key).to eq(hexdigest) }
       end
+
+      context 'when args_config_file_path does not exist' do
+        let(:args_config_file_path) { 'missing.yml' }
+        let(:contents) { RuboCop::Version::STRING }
+
+        it { expect(restart_key).to eq(hexdigest) }
+      end
+
+      context 'when .rubocop.yml is empty' do
+        let(:contents) { RuboCop::Version::STRING + File.read('.rubocop.yml') }
+
+        before { create_empty_file('.rubocop.yml') }
+
+        it { expect(restart_key).to eq(hexdigest) }
+      end
     end
 
     describe '.pid_running?', :isolated_environment do
@@ -221,6 +236,14 @@ RSpec.describe RuboCop::Server::Cache do
           allow(result).to receive(:read).and_raise(Errno::EROFS)
           result
         end
+        expect(described_class).not_to be_pid_running
+      end
+
+      it 'works properly when a sandbox denies access to the configuration file' do
+        cache_class.cache_root_path = nil
+        allow(RuboCop::CacheConfig)
+          .to receive(:root_dir_from_toplevel_config).and_raise(Errno::EPERM)
+
         expect(described_class).not_to be_pid_running
       end
     end

@@ -29,8 +29,7 @@ module RuboCop
                          operation_produces_immutable_object?(node.receiver))
 
           add_offense(node) do |corrector|
-            corrector.remove(node.loc.dot)
-            corrector.remove(node.loc.selector)
+            corrector.remove(node.loc.dot.join(node.loc.selector))
           end
         end
 
@@ -57,10 +56,19 @@ module RuboCop
         def_node_matcher :operation_produces_immutable_object?, <<~PATTERN
           {
             (begin (send {float int} {:+ :- :* :** :/ :% :<<} _))
-            (begin (send !{(str _) array} {:+ :- :* :** :/ :%} {float int}))
+            (begin (send #numeric_operation? {:+ :- :* :** :/ :%} {float int}))
             (begin (send _ {:== :=== :!= :<= :>= :< :>} _))
             (send _ {:count :length :size} ...)
             (any_block (send _ {:count :length :size} ...) ...)
+          }
+        PATTERN
+
+        # @!method numeric_operation?(node)
+        def_node_matcher :numeric_operation?, <<~PATTERN
+          {
+            float int
+            (begin #numeric_operation?)
+            (send #numeric_operation? {:+ :- :* :** :/ :%} #numeric_operation?)
           }
         PATTERN
       end

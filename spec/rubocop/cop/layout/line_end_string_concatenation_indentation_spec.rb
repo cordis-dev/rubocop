@@ -234,19 +234,35 @@ RSpec.describe RuboCop::Cop::Layout::LineEndStringConcatenationIndentation, :con
       RUBY
     end
 
-    it 'registers an offense for third part of a string if it is aligned only with the first' do
+    it 'registers an offense only for the second part when the third is already aligned with the first' do
       expect_offense(<<~'RUBY')
         puts 'a' \
           'b' \
           ^^^ Align parts of a string concatenated with backslash.
              'c'
-             ^^^ Align parts of a string concatenated with backslash.
       RUBY
 
       expect_correction(<<~'RUBY')
         puts 'a' \
              'b' \
              'c'
+      RUBY
+    end
+
+    it 'corrects consecutive misaligned parts in a single pass' do
+      expect_offense(<<~'RUBY')
+        puts 'a' \
+             'b' \
+        'c' \
+        ^^^ Align parts of a string concatenated with backslash.
+        'd'
+      RUBY
+
+      expect_correction(<<~'RUBY', loop: false)
+        puts 'a' \
+             'b' \
+             'c' \
+             'd'
       RUBY
     end
   end
@@ -260,6 +276,40 @@ RSpec.describe RuboCop::Cop::Layout::LineEndStringConcatenationIndentation, :con
       expect_no_offenses(<<~'RUBY')
         puts 'a' \
           'b'
+      RUBY
+    end
+
+    it 'corrects consecutive misaligned parts in a single pass' do
+      expect_offense(<<~'RUBY')
+        x = 'a' \
+          'b' \
+        'c' \
+        ^^^ Align parts of a string concatenated with backslash.
+        'd' \
+        'e'
+      RUBY
+
+      expect_correction(<<~'RUBY', loop: false)
+        x = 'a' \
+          'b' \
+          'c' \
+          'd' \
+          'e'
+      RUBY
+    end
+
+    it 'registers an offense only for the second part when the third is already indented' do
+      expect_offense(<<~'RUBY')
+        puts 'a' \
+            'b' \
+            ^^^ Indent the first part of a string concatenated with backslash.
+          'c'
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        puts 'a' \
+          'b' \
+          'c'
       RUBY
     end
 

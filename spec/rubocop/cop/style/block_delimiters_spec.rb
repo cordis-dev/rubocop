@@ -11,6 +11,44 @@ RSpec.describe RuboCop::Cop::Style::BlockDelimiters, :config do
         RUBY
       end
 
+      it 'accepts a single-line block that is the collection of a `for` loop' do
+        expect_no_offenses(<<~RUBY)
+          for d in aa { |c| c } do
+            f
+          end
+        RUBY
+      end
+
+      it 'accepts a multi-line block that is the collection of a `for` loop' do
+        expect_no_offenses(<<~RUBY)
+          for d in aa { |c|
+            c
+          } do
+            f
+          end
+        RUBY
+      end
+
+      it 'accepts a multi-line block in an argument of `yield` without parentheses' do
+        expect_no_offenses(<<~RUBY)
+          def foo
+            yield [1, 2, 3].map { |n|
+              n * n
+            }
+          end
+        RUBY
+      end
+
+      it 'accepts a multi-line block in an argument of `super` without parentheses' do
+        expect_no_offenses(<<~RUBY)
+          def foo
+            super [1, 2, 3].map { |n|
+              n * n
+            }
+          end
+        RUBY
+      end
+
       it 'accepts a multi-line block followed by another argument' do
         expect_no_offenses(<<~RUBY)
           puts [1, 2, 3].map { |n|
@@ -535,6 +573,31 @@ RSpec.describe RuboCop::Cop::Style::BlockDelimiters, :config do
       RUBY
     end
 
+    it 'autocorrects do-end with `rescue` to {} after a heredoc that ends the block body' do
+      expect_offense(<<~RUBY)
+        x = map do |a|
+                ^^ Prefer `{...}` over `do...end` for functional blocks.
+          do_something
+        rescue StandardError => e
+          puts <<~MSG
+            oh no
+          MSG
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        x = map { |a|
+          begin
+        do_something
+        rescue StandardError => e
+          puts <<~MSG
+            oh no
+          MSG
+        end
+        }
+      RUBY
+    end
+
     it 'autocorrects do-end with `ensure` to {} if it is a functional block' do
       expect_offense(<<~RUBY)
         x = map do |a|
@@ -568,6 +631,25 @@ RSpec.describe RuboCop::Cop::Style::BlockDelimiters, :config do
 
     it_behaves_like 'always accepted'
     it_behaves_like 'syntactic styles'
+
+    it 'still converts a multi-line braces block in the body of a `for` loop' do
+      expect_offense(<<~RUBY)
+        for d in x do
+          each { |y|
+               ^ Avoid using `{...}` for multi-line blocks.
+            y
+          }
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        for d in x do
+          each do |y|
+            y
+          end
+        end
+      RUBY
+    end
 
     it 'autocorrects do-end for single line blocks to { and }' do
       expect_offense(<<~RUBY)
@@ -637,6 +719,74 @@ RSpec.describe RuboCop::Cop::Style::BlockDelimiters, :config do
 
         expect_correction(<<~RUBY)
           each do |x|
+          end
+        RUBY
+      end
+
+      it 'registers an offense but does not autocorrect in a `while` condition' do
+        expect_offense(<<~RUBY)
+          while foo { |x|
+                    ^ Avoid using `{...}` for multi-line blocks.
+          }
+            bar
+          end
+        RUBY
+
+        expect_no_corrections
+      end
+
+      it 'registers an offense but does not autocorrect in a parenthesized `until` condition' do
+        expect_offense(<<~RUBY)
+          until (foo && baz.any? { |x|
+                                 ^ Avoid using `{...}` for multi-line blocks.
+          })
+            bar
+          end
+        RUBY
+
+        expect_no_corrections
+      end
+
+      context 'with a block in an allowed lambda in a `while` condition' do
+        let(:cop_config) { super().merge('AllowedMethods' => %w[lambda proc]) }
+
+        it 'registers an offense and corrects the block in the lambda body' do
+          expect_offense(<<~RUBY)
+            while foo(-> {
+              bar { |z|
+                  ^ Avoid using `{...}` for multi-line blocks.
+                z
+              }
+            })
+              baz
+            end
+          RUBY
+
+          expect_correction(<<~RUBY)
+            while foo(-> {
+              bar do |z|
+                z
+              end
+            })
+              baz
+            end
+          RUBY
+        end
+      end
+
+      it 'registers an offense and corrects in a `while` body' do
+        expect_offense(<<~RUBY)
+          while foo
+            bar { |x|
+                ^ Avoid using `{...}` for multi-line blocks.
+            }
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          while foo
+            bar do |x|
+            end
           end
         RUBY
       end
@@ -718,6 +868,19 @@ RSpec.describe RuboCop::Cop::Style::BlockDelimiters, :config do
           # comment
           baz.map do |x|
           foo(x) end.qux.quux
+        RUBY
+      end
+
+      it 'keeps a directive comment after the closing brace in place' do
+        expect_offense(<<~RUBY)
+          baz.map { |x|
+                  ^ Avoid using `{...}` for multi-line blocks.
+          foo(x) }.max # rubocop:disable Style/ItBlockParameter
+        RUBY
+
+        expect_correction(<<~RUBY)
+          baz.map do |x|
+          foo(x) end.max # rubocop:disable Style/ItBlockParameter
         RUBY
       end
 

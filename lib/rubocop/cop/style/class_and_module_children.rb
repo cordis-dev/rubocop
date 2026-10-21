@@ -65,6 +65,12 @@ module RuboCop
         NESTED_MSG = 'Use nested module/class definitions instead of compact style.'
         COMPACT_MSG = 'Use compact module/class definition instead of nested style.'
 
+        # `Style/StructInheritance` turns a class definition into a constant assignment in
+        # the same pass, which the compacted `class` keyword would then precede.
+        def self.autocorrect_incompatible_with
+          [Style::StructInheritance]
+        end
+
         def on_class(node)
           return if node.parent_class && style_for_classes != :nested
 
@@ -117,7 +123,10 @@ module RuboCop
         end
 
         def heuristic_namespace_keyword(node)
-          class_definition = node.left_sibling&.each_node(:class)&.find do |class_node|
+          left_sibling = node.left_sibling
+          return 'module' unless left_sibling.is_a?(AST::Node)
+
+          class_definition = left_sibling.each_node(:class).find do |class_node|
             class_node.identifier == node.identifier.namespace
           end
 
@@ -143,7 +152,9 @@ module RuboCop
           # making autocorrection ping-pong between the two forms.
           return if style_for_kind(node.body.type) == :nested
           return unless compactible_namespace?(node)
+          return if node.each_ancestor(:class, :module).any? { |ancestor| ignored_node?(ancestor) }
 
+          ignore_node(node)
           compact_node(corrector, node)
           remove_end(corrector, node.body)
           unindent(corrector, node)
@@ -194,31 +205,60 @@ module RuboCop
             "#{node.body.children.first.const_name}"
         end
 
-        # rubocop:disable-next Metrics/AbcSize
         def remove_end(corrector, body)
-          remove_begin_pos = if same_line?(body.loc.name, body.loc.end)
-                               body.loc.name.end_pos
-                             else
-                               body.loc.end.begin_pos - leading_spaces(body).size
-                             end
-          adjustment = processed_source.raw_source[remove_begin_pos] == ';' ? 0 : 1
-          range = range_between(remove_begin_pos, body.loc.end.end_pos + adjustment)
+          range = if same_line?(body.loc.name, body.loc.end)
+                    single_line_end_range(body)
+                  else
+                    multiline_end_range(body)
+                  end
 
           corrector.remove(range)
         end
 
+        def single_line_end_range(body)
+          raw = processed_source.raw_source
+          pos = body.loc.end.begin_pos
+          pos -= 1 while raw[pos - 1] == ' '
+          pos -= 1 if raw[pos - 1] == ';'
+          range_between(pos, body.loc.end.end_pos)
+        end
+
+        def multiline_end_range(body)
+          remove_begin_pos = body.loc.end.begin_pos - leading_spaces(body).size
+          adjustment = processed_source.raw_source[remove_begin_pos] == ';' ? 0 : 1
+          range_between(remove_begin_pos, body.loc.end.end_pos + adjustment)
+        end
+
         def unindent(corrector, node)
-          return unless node.body.children.last
+          column_delta = unindent_column_delta(node)
+          return unless column_delta&.negative?
 
-          last_child_leading_spaces = leading_spaces(node.body.children.last)
-          return if spaces_size(leading_spaces(node)) == spaces_size(last_child_leading_spaces)
-
-          column_delta = configured_indentation_width - spaces_size(last_child_leading_spaces)
-          return if column_delta.zero?
+          range = unindentable_range(node.body)
+          return unless range
 
           AlignmentCorrector.correct(
-            corrector, processed_source, node, column_delta, tab_indentation: true
+            corrector, processed_source, range, column_delta, tab_indentation: true
           )
+        end
+
+        def unindent_column_delta(node)
+          body = node.body.children.last
+          return unless body
+
+          node_indentation = spaces_size(leading_spaces(node))
+          body_indentation = spaces_size(leading_spaces(body))
+
+          node_indentation + configured_indentation_width - body_indentation
+        end
+
+        def unindentable_range(body)
+          first_line = body.loc.name.line + 1
+          last_line = body.loc.end.line - 1
+          return if first_line > last_line
+
+          buffer = processed_source.buffer
+          range_between(buffer.line_range(first_line).begin_pos,
+                        buffer.line_range(last_line).end_pos)
         end
 
         def leading_spaces(node)

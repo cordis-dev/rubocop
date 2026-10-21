@@ -23,12 +23,21 @@ module RuboCop
       #   list.push(qux, quux, corge)
       #
       class ConcatArrayLiterals < Base
+        include RangeHelp
         extend AutoCorrector
 
         MSG = 'Use `%<prefer>s` instead of `%<current>s`.'
         MSG_FOR_PERCENT_LITERALS =
           'Use `push` with elements as arguments without array brackets instead of `%<current>s`.'
         RESTRICT_ON_SEND = %i[concat].freeze
+
+        # `Style/MethodCallWithArgsParentheses` removing the parentheses of the `push(...)`
+        # this cop writes in the same pass drops the line continuation a multiline call needs.
+        # `Style/TrailingCommaInArguments` adds a comma after the array literal this cop
+        # replaces with its elements in the same pass.
+        def self.autocorrect_incompatible_with
+          [Style::MethodCallWithArgsParentheses, Style::TrailingCommaInArguments]
+        end
 
         # rubocop:disable-next Metrics
         def on_send(node)
@@ -54,17 +63,13 @@ module RuboCop
             if use_percent_literal
               next unless prefer
 
-              corrector.replace(offense, prefer)
+              rebuild_call(corrector, offense, prefer)
             elsif node.arguments.any? { |argument| argument.children.empty? }
               # In-place bracket removal would leave dangling commas (e.g.
               # `concat([], [b])` -> `push(, b)`), so rebuild the call instead.
-              corrector.replace(offense, preferred_method(node))
+              rebuild_call(corrector, offense, preferred_method(node))
             else
-              corrector.replace(node.loc.selector, 'push')
-              node.arguments.each do |argument|
-                corrector.remove(argument.loc.begin)
-                corrector.remove(argument.loc.end)
-              end
+              remove_brackets(corrector, node)
             end
           end
         end
@@ -92,6 +97,52 @@ module RuboCop
         def percent_literals_includes_only_basic_literals?(node)
           node.arguments.select(&:percent_literal?).all? do |arg|
             arg.children.all? { |child| child.type?(:str, :sym) }
+          end
+        end
+
+        def rebuild_call(corrector, offense, replacement)
+          # The comments inside the call would be lost.
+          return if comment_in?(offense)
+
+          corrector.replace(offense, replacement)
+        end
+
+        def comment_in?(range)
+          processed_source.each_comment_in_lines(range.line..range.last_line).any? do |comment|
+            range.contains?(comment.source_range)
+          end
+        end
+
+        def remove_brackets(corrector, node)
+          closing_ranges = node.arguments.map { |argument| closing_bracket_range(node, argument) }
+          # A comment or a heredoc body there can't be moved out of the way.
+          return unless closing_ranges.all? { |range| range.source.match?(/\A[\s,]*\]\z/) }
+
+          replace_selector(corrector, node)
+
+          node.arguments.zip(closing_ranges) do |argument, closing_range|
+            corrector.remove(argument.loc.begin)
+            corrector.remove(closing_range)
+          end
+        end
+
+        # Whatever sits between the last element and the `]` of an array that isn't the
+        # last argument would end up before the following comma (a newline before it is a
+        # syntax error), so it's removed along with the `]`.
+        def closing_bracket_range(node, argument)
+          return argument.loc.end if argument.equal?(node.last_argument)
+
+          range_between(argument.children.last.source_range.end_pos, argument.loc.end.end_pos)
+        end
+
+        def replace_selector(corrector, node)
+          if node.parenthesized? || node.single_line?
+            corrector.replace(node.loc.selector, 'push')
+          else
+            range = node.loc.selector.join(node.first_argument.source_range.begin)
+
+            corrector.replace(range, 'push(')
+            corrector.insert_after(node.last_argument.loc.end, ')')
           end
         end
       end

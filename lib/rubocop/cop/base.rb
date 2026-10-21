@@ -216,14 +216,8 @@ module RuboCop
         message = find_message(range_to_pass, message)
 
         status, corrector = enabled_lines?(range) ? correct(range, &block) : :disabled
-        justification = suppression_reason(range) if status == :disabled
 
-        # Since this range may be generated from Ruby code embedded in some
-        # template file, we convert it to location info in the original file.
-        range = range_for_original(range)
-
-        current_offenses << Offense.new(severity, range, message, name, status, corrector,
-                                        justification: justification)
+        current_offenses << new_offense(range, severity, message, status, corrector)
       end
 
       # This method should be overridden when a cop's behavior depends
@@ -271,10 +265,21 @@ module RuboCop
         @config.target_ruby_version
       end
 
-      # Returns a gems locked versions (i.e. from Gemfile.lock or gems.locked)
-      # @returns [Gem::Version | nil] The locked gem version, or nil if the gem is not present.
+      # Returns the version of a gem in the target, by default its locked version
+      # (i.e. from Gemfile.lock or gems.locked).
+      #
+      # The requirements declared with `requires_gem` are checked against the version
+      # this method returns, so an extension that lets users state the version of its
+      # gem in `AllCops` (e.g. `TargetFrameworkVersion`) can override it for that gem,
+      # returning a `Gem::Version`, and fall back to `super` for any other gem.
+      #
+      # @param [String] gem_name
+      # @return [Gem::Version, nil] The gem version, or nil if the gem is not present.
+      #
+      # @api public
       def target_gem_version(gem_name)
-        @config.gem_versions_in_target && @config.gem_versions_in_target[gem_name]
+        gem_versions = @config.gem_versions_in_target
+        gem_versions && gem_versions[gem_name]
       end
 
       def parser_engine
@@ -382,6 +387,12 @@ module RuboCop
         cop_config.fetch('AutoCorrect', 'always') == 'contextual'
       end
 
+      # @api private
+      def disabled_autocorrect?
+        # `false` is the same as `'disabled'` for backward compatibility.
+        ['disabled', false].include?(cop_config['AutoCorrect'])
+      end
+
       def inspect # :nodoc:
         "#<#{self.class.name}:#{object_id} @config=#{@config} @options=#{@options}>"
       end
@@ -392,6 +403,22 @@ module RuboCop
 
       private_class_method def self.restrict_on_send
         @restrict_on_send ||= self::RESTRICT_ON_SEND.to_a.freeze
+      end
+
+      # @return [Offense]
+      def new_offense(range, severity, message, status, corrector)
+        justification = suppression_reason(range) if status == :disabled
+
+        # Since this range may be generated from Ruby code embedded in some
+        # template file, we convert it to location info in the original file.
+        # A cop configured with `AutoCorrect: false` reports no edits, since
+        # nothing that honors the configuration applies them. The corrector
+        # stays, so an editor can still offer it as a quick fix to choose.
+        corrections = [] if corrector && disabled_autocorrect?
+
+        Offense.new(severity, range_for_original(range), message, name, status, corrector,
+                    justification: justification, correction_safe: safe_autocorrect?,
+                    corrections: corrections)
       end
 
       ### Reserved for Cop::Cop
@@ -465,7 +492,8 @@ module RuboCop
           # The unsafe correction will not run, so the offense is
           # uncorrectable for this run and gets a todo comment.
           attempt_correction(range, nil)
-        elsif corrector && (always_autocorrect? || (contextual_autocorrect? && !LSP.enabled?))
+        elsif corrector && (always_autocorrect? ||
+                            (contextual_autocorrect? && !contextual_autocorrect_held_back?))
           :uncorrected
         else
           :unsupported
@@ -601,17 +629,10 @@ module RuboCop
       end
 
       def target_satisfies_all_gem_version_requirements?
-        gem_requirements = self.class.gem_requirements
-        return true if gem_requirements.empty?
+        self.class.gem_requirements.all? do |gem_name, version_requirement|
+          gem_version = target_gem_version(gem_name)
 
-        gem_requirements.all? do |gem_name, version_req|
-          all_gem_versions_in_target = @config.gem_versions_in_target
-          next false unless all_gem_versions_in_target
-
-          gem_version_in_target = all_gem_versions_in_target[gem_name]
-          next false unless gem_version_in_target
-
-          version_req.satisfied_by?(gem_version_in_target)
+          gem_version && version_requirement.satisfied_by?(gem_version)
         end
       end
     end

@@ -110,6 +110,8 @@ Key conventions:
   parses them).
 - **Cop description** — the first line of the YARD comment must be a complete
   sentence starting with a verb and ending with a period.
+- **Method definition order**: define methods in the order they are called,
+  so a new method is placed where the call flow reaches it.
 
 ## Preview: Shipping Unstable Behavior
 
@@ -261,6 +263,9 @@ Format (single line):
 - A changelog entry belongs in the same commit as the change it describes.
   Never add a changelog-only commit, including a follow-up that just fills in
   the PR number. Amend the entry into the commit it belongs to instead.
+- Never add AI attribution to a commit or a PR description: no `Co-authored-by`
+  or `Assisted-by` trailers naming a tool or model, and no "generated with"
+  footers. CONTRIBUTING.md asks the same of human contributors.
 - Run `bundle exec rake` and ensure it passes before pushing.
 
 ## Common Mistakes

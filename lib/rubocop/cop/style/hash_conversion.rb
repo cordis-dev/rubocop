@@ -53,6 +53,12 @@ module RuboCop
         # @!method hash_from_array?(node)
         def_node_matcher :hash_from_array?, '(send (const {nil? cbase} :Hash) :[] ...)'
 
+        # A hash literal as the first argument needs the parentheses of the call,
+        # which `Style/MethodCallWithArgsParentheses` removes in the same pass.
+        def self.autocorrect_incompatible_with
+          [Style::MethodCallWithArgsParentheses]
+        end
+
         def on_send(node)
           return if part_of_ignored_node?(node) || !hash_from_array?(node)
 
@@ -95,10 +101,28 @@ module RuboCop
         def register_offense_for_hash(node, hash_argument)
           add_offense(node, message: MSG_LITERAL_HASH_ARG) do |corrector|
             corrector.replace(node, "{#{hash_argument.source}}")
-
-            parent = node.parent
-            add_parentheses(parent, corrector) if parent&.send_type? && !parent.parenthesized?
+            add_parentheses_to_parent_call(node, corrector)
           end
+        end
+
+        # Without parentheses, a hash literal at the start of the first argument would be
+        # parsed as a block. That includes an argument like `Hash[a, b].merge(c)`.
+        def add_parentheses_to_parent_call(node, corrector)
+          node = node.parent while starts_parent?(node)
+          parent = node.parent
+          return unless parent&.type?(:call, :super, :yield)
+          return if parent.parenthesized? || operator_syntax?(parent)
+
+          add_parentheses(parent, corrector)
+        end
+
+        def starts_parent?(node)
+          node.parent && node.parent.source_range.begin_pos == node.source_range.begin_pos
+        end
+
+        # `foo[x]`, `foo.bar = x` and `foo == x` take a hash literal as it is.
+        def operator_syntax?(call)
+          call.setter_method? || (call.operator_method? && !call.loc?(:dot))
         end
 
         def register_offense_for_zip_method(node, zip_method)
@@ -135,11 +159,7 @@ module RuboCop
         def correct_multi_argument(node)
           add_offense(node, message: MSG_LITERAL_MULTI_ARG) do |corrector|
             corrector.replace(node, args_to_hash(node.arguments))
-
-            parent = node.parent
-            if parent&.send_type? && !parent.method?(:to_h) && !parent.parenthesized?
-              add_parentheses(parent, corrector)
-            end
+            add_parentheses_to_parent_call(node, corrector)
           end
         end
 

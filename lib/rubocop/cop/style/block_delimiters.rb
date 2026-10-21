@@ -177,7 +177,7 @@ module RuboCop
         BRACES_REQUIRED_MESSAGE = "Brace delimiters `{...}` required for '%<method_name>s' method."
 
         def self.autocorrect_incompatible_with
-          [Style::RedundantBegin]
+          [Layout::SpaceBeforeBlockBraces, Style::MethodCallWithArgsParentheses, Style::RedundantBegin]
         end
 
         def on_send(node)
@@ -196,6 +196,8 @@ module RuboCop
           end
         end
         alias on_csend on_send
+        alias on_super on_send
+        alias on_yield on_send
 
         def on_block(node)
           return if part_of_ignored_node?(node)
@@ -292,7 +294,7 @@ module RuboCop
           corrector.replace(b, '{')
           corrector.replace(e, '}')
 
-          corrector.wrap(node.body, "begin\n", "\nend") if begin_required?(node)
+          wrap_body_with_begin(corrector, node.body) if begin_required?(node)
         end
 
         def whitespace_before?(range)
@@ -304,6 +306,8 @@ module RuboCop
         end
 
         def move_comment_before_block(corrector, comment, block_node, closing_brace)
+          return if directive_comment?(comment)
+
           range = block_node.chained? ? end_of_chain(block_node.parent).source_range : closing_brace
 
           # It is possible that there is code between the block and the comment
@@ -315,6 +319,10 @@ module RuboCop
           corrector.insert_after(pre_comment_range, "\n")
 
           corrector.insert_before(block_node, "#{comment.text}\n")
+        end
+
+        def directive_comment?(comment)
+          comment.text.match?(DirectiveComment::DIRECTIVE_COMMENT_REGEXP)
         end
 
         def source_range_before_comment(range, comment)
@@ -372,6 +380,7 @@ module RuboCop
         # rubocop:disable-next Metrics/CyclomaticComplexity -- inlined special_method checks to avoid double evaluation
         def proper_block_style?(node)
           return true if require_do_end?(node)
+          return true if collection_of_for_loop?(node)
 
           method_name = node.method_name
           return true if allowed_method?(method_name) || matches_allowed_pattern?(method_name)
@@ -396,6 +405,10 @@ module RuboCop
           return false unless body.rescue_type?
 
           !modifier_rescue?(body)
+        end
+
+        def collection_of_for_loop?(node)
+          node.parent&.for_type? && node.parent.collection == node
         end
 
         def modifier_rescue?(rescue_node)
@@ -438,9 +451,18 @@ module RuboCop
         end
 
         def correction_would_break_code?(node)
-          return false unless node.keywords?
+          return loop_condition?(node) if node.braces?
 
           node.send_node.arguments? && !node.send_node.parenthesized?
+        end
+
+        # A `do` in the condition of `while` or `until` is taken as the start of
+        # the loop body. Inside the body of another block it is unambiguous again.
+        def loop_condition?(node)
+          ancestors = node.each_ancestor.take_while { |ancestor| !ancestor.any_block_type? }
+          [node, *ancestors].each_cons(2).any? do |child, parent|
+            parent.type?(:while, :until) && parent.condition.equal?(child)
+          end
         end
 
         def functional_method?(method_name)
@@ -488,6 +510,16 @@ module RuboCop
 
         def array_or_range?(node)
           node.type?(:array, :range)
+        end
+
+        def wrap_body_with_begin(corrector, body)
+          heredoc_ends = body.each_node(:any_str).select(&:heredoc?).map do |str|
+            str.loc.heredoc_end
+          end
+          body_end = [body.source_range, *heredoc_ends].max_by(&:end_pos)
+
+          corrector.insert_before(body, "begin\n")
+          corrector.insert_after(body_end, "\nend")
         end
 
         def begin_required?(block_node)

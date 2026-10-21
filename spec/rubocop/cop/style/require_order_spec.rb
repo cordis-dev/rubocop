@@ -50,6 +50,26 @@ RSpec.describe RuboCop::Cop::Style::RequireOrder, :config do
         require 'b'
       RUBY
     end
+
+    it 'moves a `require` above every greater `require` before it in a single pass' do
+      expect_offense(<<~RUBY)
+        require 'b'
+        require 'c'
+        require 'a'
+        ^^^^^^^^^^^ Sort `require` in alphabetical order.
+      RUBY
+
+      expect_correction(<<~RUBY, loop: false)
+        require 'a'
+        require 'b'
+        require 'c'
+      RUBY
+    end
+
+    # `expect_offense` cannot express a source without a trailing newline.
+    it 'autocorrects when the last `require` has no trailing newline' do
+      expect(autocorrect_source("require 'b'\nrequire 'a'")).to eq("require 'a'\nrequire 'b'")
+    end
   end
 
   context 'when unsorted `require` has some inline comments' do
@@ -319,5 +339,24 @@ RSpec.describe RuboCop::Cop::Style::RequireOrder, :config do
         end
       RUBY
     end
+  end
+
+  it 'registers an offense but does not correct `require`s on the same line' do
+    expect_offense(<<~RUBY)
+      require 'b'; require 'a'
+                   ^^^^^^^^^^^ Sort `require` in alphabetical order.
+    RUBY
+
+    expect_no_corrections
+  end
+
+  it 'registers an offense but does not correct a `require` that shares its line with other code' do
+    expect_offense(<<~RUBY)
+      foo -> { require 'b'
+               require 'a' }
+               ^^^^^^^^^^^ Sort `require` in alphabetical order.
+    RUBY
+
+    expect_no_corrections
   end
 end
