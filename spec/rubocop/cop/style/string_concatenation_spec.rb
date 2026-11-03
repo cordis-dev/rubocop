@@ -45,6 +45,17 @@ RSpec.describe RuboCop::Cop::Style::StringConcatenation, :config do
     RUBY
   end
 
+  it 'escapes a `#` that would start an interpolation with the next part' do
+    expect_offense(<<~'RUBY')
+      "#" + "{" + '#' + '@foo' + "#" + "$bar" + "\#" + "{"
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Prefer string interpolation to string concatenation.
+    RUBY
+
+    expect_correction(<<~'RUBY')
+      "\#{\#@foo\#$bar\#{"
+    RUBY
+  end
+
   it 'correctly handles nested concatenatable parts' do
     expect_offense(<<~RUBY)
       (user.vip? ? greeting + ', ' : '') + user.name + ' <' + user.email + '>'
@@ -239,6 +250,17 @@ RSpec.describe RuboCop::Cop::Style::StringConcatenation, :config do
           bar
           baz
         TEXT
+      RUBY
+
+      expect_no_corrections
+    end
+
+    it 'registers an offense but does not correct when the heredoc is parenthesized' do
+      expect_offense(<<~RUBY)
+        (<<-STRING) + 'bar'
+        ^^^^^^^^^^^^^^^^^^^ Prefer string interpolation to string concatenation.
+          foo
+        STRING
       RUBY
 
       expect_no_corrections

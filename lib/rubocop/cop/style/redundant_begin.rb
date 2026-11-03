@@ -67,9 +67,15 @@ module RuboCop
         extend AutoCorrector
 
         MSG = 'Redundant `begin` block detected.'
+        SPACE_INSIDE_PARENS_STYLES = %w[space compact].freeze
 
         def self.autocorrect_incompatible_with
-          [Style::BlockDelimiters]
+          [
+            Style::BlockDelimiters,
+            Style::TrailingCommaInArguments,
+            Style::TrailingCommaInArrayLiteral,
+            Style::TrailingCommaInHashLiteral
+          ]
         end
 
         # @!method offensive_kwbegins(node)
@@ -132,10 +138,13 @@ module RuboCop
           empty_begin?(node) ||
             begin_block_has_multiline_statements?(node) ||
             contain_rescue_or_ensure?(node) ||
-            valid_context_using_only_begin?(node)
+            valid_context_using_only_begin?(node) ||
+            ternary_operand_requiring_begin?(node)
         end
 
         def register_offense(node)
+          return if end_cannot_join_statement_line?(node)
+
           offense_range = node.loc.begin
 
           add_offense(offense_range) do |corrector|
@@ -145,11 +154,41 @@ module RuboCop
               remove_begin(corrector, offense_range, node)
             end
 
-            if use_modifier_form_after_multiline_begin_block?(node)
-              correct_modifier_form_after_multiline_begin_block(corrector, node)
-            end
-            corrector.remove(node.loc.end)
+            correct_end(corrector, node)
           end
+        end
+
+        def end_cannot_join_statement_line?(node)
+          return false if use_modifier_form_after_multiline_begin_block?(node)
+          return false unless code_after_end_on_its_own_line?(node)
+
+          range_with_end_line_break(node).begin_pos != statement_end_pos(node)
+        end
+
+        def use_modifier_form_after_multiline_begin_block?(node)
+          return false unless (parent = node.parent)
+          return false unless node.multiline? && parent.if_type? && parent.modifier_form?
+
+          !parent.condition.equal?(node)
+        end
+
+        def code_after_end_on_its_own_line?(node)
+          end_range = node.loc.end
+          return false unless begins_its_line?(end_range)
+
+          rest_of_line = end_range.source_line[end_range.last_column..].lstrip
+
+          !rest_of_line.empty? && !rest_of_line.start_with?('#')
+        end
+
+        def range_with_end_line_break(node)
+          range_with_surrounding_space(node.loc.end, side: :left, newlines: true)
+        end
+
+        def statement_end_pos(node)
+          return node.loc.begin.end_pos if node.children.empty?
+
+          node.children.last.source_range.end_pos
         end
 
         def replace_begin_with_statement(corrector, offense_range, node)
@@ -188,11 +227,14 @@ module RuboCop
           corrector.insert_before(node.parent, comments) unless comments.blank?
         end
 
-        def use_modifier_form_after_multiline_begin_block?(node)
-          return false unless (parent = node.parent)
-
-          node.multiline? && parent.if_type? && parent.modifier_form? &&
-            !parent.condition.equal?(node)
+        def correct_end(corrector, node)
+          if use_modifier_form_after_multiline_begin_block?(node)
+            correct_modifier_form_after_multiline_begin_block(corrector, node)
+          elsif code_after_end_on_its_own_line?(node)
+            corrector.remove(range_with_end_line_break(node))
+          else
+            corrector.remove(node.loc.end)
+          end
         end
 
         def correct_modifier_form_after_multiline_begin_block(corrector, node)
@@ -229,6 +271,12 @@ module RuboCop
             parent&.send_type? || parent&.operator_keyword?
         end
 
+        def ternary_operand_requiring_begin?(node)
+          return false unless node.parent&.if_type? && node.parent.ternary?
+
+          !node.children.one? || low_precedence_statement?(node.children.first)
+        end
+
         def valid_begin_assignment?(node)
           node.parent&.assignment? && (!node.children.one? || too_long_when_joined?(node))
         end
@@ -239,14 +287,28 @@ module RuboCop
           return false unless max && statement.single_line?
 
           length = statement.source.length
-          length += 2 if low_precedence_statement?(statement)
+          length += parentheses_width if low_precedence_statement?(statement)
+
           node.loc.column + length > max
+        end
+
+        def parentheses_width
+          space_inside_parens? ? 4 : 2
+        end
+
+        def space_inside_parens?
+          return false unless config.cop_enabled?('Layout/SpaceInsideParens')
+
+          style = config.for_cop('Layout/SpaceInsideParens')['EnforcedStyle']
+
+          SPACE_INSIDE_PARENS_STYLES.include?(style)
         end
 
         def inspect_branches(node)
           node.branches.each do |branch|
             next unless branch&.kwbegin_type?
             next if branch.rescue_node || branch.ensure_node
+            next if ternary_operand_requiring_begin?(branch)
 
             register_offense(branch)
           end

@@ -292,6 +292,44 @@ RSpec.describe RuboCop::Cop::Style::RedundantBegin, :config do
 
       RUBY
     end
+
+    context 'when `Layout/SpaceInsideParens` is `space`' do
+      let(:other_cops) do
+        super().merge(
+          'Layout/SpaceInsideParens' => { 'Enabled' => true, 'EnforcedStyle' => 'space' }
+        )
+      end
+
+      it 'does not register an offense for a modifier `if` single statement that fits only without spaces inside parentheses' do
+        expect_no_offenses(<<~RUBY)
+          var ||= begin
+            foo_bar if condition
+          end
+        RUBY
+      end
+    end
+
+    context 'when `Layout/SpaceInsideParens` is `no_space`' do
+      let(:other_cops) do
+        super().merge(
+          'Layout/SpaceInsideParens' => { 'Enabled' => true, 'EnforcedStyle' => 'no_space' }
+        )
+      end
+
+      it 'registers an offense for a modifier `if` single statement that fits without spaces inside parentheses' do
+        expect_offense(<<~RUBY)
+          var ||= begin
+                  ^^^^^ Redundant `begin` block detected.
+            foo_bar if condition
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          var ||= (foo_bar if condition)
+
+        RUBY
+      end
+    end
   end
 
   it 'registers and corrects an offense when using multi-line `if` in `begin` block' do
@@ -308,6 +346,76 @@ RSpec.describe RuboCop::Cop::Style::RedundantBegin, :config do
       var ||= if condition
           foo
         end\n
+    RUBY
+  end
+
+  it 'registers and corrects an offense when `end` of the assigned `begin` block is followed by a comma' do
+    expect_offense(<<~RUBY)
+      do_something(
+        var ||= begin
+                ^^^^^ Redundant `begin` block detected.
+          foo if condition
+        end,
+      )
+    RUBY
+
+    expect_correction(<<~RUBY)
+      do_something(
+        var ||= (foo if condition),
+      )
+    RUBY
+  end
+
+  it 'registers and corrects an offense when `end` of the assigned `begin` block is followed by a modifier `if`' do
+    expect_offense(<<~RUBY)
+      var = begin
+            ^^^^^ Redundant `begin` block detected.
+        foo
+      end if condition
+    RUBY
+
+    expect_correction(<<~RUBY)
+      var = foo if condition
+    RUBY
+  end
+
+  it 'registers and corrects an offense when `end` of the `begin` block in an array is followed by a comma' do
+    expect_offense(<<~RUBY)
+      [
+        begin
+        ^^^^^ Redundant `begin` block detected.
+          foo
+        end,
+      ]
+    RUBY
+
+    expect_correction(<<~RUBY)
+      [
+       #{trailing_whitespace}
+          foo,
+      ]
+    RUBY
+  end
+
+  it 'does not register an offense when `end` followed by a comma comes after a comment' do
+    expect_no_offenses(<<~RUBY)
+      do_something(
+        var ||= begin
+          foo # comment
+        end,
+      )
+    RUBY
+  end
+
+  it 'does not register an offense when `end` followed by a comma comes after a heredoc body' do
+    expect_no_offenses(<<~RUBY)
+      do_something(
+        var ||= begin
+          foo(<<~TEXT)
+            text
+          TEXT
+        end,
+      )
     RUBY
   end
 
@@ -399,6 +507,61 @@ RSpec.describe RuboCop::Cop::Style::RedundantBegin, :config do
           bar
           baz
        #{trailing_whitespace}
+      end
+    RUBY
+  end
+
+  it 'registers and corrects an offense when a single statement `begin` block is a ternary branch' do
+    expect_offense(<<~RUBY)
+      condition ? foo : begin
+                        ^^^^^ Redundant `begin` block detected.
+        bar
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      condition ? foo :#{trailing_whitespace}
+        bar
+
+    RUBY
+  end
+
+  it 'does not register an offense when a multiple statements `begin` block is a ternary branch' do
+    expect_no_offenses(<<~RUBY)
+      condition ? foo : begin
+        bar
+        baz
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when an empty `begin` block is a ternary branch' do
+    expect_no_offenses(<<~RUBY)
+      condition ? foo : begin
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when a modifier `if` statement `begin` block is a ternary branch' do
+    expect_no_offenses(<<~RUBY)
+      condition ? foo : begin
+        bar if baz
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when a `not` statement `begin` block is a ternary branch' do
+    expect_no_offenses(<<~RUBY)
+      condition ? foo : begin
+        not bar
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when an `and` statement `begin` block is a ternary branch' do
+    expect_no_offenses(<<~RUBY)
+      condition ? foo : begin
+        bar and baz
       end
     RUBY
   end

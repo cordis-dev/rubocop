@@ -31,6 +31,22 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
         RUBY
       end
 
+      it 'registers an offense and corrects an endless method definition nested in a method call argument' do
+        expect_offense(<<~RUBY)
+          def a = foo(def b = 1)
+          ^^^^^^^^^^^^^^^^^^^^^^ Avoid endless method definitions.
+                      ^^^^^^^^^ Avoid endless method definitions.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def a
+            foo(def b
+                  1
+                end)
+          end
+        RUBY
+      end
+
       it 'registers an offense for an endless method' do
         expect_offense(<<~RUBY)
           def my_method() = x
@@ -263,6 +279,34 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
 
     context 'EnforcedStyle: require_single_line' do
       let(:cop_config) { { 'EnforcedStyle' => 'require_single_line' } }
+
+      it 'registers an offense and corrects a method definition nested in a multiline endless method' do
+        expect_offense(<<~RUBY)
+          def a = def b
+          ^^^^^^^^^^^^^ Avoid endless method definitions with multiple lines.
+                  ^^^^^ Use endless method definitions for single line methods.
+            1
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def a = def b = 1
+        RUBY
+      end
+
+      it 'registers an offense and corrects a method definition passed as an argument in a multiline endless method' do
+        expect_offense(<<~RUBY)
+          def a = foo(def b
+          ^^^^^^^^^^^^^^^^^ Avoid endless method definitions with multiple lines.
+                      ^^^^^ Use endless method definitions for single line methods.
+            1
+          end)
+        RUBY
+
+        expect_correction(<<~RUBY)
+          def a = foo(def b = 1)
+        RUBY
+      end
 
       it 'does not register an offense when the body is a modifier `if`' do
         expect_no_offenses(<<~RUBY)
@@ -579,6 +623,54 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
 
         expect_correction(<<~RUBY)
           def my_method = x
+        RUBY
+      end
+
+      it 'does not register an offense for a method definition with a modifier `if`' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            x
+          end if y
+        RUBY
+      end
+
+      it 'does not register an offense for a method definition followed by `and`' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            x
+          end and y
+        RUBY
+      end
+
+      it 'does not register an offense for a method definition followed by `&&`' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            x
+          end && y
+        RUBY
+      end
+
+      it 'does not register an offense for a method definition followed by `||`' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            x
+          end || y
+        RUBY
+      end
+
+      it 'does not register an offense for a method definition with a modifier `while`' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            x
+          end while y
+        RUBY
+      end
+
+      it 'does not register an offense for a singleton method definition followed by `&&`' do
+        expect_no_offenses(<<~RUBY)
+          def self.my_method
+            x
+          end && y
         RUBY
       end
 
@@ -1050,6 +1142,23 @@ RSpec.describe RuboCop::Cop::Style::EndlessMethod, :config do
 
         expect_correction(<<~RUBY)
           def my_method = x
+        RUBY
+      end
+
+      it 'does not register an offense for a method definition with a modifier `unless`' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            x
+          end unless y
+        RUBY
+      end
+
+      it 'does not register an offense for a multiline method definition with a modifier `if`' do
+        expect_no_offenses(<<~RUBY)
+          def my_method
+            bar(1,
+                2)
+          end if y
         RUBY
       end
 
