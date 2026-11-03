@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'parallel'
+autoload :Parallel, 'parallel'
 
 module RuboCop
   # This class handles the processing of files, which includes dealing with
@@ -82,7 +82,7 @@ module RuboCop
 
       # Compute the cache source checksum once to avoid potential
       # inconsistencies between workers.
-      ResultCache.source_checksum
+      ResultCache.source_checksum if cached_run?
 
       target_files = only_changed(find_target_files(paths))
       build_project_index(target_files)

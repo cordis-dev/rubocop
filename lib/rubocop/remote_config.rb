@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'time'
-require 'uri'
+autoload :URI, 'uri'
 
 module RuboCop
   # Common methods and behaviors for dealing with remote config files.

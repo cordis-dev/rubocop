@@ -1,12 +1,8 @@
 # frozen_string_literal: true
 
-begin
-  # We might not be running with `bundle exec`, so we need to pull in Bundler ourselves,
-  # in order to use `Bundler::LockfileParser`.
-  require 'bundler'
-rescue LoadError
-  nil
-end
+# We might not be running with `bundle exec`, so we need to pull in Bundler ourselves,
+# in order to use `Bundler::LockfileParser`. It loads on first use because it is slow to load.
+autoload :Bundler, 'bundler'
 
 module RuboCop
   # Encapsulation of a lockfile for use when checking for gems.

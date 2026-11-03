@@ -29,7 +29,6 @@ module RuboCop
 
       def reset!
         @global = nil
-        @deprecated_names = {}
         LOAD_RULES_CACHE[rules_cache_key] = nil
       end
 
@@ -47,16 +46,7 @@ module RuboCop
       end
 
       def deprecated_names_for(cop)
-        @deprecated_names ||= {}
-        return @deprecated_names[cop] if @deprecated_names.key?(cop)
-
-        @deprecated_names[cop] = global.rules.filter_map do |rule|
-          next unless rule.cop_rule?
-          next unless rule.respond_to?(:new_name)
-          next unless rule.new_name == cop
-
-          rule.old_name
-        end
+        global.deprecated_names_by_new_name.fetch(cop, [])
       end
     end
 
@@ -91,7 +81,16 @@ module RuboCop
     end
 
     def deprecated_cop_name?(name)
-      legacy_cop_names.include?(name)
+      (@legacy_cop_name_set ||= legacy_cop_names.to_set).include?(name)
+    end
+
+    # @api private
+    def deprecated_names_by_new_name
+      @deprecated_names_by_new_name ||= cop_rules.each_with_object({}) do |rule, names|
+        next unless rule.respond_to?(:new_name)
+
+        (names[rule.new_name] ||= []) << rule.old_name
+      end
     end
 
     private

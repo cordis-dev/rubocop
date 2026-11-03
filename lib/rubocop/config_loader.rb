@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'erb'
+autoload :ERB, 'erb'
 require 'yaml'
 require_relative 'cache_config'
 require_relative 'config_finder'
@@ -78,7 +78,11 @@ module RuboCop
 
       def load_yaml_configuration(absolute_path)
         file_contents = read_file(absolute_path)
-        yaml_code = Dir.chdir(File.dirname(absolute_path)) { ERB.new(file_contents).result }
+        yaml_code = if file_contents.include?('<%')
+                      Dir.chdir(File.dirname(absolute_path)) { ERB.new(file_contents).result }
+                    else
+                      file_contents
+                    end
         yaml_tree = check_duplication(yaml_code, absolute_path)
         hash = yaml_tree_to_hash(yaml_tree) || {}
 

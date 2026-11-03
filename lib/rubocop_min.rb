@@ -12,7 +12,7 @@ require 'rainbow'
 require 'regexp_parser'
 require 'set'
 require 'stringio'
-require 'unicode/display_width'
+autoload :Unicode, 'unicode/display_width'
 
 # we have to require RuboCop's version, before rubocop-ast's
 require_relative 'rubocop/version.rb'
@@ -28,6 +28,8 @@ unless File.exist?("#{__dir__}/../rubocop.gemspec") # Check if we are a gem
   # so that the cache key relies solely on the gem version instead of varying with which
   # cop files end up loaded.
   features = $LOADED_FEATURES - before_us
-  RuboCop::ResultCache.rubocop_required_features = features | Dir["#{__dir__}/rubocop/**/*.rb"]
+  RuboCop::ResultCache.define_singleton_method(:rubocop_required_features) do
+    @all_required_features ||= features | Dir["#{__dir__}/rubocop/**/*.rb"]
+  end
 end
 RuboCop::AST.rubocop_loaded if RuboCop::AST.respond_to?(:rubocop_loaded)

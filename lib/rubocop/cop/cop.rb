@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'uri'
+autoload :URI, 'uri'
 require_relative 'legacy/corrections_proxy'
 
 module RuboCop
