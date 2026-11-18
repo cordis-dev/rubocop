@@ -52,18 +52,27 @@ RSpec.describe RuboCop::Cop::Style::OperatorMethodCall, :config do
       RUBY
     end
 
-    unless operator_method == :/
-      it "registers an offense when using `foo.#{operator_method}(bar)`" do
-        expect_offense(<<~RUBY, operator_method: operator_method)
-          foo.#{operator_method}(bar)
-             ^ Redundant dot detected.
-        RUBY
+    it "registers an offense when using `foo.#{operator_method}(bar)`" do
+      expect_offense(<<~RUBY, operator_method: operator_method)
+        foo.#{operator_method}(bar)
+           ^ Redundant dot detected.
+      RUBY
 
-        # Redundant parentheses in `(bar)` are left to `Style/RedundantParentheses` to fix.
-        expect_correction(<<~RUBY)
-          foo #{operator_method}(bar)
-        RUBY
-      end
+      # Redundant parentheses in `(bar)` are left to `Style/RedundantParentheses` to fix.
+      expect_correction(<<~RUBY)
+        foo #{operator_method} (bar)
+      RUBY
+    end
+
+    it "registers an offense when using `foo.#{operator_method}(bar)` as the first method argument" do
+      expect_offense(<<~RUBY, operator_method: operator_method)
+        do_something(foo.#{operator_method}(bar))
+                        ^ Redundant dot detected.
+      RUBY
+
+      expect_correction(<<~RUBY)
+        do_something(foo #{operator_method} (bar))
+      RUBY
     end
 
     it "registers an offense when chaining `foo.bar.#{operator_method}(baz).round(2)`" do
@@ -91,7 +100,56 @@ RSpec.describe RuboCop::Cop::Style::OperatorMethodCall, :config do
     RUBY
 
     expect_correction(<<~RUBY)
-      foo ==({})
+      foo == ({})
+    RUBY
+  end
+
+  it 'registers an offense when using `foo.+(bar)` as an operand of `&&`' do
+    expect_offense(<<~RUBY)
+      baz && foo.+(bar)
+                ^ Redundant dot detected.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      baz && foo + (bar)
+    RUBY
+  end
+
+  it 'registers an offense when using `foo.+(bar)` as the right operand of another operator' do
+    expect_offense(<<~RUBY)
+      baz * foo.+(bar)
+               ^ Redundant dot detected.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      baz * (foo + bar)
+    RUBY
+  end
+
+  it 'registers offenses when using `foo.+ bar` as the right operand of another operator' do
+    expect_offense(<<~RUBY)
+      c.- a.- b
+           ^ Redundant dot detected.
+       ^ Redundant dot detected.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      c - (a - b)
+    RUBY
+  end
+
+  it 'registers an offense when using `foo.+(bar)` with a multiline argument' do
+    expect_offense(<<~RUBY)
+      foo.+(
+         ^ Redundant dot detected.
+        bar
+      )
+    RUBY
+
+    expect_correction(<<~RUBY)
+      foo + (
+        bar
+      )
     RUBY
   end
 
@@ -170,6 +228,18 @@ RSpec.describe RuboCop::Cop::Style::OperatorMethodCall, :config do
     RUBY
   end
 
+  it 'does not register an offense when using `foo.!(bar)`' do
+    expect_no_offenses(<<~RUBY)
+      foo.!(bar)
+    RUBY
+  end
+
+  it 'does not register an offense when using `foo.~ bar`' do
+    expect_no_offenses(<<~RUBY)
+      foo.~ bar
+    RUBY
+  end
+
   it 'does not register an offense when using `obj.!`' do
     expect_no_offenses(<<~RUBY)
       obj.!
@@ -181,6 +251,20 @@ RSpec.describe RuboCop::Cop::Style::OperatorMethodCall, :config do
       def foo(...)
         bar.==(...)
       end
+    RUBY
+  end
+
+  it 'does not register an offense when the operator method call has a `do` block' do
+    expect_no_offenses(<<~RUBY)
+      pool.<< [1, 2] do
+        foo
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when the operator method call has a brace block' do
+    expect_no_offenses(<<~RUBY)
+      pool.<<([1, 2]) { foo }
     RUBY
   end
 

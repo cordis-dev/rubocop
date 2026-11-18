@@ -53,6 +53,8 @@ module RuboCop
         private
 
         def autocorrect(corrector, node)
+          return if part_of_ignored_node?(node)
+
           if correct_to_endless?(node.body)
             correct_to_endless(corrector, node)
           else
@@ -100,7 +102,7 @@ module RuboCop
         end
 
         # The body gets parenthesized when it becomes endless, so it is no longer a command.
-        def command_body_in_argument?(body)
+        def command_body_outside_statement?(body)
           !require_parentheses?(body) && super
         end
 
@@ -125,6 +127,7 @@ module RuboCop
           replacement = "def #{receiver}#{node.method_name}#{arguments} = #{body_source}"
 
           corrector.replace(node, replacement)
+          ignore_node(node)
         end
 
         def break_line_before(corrector, node, range, indent_steps: 1)

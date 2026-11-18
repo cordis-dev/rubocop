@@ -76,6 +76,26 @@ RSpec.describe RuboCop::Cop::Style::For, :config do
       RUBY
     end
 
+    it 'registers and corrects an offense for `for` in the collection of another `for`' do
+      expect_offense(<<~RUBY)
+        for y in for x in foo do
+                 ^^^^^^^^^^^^^^^ Prefer `each` over `for`.
+        ^^^^^^^^^^^^^^^^^^^^^^^^ Prefer `each` over `for`.
+          bar(x)
+        end do
+          baz(y)
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        foo.each do |x|
+          bar(x)
+        end.each do |y|
+          baz(y)
+        end
+      RUBY
+    end
+
     context 'autocorrect' do
       it 'does not autocorrect when the body uses a numbered parameter' do
         expect_offense(<<~RUBY)
@@ -547,6 +567,45 @@ RSpec.describe RuboCop::Cop::Style::For, :config do
       expect_correction(<<~RUBY)
         for n in foo.select { |x| x.bar? } do
           puts n
+        end
+      RUBY
+    end
+
+    it 'registers an offense when the receiver is a multiline `each` with braces' do
+      expect_offense(<<~RUBY)
+        foo.each { |x|
+        ^^^^^^^^^^^^^^ Prefer `for` over `each`.
+          bar(x)
+        }.each { |y|
+        ^^^^^^^^^^^^ Prefer `for` over `each`.
+          baz(y)
+        }
+      RUBY
+
+      expect_correction(<<~RUBY, loop: false)
+        for y in for x in foo do
+          bar(x)
+        end do
+          baz(y)
+        end
+      RUBY
+    end
+
+    it 'registers an offense on the line of `each` when the receiver spans multiple lines' do
+      expect_offense(<<~RUBY)
+        foo(
+          bar
+        ).each do |x|
+        ^^^^^^^^^^^^^ Prefer `for` over `each`.
+          baz(x)
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        for x in foo(
+          bar
+        ) do
+          baz(x)
         end
       RUBY
     end

@@ -38,6 +38,10 @@ module RuboCop
         RESTRICT_ON_SEND = %i[sort].freeze
         GLOB_METHODS = %i[glob []].freeze
 
+        def self.autocorrect_incompatible_with
+          [Layout::DotPosition]
+        end
+
         def on_send(node)
           return unless dir_glob?(node.receiver)
           # `sort` with a comparator block or block-pass changes the order, so it is
@@ -75,8 +79,22 @@ module RuboCop
             corrector.remove(dot)
             corrector.remove(selector)
           else
-            corrector.remove(range_with_surrounding_space(range, side: :left))
+            corrector.remove(removal_range(range))
           end
+        end
+
+        def removal_range(range)
+          range_with_space = range_with_surrounding_space(range, side: :left)
+          return range if comment_line_joined_with_code?(range_with_space, range)
+
+          range_with_space
+        end
+
+        def comment_line_joined_with_code?(range_with_space, range)
+          comment = processed_source.comment_at_line(range_with_space.line)
+          return false if comment&.source_range&.end_pos != range_with_space.begin_pos
+
+          !processed_source.lines[range.last_line - 1][range.last_column..].strip.empty?
         end
       end
     end

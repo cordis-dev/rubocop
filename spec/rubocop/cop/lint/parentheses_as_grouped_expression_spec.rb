@@ -239,6 +239,82 @@ RSpec.describe RuboCop::Cop::Lint::ParenthesesAsGroupedExpression, :config do
     RUBY
   end
 
+  it 'does not register an offense for parenthesized multiple statements', :ruby34 do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (foo; bar)
+    RUBY
+  end
+
+  it 'registers an offense for doubly parenthesized multiple statements', :ruby34 do
+    expect_offense(<<~RUBY)
+      obj.do_something ((foo; bar))
+                      ^ `((foo; bar))` interpreted as grouped expression.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      obj.do_something((foo; bar))
+    RUBY
+  end
+
+  it 'does not register an offense for empty parentheses' do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something ()
+    RUBY
+  end
+
+  it 'does not register an offense for parentheses containing only a semicolon', :ruby34 do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (;)
+    RUBY
+  end
+
+  it 'does not register an offense for a parenthesized expression preceded by a semicolon', :ruby34 do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (; foo)
+    RUBY
+  end
+
+  it 'does not register an offense for a parenthesized expression followed by a semicolon', :ruby34 do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (foo;)
+    RUBY
+  end
+
+  it 'registers an offense for a parenthesized expression containing a semicolon in a block' do
+    expect_offense(<<~RUBY)
+      obj.do_something (foo { bar; baz })
+                      ^ `(foo { bar; baz })` interpreted as grouped expression.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      obj.do_something(foo { bar; baz })
+    RUBY
+  end
+
+  it 'registers an offense for doubly parenthesized empty parentheses', :ruby34 do
+    expect_offense(<<~RUBY)
+      obj.do_something ((;))
+                      ^ `((;))` interpreted as grouped expression.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      obj.do_something((;))
+    RUBY
+  end
+
+  it 'does not register an offense for parenthesized multiline statements', :ruby34 do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (foo
+                        bar)
+    RUBY
+  end
+
+  it 'does not register an offense for parenthesized one-line pattern matching', :ruby30 do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (foo in bar)
+    RUBY
+  end
+
   it 'does not register an offense for parenthesized assignment of a command call' do
     expect_no_offenses(<<~RUBY)
       obj.do_something (x = foo.bar 'baz')
@@ -266,6 +342,93 @@ RSpec.describe RuboCop::Cop::Lint::ParenthesesAsGroupedExpression, :config do
   it 'does not register an offense for parenthesized assignment of a command call with a `do` block' do
     expect_no_offenses(<<~RUBY)
       obj.do_something (x = foo 'baz' do end)
+    RUBY
+  end
+
+  it 'does not register an offense for a parenthesized command call with a `do` block' do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (foo 'baz' do end)
+    RUBY
+  end
+
+  it 'does not register an offense for a parenthesized command call with a `do` block in a method chain' do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (foo 'baz' do end.bar)
+    RUBY
+  end
+
+  it 'does not register an offense for parenthesized assignment of a command call with a `do` block in a method chain' do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (x = foo 'baz' do end.bar)
+    RUBY
+  end
+
+  it 'registers an offense and corrects for a parenthesized command call with a `{` block' do
+    expect_offense(<<~RUBY)
+      obj.do_something (foo('baz') { })
+                      ^ `(foo('baz') { })` interpreted as grouped expression.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      obj.do_something(foo('baz') { })
+    RUBY
+  end
+
+  it 'registers an offense and corrects for a parenthesized method call with parentheses and a `do` block' do
+    expect_offense(<<~RUBY)
+      obj.do_something (foo('baz') do end)
+                      ^ `(foo('baz') do end)` interpreted as grouped expression.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      obj.do_something(foo('baz') do end)
+    RUBY
+  end
+
+  it 'does not register an offense for a parenthesized multiple assignment' do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (a, b = 1, 2)
+    RUBY
+  end
+
+  it 'does not register an offense for a parenthesized splat multiple assignment' do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (*a = foo)
+    RUBY
+  end
+
+  it 'does not register an offense for a parenthesized assignment of multiple values' do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (x = 1, 2)
+    RUBY
+  end
+
+  it 'does not register an offense for a parenthesized assignment of a splat' do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (x = *foo)
+    RUBY
+  end
+
+  it 'does not register an offense for a parenthesized setter assignment of multiple values' do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (x.y = 1, 2)
+    RUBY
+  end
+
+  it 'does not register an offense for a parenthesized index assignment of multiple values' do
+    expect_no_offenses(<<~RUBY)
+      obj.do_something (x[0] = 1, 2)
+    RUBY
+  end
+
+  it 'registers an offense and corrects for a parenthesized assignment of an array literal' do
+    expect_offense(<<~RUBY)
+      obj.do_something (x = [1, 2])
+                      ^ `(x = [1, 2])` interpreted as grouped expression.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      obj.do_something(x = [1, 2])
     RUBY
   end
 

@@ -192,6 +192,56 @@ RSpec.describe RuboCop::Cop::Lint::UselessTimes, :config do
       expect_no_corrections
     end
 
+    it 'does not try to correct a block if the block arg is reassigned' do
+      expect_offense(<<~RUBY)
+        1.times do |i|
+        ^^^^^^^^^^^^^^ Useless call to `1.times` detected.
+          do_something(i)
+          i = i * 2
+          do_something_else(i)
+        end
+      RUBY
+
+      expect_no_corrections
+    end
+
+    it 'does not try to correct a block if the block arg is reassigned by rightward pattern matching', :ruby30 do
+      expect_offense(<<~RUBY)
+        1.times do |i|
+        ^^^^^^^^^^^^^^ Useless call to `1.times` detected.
+          do_something(i)
+          foo => i
+        end
+      RUBY
+
+      expect_no_corrections
+    end
+
+    it 'does not try to correct a block if the block arg is reassigned by a named capture' do
+      expect_offense(<<~RUBY)
+        1.times do |i|
+        ^^^^^^^^^^^^^^ Useless call to `1.times` detected.
+          do_something(i)
+          /(?<i>\\d)/ =~ str
+        end
+      RUBY
+
+      expect_no_corrections
+    end
+
+    it 'corrects a block if a named capture has another name than the block arg' do
+      expect_offense(<<~RUBY)
+        1.times do |i|
+        ^^^^^^^^^^^^^^ Useless call to `1.times` detected.
+          /(?<j>\\d)/ =~ str
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        /(?<j>\\d)/ =~ str
+      RUBY
+    end
+
     it 'does not try to correct a block if the block arg is changed in parallel assignment' do
       expect_offense(<<~RUBY)
         1.times do |i|
@@ -291,6 +341,63 @@ RSpec.describe RuboCop::Cop::Lint::UselessTimes, :config do
         RUBY
 
         expect_no_corrections
+      end
+
+      it 'does not try to correct `0.times` followed by code on the same line' do
+        expect_offense(<<~'RUBY')
+          "#{foo
+          0.times { do_something }}"
+          ^^^^^^^^^^^^^^^^^^^^^^^^ Useless call to `0.times` detected.
+        RUBY
+
+        expect_no_corrections
+      end
+
+      it 'does not try to correct `0.times` followed by a statement on the same line' do
+        expect_offense(<<~RUBY)
+          0.times { do_something }; foo
+          ^^^^^^^^^^^^^^^^^^^^^^^^ Useless call to `0.times` detected.
+        RUBY
+
+        expect_no_corrections
+      end
+
+      it 'corrects `1.times` followed by code on the same line' do
+        expect_offense(<<~'RUBY')
+          "#{foo
+          1.times do
+          ^^^^^^^^^^ Useless call to `1.times` detected.
+            do_something
+          end}"
+        RUBY
+
+        expect_correction(<<~'RUBY')
+          "#{foo
+          do_something}"
+        RUBY
+      end
+
+      it 'corrects `1.times` followed by a statement on the same line' do
+        expect_offense(<<~RUBY)
+          1.times { do_something }; foo
+          ^^^^^^^^^^^^^^^^^^^^^^^^ Useless call to `1.times` detected.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          do_something; foo
+        RUBY
+      end
+
+      it 'corrects `0.times` followed by a comment' do
+        expect_offense(<<~RUBY)
+          foo
+          0.times { do_something } # comment
+          ^^^^^^^^^^^^^^^^^^^^^^^^ Useless call to `0.times` detected.
+        RUBY
+
+        expect_correction(<<~RUBY)
+          foo
+        RUBY
       end
 
       it 'registers an offense for 1.times without block' do

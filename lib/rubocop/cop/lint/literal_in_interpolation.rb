@@ -24,6 +24,10 @@ module RuboCop
         MSG = 'Literal interpolation detected.'
         COMPOSITE = %i[array hash pair irange erange].freeze
 
+        def self.autocorrect_incompatible_with
+          [Style::PercentLiteralDelimiters, Style::RegexpLiteral]
+        end
+
         def on_interpolation(begin_node)
           final_node = begin_node.children.last
           return unless offending?(final_node)
@@ -71,6 +75,7 @@ module RuboCop
           # interpolation should not be removed if the expanded value
           # contains a space character.
           return if in_array_percent_literal?(begin_node) && /\s|\A\z/.match?(value)
+          return if breaks_delimiters?(begin_node, value)
 
           value
         end
@@ -151,9 +156,9 @@ module RuboCop
         end
 
         def autocorrected_value_for_array(node)
-          return node.source.gsub('"', '\"') unless node.percent_literal?
+          return escape_string_content(node.source) unless node.percent_literal?
 
-          contents_range(node).source.split.to_s.gsub('"', '\"')
+          escape_string_content(node.values.map { |value| value.value.to_s }.to_s)
         end
 
         def autocorrected_value_for_hash(node)
@@ -188,8 +193,15 @@ module RuboCop
 
         # Does node print its own source when converted to a string?
         def prints_as_self?(node)
-          node.basic_literal? ||
-            (COMPOSITE.include?(node.type) && node.children.all? { |child| prints_as_self?(child) })
+          return true if node.basic_literal?
+          return false unless COMPOSITE.include?(node.type)
+          return numeric_open_range?(node) if node.children.any?(&:nil?)
+
+          node.children.all? { |child| prints_as_self?(child) }
+        end
+
+        def numeric_open_range?(node)
+          node.children.compact.all? { |child| child.type?(:int, :float) }
         end
 
         def space_literal?(node)
@@ -213,6 +225,40 @@ module RuboCop
 
           grandparent = parent.parent
           grandparent&.array_type? && grandparent.percent_literal?
+        end
+
+        def breaks_delimiters?(begin_node, value)
+          return false unless (literal = delimited_literal(begin_node))
+
+          opening = literal.loc.begin.source[-1]
+          closing = literal.loc.end.source[0]
+          return !balanced?(value, opening, closing) if opening != closing
+
+          !escaped_delimiter?(literal, closing) && value.include?(closing)
+        end
+
+        def delimited_literal(begin_node)
+          parent = begin_node.parent
+          literal = in_array_percent_literal?(begin_node) ? parent.parent : parent
+
+          literal if literal.loc?(:begin) && literal.loc?(:end)
+        end
+
+        def balanced?(value, opening, closing)
+          depth = 0
+          value.each_char do |char|
+            depth += 1 if char == opening
+            depth -= 1 if char == closing
+            return false if depth.negative?
+          end
+
+          depth.zero?
+        end
+
+        def escaped_delimiter?(literal, delimiter)
+          return true if delimiter == '"'
+
+          delimiter == '/' && literal.regexp_type? && literal.slash_literal?
         end
 
         def escape_trailing_hash_sign(begin_node, value)

@@ -199,6 +199,43 @@ RSpec.describe RuboCop::Cop::Style::RedundantInterpolation, :config do
     RUBY
   end
 
+  it 'registers offenses for a nested interpolation in an argument of a method call without parentheses' do
+    expect_offense(<<~'RUBY')
+      "#{do_something foo, "#{bar}"}"
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Prefer `to_s` over string interpolation.
+                           ^^^^^^^^ Prefer `to_s` over string interpolation.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      do_something(foo, bar.to_s).to_s
+    RUBY
+  end
+
+  it 'registers offenses for a nested interpolation in an argument of a method call with parentheses' do
+    expect_offense(<<~'RUBY')
+      "#{do_something(foo, "#{bar}")}"
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Prefer `to_s` over string interpolation.
+                           ^^^^^^^^ Prefer `to_s` over string interpolation.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      do_something(foo, bar.to_s).to_s
+    RUBY
+  end
+
+  it 'registers an offense and keeps the arguments of a multiline method call without parentheses' do
+    expect_offense(<<~'RUBY')
+      "#{do_something foo, # comment
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Prefer `to_s` over string interpolation.
+        bar}"
+    RUBY
+
+    expect_correction(<<~RUBY)
+      do_something(foo, # comment
+        bar).to_s
+    RUBY
+  end
+
   it 'registers an offense for "#{var}"' do
     expect_offense(<<~'RUBY')
       var = 1; "#{var}"
@@ -256,6 +293,122 @@ RSpec.describe RuboCop::Cop::Style::RedundantInterpolation, :config do
     # `42 => var` is `match-pattern` node.
     expect_no_offenses(<<~'RUBY')
       "#{x; 42 => var}"
+    RUBY
+  end
+
+  it 'accepts a parenthesized one-line `=>` pattern matching', :ruby30 do
+    expect_no_offenses(<<~'RUBY')
+      "#{(42 => var)}"
+    RUBY
+  end
+
+  it 'registers an offense when one-line `=>` pattern matching is followed by an expression', :ruby30 do
+    expect_offense(<<~'RUBY')
+      "#{42 => var; x}"
+      ^^^^^^^^^^^^^^^^^ Prefer `to_s` over string interpolation.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      (42 => var; x).to_s
+    RUBY
+  end
+
+  it 'accepts `return` with a value' do
+    expect_no_offenses(<<~'RUBY')
+      "#{return foo}"
+    RUBY
+  end
+
+  %w[break next redo].each do |keyword|
+    it "accepts `#{keyword}`" do
+      expect_no_offenses(<<~RUBY)
+        "\#{#{keyword}}"
+      RUBY
+    end
+  end
+
+  it 'accepts `return` as the last expression' do
+    expect_no_offenses(<<~'RUBY')
+      "#{foo; return}"
+    RUBY
+  end
+
+  it 'registers an offense when `return` is not the last expression' do
+    expect_offense(<<~'RUBY')
+      "#{return; foo}"
+      ^^^^^^^^^^^^^^^^ Prefer `to_s` over string interpolation.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      (return; foo).to_s
+    RUBY
+  end
+
+  it 'accepts `if` whose branches both return' do
+    expect_no_offenses(<<~'RUBY')
+      "#{foo ? return : return}"
+    RUBY
+  end
+
+  it 'registers an offense for `if` whose branch is not void' do
+    expect_offense(<<~'RUBY')
+      "#{return if foo}"
+      ^^^^^^^^^^^^^^^^^^ Prefer `to_s` over string interpolation.
+    RUBY
+
+    expect_correction(<<~RUBY)
+      (return if foo).to_s
+    RUBY
+  end
+
+  it 'accepts `begin` whose `ensure` branch returns' do
+    expect_no_offenses(<<~'RUBY')
+      "#{begin
+        foo
+      ensure
+        return bar
+      end}"
+    RUBY
+  end
+
+  it 'accepts `begin` whose body and `rescue` branches return' do
+    expect_no_offenses(<<~'RUBY')
+      "#{begin
+        return foo
+      rescue
+        return bar
+      end}"
+    RUBY
+  end
+
+  it 'registers an offense for `begin` whose `rescue` branch is not void' do
+    expect_offense(<<~'RUBY')
+      "#{begin
+      ^^^^^^^^ Prefer `to_s` over string interpolation.
+        return foo
+      rescue
+        bar
+      end}"
+    RUBY
+
+    expect_correction(<<~RUBY)
+      (begin
+        return foo
+      rescue
+        bar
+      end).to_s
+    RUBY
+  end
+
+  it 'accepts `begin` whose body and `else` branch return' do
+    expect_no_offenses(<<~'RUBY')
+      "#{begin
+        return foo
+      rescue
+        bar
+      else
+        return baz
+      end}"
     RUBY
   end
 

@@ -33,8 +33,10 @@ module RuboCop
       return unless File.exist?(rubocop_cache_dir)
 
       # We know the cache entries are 3 level deep, so globing
-      # for `*/*/*` only returns files.
-      files = Dir[File.join(rubocop_cache_dir, '*/*/*')]
+      # for `*/*/*` only returns files. The server keeps its state files at
+      # the same depth, under `server`, so they are excluded here.
+      files = Dir[File.join(rubocop_cache_dir, '*/*/*')] -
+              Dir[File.join(rubocop_cache_dir, CacheConfig::SERVER_DIR, '*/*')]
       return unless requires_file_removal?(files.length, config_store)
 
       remove_oldest_files(files, rubocop_cache_dir, verbose)
@@ -228,7 +230,11 @@ module RuboCop
       # don't affect caching.
       def relevant_options_digest(options)
         @relevant_options_digest ||= {}
-        @relevant_options_digest[options] ||= begin
+        # The memo key must be a snapshot, not the live Hash: callers mutate their options
+        # between runs (`--auto-gen-config` adds and removes `:only` between its phases),
+        # and a stale entry keyed by the mutated object itself could be returned for options it
+        # was not computed from.
+        @relevant_options_digest[options.dup] ||= begin
           options = options.reject { |key, _| NON_CHANGING.include?(key) }
           options.to_s.gsub(/[^a-z]+/i, '_')
         end

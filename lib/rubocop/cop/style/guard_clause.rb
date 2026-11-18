@@ -100,14 +100,18 @@ module RuboCop
       #     end
       #   end
       #
-      class GuardClause < Base
+      class GuardClause < Base # rubocop:disable Metrics/ClassLength
         extend AutoCorrector
         include RangeHelp
         include MinBodyLength
         include StatementModifier
+        include RescueNode
 
         MSG = 'Use a guard clause (`%<example>s`) instead of wrapping the ' \
               'code inside a conditional expression.'
+        STATEMENT_PARENT_TYPES = %i[
+          begin kwbegin block numblock itblock class module sclass ensure
+        ].freeze
 
         def self.autocorrect_incompatible_with
           [Style::MissingElse]
@@ -191,6 +195,7 @@ module RuboCop
 
           add_offense(node.loc.keyword, message: format(MSG, example: example)) do |corrector|
             next if node.else? && guard.nil?
+            next if code_after_end_needs_conditional?(node, guard)
 
             autocorrect(corrector, node, example, replacement, guard)
           end
@@ -224,9 +229,7 @@ module RuboCop
         end
 
         def find_heredoc_argument(node)
-          return unless node
-
-          node = node.children.first while node.begin_type?
+          return unless (node = unwrap_begin(node))
           return node if heredoc?(node)
           return unless node.call_type?
 
@@ -238,12 +241,17 @@ module RuboCop
           find_heredoc_argument(node.receiver)
         end
 
+        def unwrap_begin(node)
+          node = node.children.first while node&.begin_type?
+          node
+        end
+
         def close_multiline_guard_clause(corrector, range, heredoc, guard)
           corrector.insert_after(guard && heredoc ? heredoc.loc.heredoc_end : range, "\nend")
         end
 
         def autocorrect_heredoc_argument(corrector, node, heredoc_node, leave_branch, guard)
-          remove_whole_lines(corrector, node.loc.end)
+          remove_end(corrector, node.loc.end)
           return unless node.else?
 
           if leave_branch
@@ -253,6 +261,14 @@ module RuboCop
 
           remove_whole_lines(corrector, node.loc.else)
           remove_whole_lines(corrector, range_of_branch_to_remove(node, guard))
+        end
+
+        def remove_end(corrector, end_range)
+          if range_by_whole_lines(end_range).source.strip == end_range.source
+            remove_whole_lines(corrector, end_range)
+          else
+            corrector.remove(end_range)
+          end
         end
 
         def range_of_branch_to_remove(node, guard)
@@ -283,21 +299,50 @@ module RuboCop
         end
 
         def accepted_form?(node, ending: false)
-          accepted_if?(node, ending) || node.condition.multiline? ||
-            node.parent&.assignment? || endless_method_body?(node)
+          return true if accepted_if?(node, ending) || node.condition.multiline?
+
+          !statement?(node)
         end
 
-        # The body of an endless method is a single expression, so there is no
-        # room for a guard clause followed by the rest of the code.
-        def endless_method_body?(node)
+        # A guard clause is followed by the rest of the code as separate statements,
+        # so there is no room for them where a single expression is expected,
+        # such as an assignment value, a hash value, or the body of an endless method.
+        def statement?(node)
           parent = node.parent
-          parent&.any_def_type? && parent.endless?
+          return true if parent.nil? || parent.type?(*STATEMENT_PARENT_TYPES)
+          return !parent.endless? if parent.any_def_type?
+          return !rescue_modifier?(parent) if parent.resbody_type?
+          return !rescue_modifier?(parent.resbody_branches.first) if parent.rescue_type?
+
+          statement_branch?(node, parent)
+        end
+
+        def statement_branch?(node, parent)
+          case parent.type
+          when :if
+            !parent.ternary? && !node.equal?(parent.condition)
+          when :when, :in_pattern, :while, :until, :for
+            node.equal?(parent.body)
+          when :case, :case_match
+            node.equal?(parent.else_branch)
+          else
+            false
+          end
         end
 
         def trivial?(node)
           return false unless node.if_branch
 
           node.branches.one? && !node.if_branch.if_type? && !node.if_branch.begin_type?
+        end
+
+        def code_after_end_needs_conditional?(node, guard)
+          guard_branch = guard == :else ? node.else_branch : node.if_branch
+          return false unless find_heredoc_argument(guard_branch)
+
+          end_keyword = node.loc.end
+
+          !end_keyword.source_line[end_keyword.last_column..].match?(/\A\s*(?:\z|[#;)\]}])/)
         end
 
         def accepted_if?(node, ending)

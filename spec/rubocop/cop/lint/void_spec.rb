@@ -89,6 +89,56 @@ RSpec.describe RuboCop::Cop::Lint::Void, :config do
       RUBY
     end
 
+    it "accepts void op #{op} method call with multiple arguments" do
+      expect_no_offenses(<<~RUBY)
+        a.#{op}(b, c)
+        nil
+      RUBY
+    end
+
+    it "accepts void op #{op} method call with keyword arguments" do
+      expect_no_offenses(<<~RUBY)
+        a.#{op}(key: value)
+        a.#{op}(**options)
+        nil
+      RUBY
+    end
+
+    it "accepts void op #{op} method call with a trailing comma" do
+      expect_no_offenses(<<~RUBY)
+        a.#{op}(b,)
+        nil
+      RUBY
+    end
+
+    it "accepts void op #{op} method call with a splat argument" do
+      expect_no_offenses(<<~RUBY)
+        a.#{op}(*args)
+        nil
+      RUBY
+    end
+
+    it "accepts void op #{op} method call with a block argument" do
+      expect_no_offenses(<<~RUBY)
+        a.#{op}(&block)
+        nil
+      RUBY
+    end
+
+    it 'handles methods called by dot with a hash argument' do
+      expect_offense(<<~RUBY, op: op)
+        a.%{op}({key: value})
+          ^{op} Operator `#{op}` used in void context.
+        nil
+      RUBY
+
+      expect_correction(<<~RUBY)
+        a
+        ({key: value})
+        nil
+      RUBY
+    end
+
     it 'handles methods called by dot with safe navigation' do
       expect_offense(<<~RUBY, op: op)
         a&.%{op}(b)
@@ -901,6 +951,48 @@ RSpec.describe RuboCop::Cop::Lint::Void, :config do
 
     expect_correction(<<~RUBY)
       def something
+        42
+      end
+    RUBY
+  end
+
+  it 'registers an offense but does not correct a void interpolated string' do
+    expect_offense(<<~'RUBY')
+      def something
+        "#{foo}"
+        ^^^^^^^^ Literal `"#{foo}"` used in void context.
+        42
+      end
+    RUBY
+
+    expect_no_corrections
+  end
+
+  it 'registers an offense but does not correct a void array with an interpolated symbol' do
+    expect_offense(<<~'RUBY')
+      def something
+        [:"#{foo}"]
+        ^^^^^^^^^^^ Literal `[:"#{foo}"]` used in void context.
+        42
+      end
+    RUBY
+
+    expect_no_corrections
+  end
+
+  it 'corrects a void operator inside a void interpolated string' do
+    expect_offense(<<~'RUBY')
+      def something
+        "#{1 + 1; 2}"
+        ^^^^^^^^^^^^^ Literal `"#{1 + 1; 2}"` used in void context.
+             ^ Operator `+` used in void context.
+        42
+      end
+    RUBY
+
+    expect_correction(<<~'RUBY')
+      def something
+        "#{; 2}"
         42
       end
     RUBY

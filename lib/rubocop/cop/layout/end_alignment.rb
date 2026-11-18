@@ -80,6 +80,8 @@ module RuboCop
         include RangeHelp
         extend AutoCorrector
 
+        alias on_csend on_send
+
         def on_sclass(node)
           if node.parent&.assignment?
             check_asgn_alignment(node.parent, node)
@@ -183,7 +185,7 @@ module RuboCop
             return node.parent
           end
 
-          assignment = assignment_or_operator_method(node)
+          assignment = assignment_or_method_call(node)
 
           if assignment && !line_break_before_keyword?(assignment.source_range, node)
             assignment
@@ -195,13 +197,11 @@ module RuboCop
           end
         end
 
-        def assignment_or_operator_method(node)
+        def assignment_or_method_call(node)
           node.ancestors.find do |ancestor|
             if ancestor.assignment_or_similar?
               leading_node(extract_rhs(ancestor)).equal?(node)
-            elsif ancestor.send_type? && ancestor.operator_method?
-              !leading_node(ancestor).equal?(node)
-            elsif ancestor.send_type?
+            elsif ancestor.call_type?
               leading_node(ancestor.last_argument).equal?(node)
             end
           end

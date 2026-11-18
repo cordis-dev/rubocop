@@ -21,6 +21,10 @@ module RuboCop
 
         MSG = '`%<argument>s` interpreted as grouped expression.'
 
+        def self.autocorrect_incompatible_with
+          [Style::RedundantParentheses]
+        end
+
         def on_send(node)
           return if valid_context?(node)
 
@@ -54,15 +58,46 @@ module RuboCop
         end
 
         def invalid_bare_argument?(node)
-          node = node.children.first while node&.begin_type? && node.children.one?
+          return true if multiple_statements?(node) || not_a_single_expression?(node)
+
+          node = innermost_expression(node)
           return false unless node
+          return true if multiple_values_assignment?(node)
 
           keyword_operator?(node) || modifier_expression?(node) || command_call_operand?(node)
         end
 
+        def multiple_statements?(node)
+          node.begin_type? && node.children.size > 1
+        end
+
+        def not_a_single_expression?(node)
+          return false unless node.begin_type?
+
+          expression = node.children.first
+          return true unless expression
+
+          processed_source.tokens_within(node).any? do |token|
+            token.semicolon? && !expression.source_range.contains?(token.pos)
+          end
+        end
+
+        def innermost_expression(node)
+          node = node.children.first while node&.begin_type? && node.children.one?
+          node
+        end
+
+        def multiple_values_assignment?(node)
+          return true if node.masgn_type?
+          return false unless node.assignment? || (node.call_type? && node.assignment_method?)
+
+          value = node.children.last
+          value.array_type? && !value.bracketed?
+        end
+
         def keyword_operator?(node)
           (node.operator_keyword? && node.semantic_operator?) ||
-            node.rescue_type? || (node.send_type? && node.prefix_not?)
+            node.rescue_type? || node.match_pattern_p_type? || (node.send_type? && node.prefix_not?)
         end
 
         def modifier_expression?(node)
@@ -75,7 +110,7 @@ module RuboCop
           elsif node.send_type? && node.prefix_bang?
             command_call_value?(node.receiver)
           else
-            false
+            command_call_with_do_block?(node)
           end
         end
 
@@ -88,6 +123,13 @@ module RuboCop
           return false unless node.type?(:call, :super, :yield)
 
           node.arguments? && !node.parenthesized? && !node.operator_method?
+        end
+
+        def command_call_with_do_block?(node)
+          node = node.receiver while node.call_type? && node.receiver
+          return false unless node.any_block_type?
+
+          node.keywords? && command_call?(node)
         end
 
         def chained_calls?(node)
