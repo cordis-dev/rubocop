@@ -40,7 +40,7 @@ module RuboCop
 
         # @!method block_reassigns_arg?(node)
         def_node_search :block_reassigns_arg?, <<~PATTERN
-          (lvasgn %)
+          {(lvasgn % ...) (match_var %) (match_with_lvasgn #named_capture?(%) _)}
         PATTERN
 
         def on_send(node)
@@ -74,7 +74,15 @@ module RuboCop
         end
 
         def remove_node(corrector, node)
+          return if code_after?(node)
+
           corrector.remove(range_by_whole_lines(node.source_range, include_final_newline: true))
+        end
+
+        def code_after?(node)
+          last_line = processed_source.buffer.source_line(node.last_line)
+
+          last_line[node.loc.last_column..].match?(/\A\s*[^\s#]/)
         end
 
         def autocorrect_block_pass(corrector, node, proc_name)
@@ -110,6 +118,10 @@ module RuboCop
             inner = control.each_ancestor.take_while { |ancestor| !ancestor.equal?(node) }
             inner.none? { |ancestor| ancestor.type?(:any_block, :while, :until, :for) }
           end
+        end
+
+        def named_capture?(regexp, name)
+          regexp.to_regexp.names.include?(name.to_s)
         end
 
         def fix_indentation(source, range)

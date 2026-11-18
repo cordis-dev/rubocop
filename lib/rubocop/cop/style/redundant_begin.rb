@@ -62,12 +62,16 @@ module RuboCop
       #       baz
       #     end
       #   end
-      class RedundantBegin < Base
+      class RedundantBegin < Base # rubocop:disable Metrics/ClassLength
         include RangeHelp
         extend AutoCorrector
 
         MSG = 'Redundant `begin` block detected.'
         SPACE_INSIDE_PARENS_STYLES = %w[space compact].freeze
+        VALUE_PARENT_TYPES = %i[return next break optarg kwoptarg].freeze
+        STATEMENT_CONTAINER_TYPES = %i[
+          begin kwbegin any_block any_def class module sclass rescue resbody ensure
+        ].freeze
 
         def self.autocorrect_incompatible_with
           [
@@ -108,7 +112,7 @@ module RuboCop
           body = node.body
 
           return unless body&.kwbegin_type?
-          return if body.rescue_node || body.ensure_node
+          return if body.ensure_node || body.rescue_node
 
           register_offense(body)
         end
@@ -148,7 +152,7 @@ module RuboCop
           offense_range = node.loc.begin
 
           add_offense(offense_range) do |corrector|
-            if node.parent&.assignment? || node.parent&.type?(:return, :next, :break)
+            if node.parent&.assignment? || node.parent&.type?(*VALUE_PARENT_TYPES)
               replace_begin_with_statement(corrector, offense_range, node)
             else
               remove_begin(corrector, offense_range, node)
@@ -195,7 +199,7 @@ module RuboCop
           first_child = node.children.first
 
           source = first_child.source
-          source = "(#{source})" if low_precedence_statement?(first_child)
+          source = "(#{source})" if parentheses_required?(first_child, node.parent)
 
           corrector.replace(offense_range, source)
           corrector.remove(range_between(offense_range.end_pos, first_child.source_range.end_pos))
@@ -203,11 +207,36 @@ module RuboCop
           restore_removed_comments(corrector, offense_range, node, first_child)
         end
 
+        def parentheses_required?(statement, parent)
+          return true if low_precedence_statement?(statement)
+          return false unless command_call?(statement)
+          return parent.type?(:optarg, :kwoptarg) unless parent.assignment?
+
+          parent = parent.parent while parent.parent&.assignment?
+          !statement_position?(parent)
+        end
+
         def low_precedence_statement?(node)
           return node.modifier_form? if node.basic_conditional?
           return node.prefix_not? if node.send_type?
 
           node.operator_keyword? && node.semantic_operator?
+        end
+
+        def command_call?(node)
+          node = node.send_node if node.any_block_type?
+          return false unless node.type?(:call, :super, :yield)
+
+          node.arguments? && !node.parenthesized? && !node.operator_method? && !node.setter_method?
+        end
+
+        def statement_position?(node)
+          parent = node.parent
+          return true if parent.nil? || parent.type?(*STATEMENT_CONTAINER_TYPES)
+          return parent.body.equal?(node) if parent.type?(:when, :in_pattern, :for)
+          return false if parent.if_type? && parent.ternary?
+
+          parent.type?(:if, :while, :until, :case, :case_match) && !parent.condition.equal?(node)
         end
 
         def remove_begin(corrector, offense_range, node)
@@ -278,7 +307,9 @@ module RuboCop
         end
 
         def valid_begin_assignment?(node)
-          node.parent&.assignment? && (!node.children.one? || too_long_when_joined?(node))
+          return false unless node.parent&.assignment?
+
+          !node.children.one? || too_long_when_joined?(node) || multiline_memoization?(node)
         end
 
         def too_long_when_joined?(node)
@@ -304,10 +335,19 @@ module RuboCop
           SPACE_INSIDE_PARENS_STYLES.include?(style)
         end
 
+        def multiline_memoization?(node)
+          if !node.parent.or_asgn_type? || !config.cop_enabled?('Style/MultilineMemoization')
+            return false
+          end
+
+          statement = node.children.first
+          statement.multiline? && low_precedence_statement?(statement)
+        end
+
         def inspect_branches(node)
           node.branches.each do |branch|
             next unless branch&.kwbegin_type?
-            next if branch.rescue_node || branch.ensure_node
+            next if branch.ensure_node || branch.rescue_node
             next if ternary_operand_requiring_begin?(branch)
 
             register_offense(branch)

@@ -129,6 +129,33 @@ RSpec.describe RuboCop::Cop::Lint::LiteralInInterpolation, :config do
     it_behaves_like('literal interpolation', '%I[s1 s2]', '[\"s1\", \"s2\"]')
     it_behaves_like('literal interpolation', '%i[s1     s2]', '[\"s1\", \"s2\"]')
     it_behaves_like('literal interpolation', '%i[ s1   s2 ]', '[\"s1\", \"s2\"]')
+    it_behaves_like('literal interpolation', '%w["v1"]', '[\"\\\\\"v1\\\\\"\"]')
+    it_behaves_like('literal interpolation', '%w[#{v1}]', '[\"\\\\\#{v1}\"]')
+    it_behaves_like('literal interpolation', '%w[d\\ e]', '[\"d e\"]')
+    it_behaves_like('literal interpolation', '["\\""]', '[\"\\\\\"\"]')
+    it_behaves_like('literal interpolation', '["\\#{v1}"]', '[\"\\\\\#{v1}\"]')
+
+    it 'registers an offense and keeps the escaped backslash for a percent array' do
+      expect_offense(<<~'RUBY')
+        "#{%w[a\\b]}"
+           ^^^^^^^^ Literal interpolation detected.
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        "[\"a\\\\b\"]"
+      RUBY
+    end
+
+    it 'registers an offense and keeps the escaped backslash for an array' do
+      expect_offense(<<~'RUBY')
+        "#{["a\\b"]}"
+           ^^^^^^^^ Literal interpolation detected.
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        "[\"a\\\\b\"]"
+      RUBY
+    end
   end
 
   describe 'type hash' do
@@ -243,8 +270,35 @@ RSpec.describe RuboCop::Cop::Lint::LiteralInInterpolation, :config do
     it_behaves_like('literal interpolation', 'nil', '')
     it_behaves_like('literal interpolation', 1..2)
     it_behaves_like('literal interpolation', 1...2)
+    it_behaves_like('literal interpolation', '..2')
+    it_behaves_like('literal interpolation', '1..')
+    it_behaves_like('literal interpolation', '1.5...')
     it_behaves_like('literal interpolation', true)
     it_behaves_like('literal interpolation', false)
+
+    it 'does not register an offense for a beginless range with a string boundary' do
+      expect_no_offenses(<<~'RUBY')
+        "#{..'a'}"
+      RUBY
+    end
+
+    it 'does not register an offense for an endless range with a symbol boundary' do
+      expect_no_offenses(<<~'RUBY')
+        "#{:a..}"
+      RUBY
+    end
+
+    it 'does not register an offense for an endless range with a `nil` boundary' do
+      expect_no_offenses(<<~'RUBY')
+        "#{nil..}"
+      RUBY
+    end
+
+    it 'does not register an offense for an endless range with a rational boundary' do
+      expect_no_offenses(<<~'RUBY')
+        "#{1r..}"
+      RUBY
+    end
   end
 
   shared_examples 'literal interpolation in words literal' do |prefix|
@@ -696,5 +750,48 @@ RSpec.describe RuboCop::Cop::Lint::LiteralInInterpolation, :config do
     expect_no_offenses(<<~'RUBY')
       /#{%w[a b c]}/
     RUBY
+  end
+
+  context 'when the value contains a delimiter of the enclosing literal' do
+    it 'does not register an offense for an opening brace inside a %r{} `regexp`' do
+      expect_no_offenses(<<~'RUBY')
+        %r{foo#{'{'}bar}
+      RUBY
+    end
+
+    it 'does not register an offense for a closing parenthesis inside a %() string' do
+      expect_no_offenses(<<~'RUBY')
+        %(foo#{')'}bar)
+      RUBY
+    end
+
+    it 'does not register an offense for a backtick inside backticks' do
+      expect_no_offenses(<<~'RUBY')
+        `foo#{'`'}bar`
+      RUBY
+    end
+
+    it 'does not register an offense for a closing bracket inside a %W[] array' do
+      expect_no_offenses(<<~'RUBY')
+        %W[foo#{']'}bar]
+      RUBY
+    end
+
+    it 'does not register an offense for a forward slash inside a %// string' do
+      expect_no_offenses(<<~'RUBY')
+        %/foo#{'/'}bar/
+      RUBY
+    end
+
+    it 'registers an offense for a double quote inside a %Q"" string' do
+      expect_offense(<<~'RUBY')
+        %Q"foo#{'"'}bar"
+                ^^^ Literal interpolation detected.
+      RUBY
+
+      expect_correction(<<~'RUBY')
+        %Q"foo\"bar"
+      RUBY
+    end
   end
 end

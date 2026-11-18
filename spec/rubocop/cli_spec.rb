@@ -243,6 +243,42 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
         end
       end
 
+      context 'when specifying `--force-exclusion` option' do
+        it 'uses parallel inspection' do
+          create_file('example1.rb', <<~RUBY)
+            # frozen_string_literal: true
+
+            puts 'hello'
+          RUBY
+          expect(cli.run(['--debug', '--force-exclusion'])).to eq(0)
+          expect($stdout.string).to include('Use parallel by default.')
+        end
+      end
+
+      context 'when specifying `--display-cop-names` option' do
+        it 'uses parallel inspection' do
+          create_file('example1.rb', <<~RUBY)
+            # frozen_string_literal: true
+
+            puts 'hello'
+          RUBY
+          expect(cli.run(['--debug', '--display-cop-names'])).to eq(0)
+          expect($stdout.string).to include('Use parallel by default.')
+        end
+      end
+
+      context 'when specifying `--report-unused-todo-entries` option' do
+        it 'uses parallel inspection' do
+          create_file('example1.rb', <<~RUBY)
+            # frozen_string_literal: true
+
+            puts 'hello'
+          RUBY
+          expect(cli.run(['--debug', '--report-unused-todo-entries'])).to eq(0)
+          expect($stdout.string).to include('Use parallel by default.')
+        end
+      end
+
       context 'when specifying `--debug` and `-a` options`' do
         it 'uses parallel inspection when correcting the file' do
           create_file('example1.rb', <<~RUBY)
@@ -2309,6 +2345,33 @@ RSpec.describe RuboCop::CLI, :isolated_environment do
 
         expect(cli.run([])).to eq(0)
         expect($stderr.string).to be_blank
+      end
+    end
+
+    context 'when using `plugins` to enable a plugin in a subdirectory' do
+      it 'does not apply the plugin cops to files outside the subdirectory' do
+        create_file('spec/.rubocop.yml', <<~YAML)
+          plugins:
+            - rubocop-internal_affairs
+        YAML
+        create_file('spec/example_spec.rb', <<~RUBY)
+          # frozen_string_literal: true
+
+          expect(cop.messages).to eq([described_class::MSG])
+        RUBY
+        create_file('example.rb', <<~RUBY)
+          # frozen_string_literal: true
+
+          expect(cop.messages).to eq([described_class::MSG])
+        RUBY
+
+        expect(cli.run(['--format', 'simple', 'spec', 'example.rb'])).to eq(1)
+        expect($stdout.string).to eq(<<~RESULT)
+          == spec/example_spec.rb ==
+          C:  3: 29: InternalAffairs/UselessMessageAssertion: Do not specify cop behavior using described_class::MSG.
+
+          2 files inspected, 1 offense detected
+        RESULT
       end
     end
 

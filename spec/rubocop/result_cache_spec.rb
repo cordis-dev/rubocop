@@ -476,6 +476,32 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
       expect($stdout.string).to eq("Removing the 2 oldest files from #{custom_rubocop_cache_dir}\n")
     end
 
+    context 'when the server has state files in the cache root' do
+      let(:server_dir) { "#{rubocop_cache_dir}/server/foo+project" }
+
+      before do
+        %w[version lock pid port token].each do |name|
+          path = create_file("#{server_dir}/#{name}", name)
+          # Make the server state files older than any cache entry, so that
+          # they would be the first to go if they were treated as entries.
+          FileUtils.touch(path, mtime: Time.now - 3600)
+        end
+      end
+
+      it 'leaves the server state files alone' do
+        cache.save(offenses)
+        described_class.new('other.rb', team, options, config_store, cache_root).save(offenses)
+        underscore_dir = File.dirname(cache.path)
+        expect(Dir["#{underscore_dir}/*"].size).to eq(2)
+
+        cache.class.cleanup(config_store, :verbose, cache_root)
+
+        expect(Dir["#{server_dir}/*"].size).to eq(5)
+        expect(File).not_to exist(underscore_dir)
+        expect($stdout.string).to eq("Removing the 2 oldest files from #{rubocop_cache_dir}\n")
+      end
+    end
+
     shared_examples 'unwritable cache' do |error|
       it 'leaves the cache as it is' do
         cache.save(offenses)
@@ -535,6 +561,20 @@ RSpec.describe RuboCop::ResultCache, :isolated_environment do
 
       described_class.relevant_options_digest(options)
       described_class.relevant_options_digest(options)
+    end
+
+    # Keying the memoization by the caller's live Hash lets a caller that mutates its options
+    # between runs (like `--auto-gen-config`, which adds and removes `:only` between its two phases)
+    # be served the digest of the pre-mutation options: a small-Hash lookup compares
+    # a one-byte hash hint and then `eql?`, which short-circuits on object identity,
+    # so the stale entry matches whenever the hint collides (roughly 1 in 256 processes).
+    it 'does not key the memoization by the mutable options object itself' do
+      options = { only: ['Layout/EmptyLines'] }
+
+      described_class.relevant_options_digest(options)
+
+      memo = described_class.instance_variable_get(:@relevant_options_digest)
+      expect(memo.keys).to be_none { |key| key.equal?(options) }
     end
   end
 

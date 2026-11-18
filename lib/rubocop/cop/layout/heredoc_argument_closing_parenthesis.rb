@@ -56,13 +56,16 @@ module RuboCop
 
         MSG = 'Put the closing parenthesis for a method call with a ' \
               'HEREDOC parameter on the same line as the HEREDOC opening.'
+        CODE_THAT_CAN_START_A_LINE = /\A\s*(?:\z|[,;)\]}#]|&?\.(?!\.))/.freeze
 
         # `Layout/MultilineMethodCallBraceLayout` can move the same closing parenthesis after
-        # the last argument in the same pass, and both insertions are kept.
+        # the last argument in the same pass, and both insertions are kept. `Style/RaiseArgs`
+        # removes the parentheses of `raise Error.new(<<~MSG ...)` around the moved one.
         def self.autocorrect_incompatible_with
-          [Layout::MultilineMethodCallBraceLayout, Style::TrailingCommaInArguments]
+          [Layout::MultilineMethodCallBraceLayout, Style::RaiseArgs, Style::TrailingCommaInArguments]
         end
 
+        # rubocop:disable-next Metrics/CyclomaticComplexity
         def on_send(node)
           heredoc_arg = extract_heredoc_argument(node)
           return unless heredoc_arg
@@ -70,8 +73,10 @@ module RuboCop
           outermost_send = outermost_send_on_same_line(heredoc_arg)
           return unless outermost_send
           return if end_keyword_before_closing_parenthesis?(node)
+          return if code_after_closing_parenthesis_cannot_start_a_line?(outermost_send)
           return if subsequent_closing_parentheses_in_same_line?(outermost_send)
           return if exist_argument_between_heredoc_end_and_closing_parentheses?(node)
+          return if exist_argument_between_heredoc_end_and_closing_parentheses?(outermost_send)
 
           add_offense(outermost_send.loc.end) do |corrector|
             autocorrect(corrector, outermost_send)
@@ -119,7 +124,7 @@ module RuboCop
           previous = heredoc
           current = previous.parent
           until send_missing_closing_parens?(current, previous, heredoc)
-            return if current&.any_block_type? && !current.send_node.equal?(previous)
+            return if body_boundary?(current, previous)
 
             previous = current
             current = current.parent
@@ -133,6 +138,12 @@ module RuboCop
             parent.arguments.include?(child) &&
             parent.loc.begin &&
             parent.loc.end.line != heredoc.last_line
+        end
+
+        def body_boundary?(node, child)
+          return true if heredoc_node?(node)
+
+          node&.any_block_type? && !node.send_node.equal?(child)
         end
 
         def extract_heredoc_argument(node)
@@ -168,6 +179,13 @@ module RuboCop
           parenthesized_send_node.ancestors.any? do |ancestor|
             ancestor.loc_is?(:end, 'end')
           end
+        end
+
+        def code_after_closing_parenthesis_cannot_start_a_line?(node)
+          paren = node.loc.end
+          code_after = processed_source.lines[paren.line - 1][paren.last_column..]
+
+          !CODE_THAT_CAN_START_A_LINE.match?(code_after)
         end
 
         def subsequent_closing_parentheses_in_same_line?(outermost_send)

@@ -147,15 +147,20 @@ module RuboCop
 
         # `Style/MethodDefParentheses` adds the same parentheses a parameter list needs in
         # an endless definition, so letting both correct in the same pass would double them.
-        # `Style/GuardClause` turns a single `if` body into several statements,
-        # which an endless definition cannot hold.
+        # `Style/GuardClause` and `Style/IdenticalConditionalBranches` turn a body that is
+        # a single conditional into several statements, which an endless definition cannot hold.
         # `Style/RaiseArgs` would drop the parentheses of a `raise` that becomes
         # the body in the same pass, which a method passed as an argument needs.
         # `Style/IfUnlessModifier` and `Style/WhileUntilModifier` would turn the body into
         # a modifier form, which then applies to the whole endless definition.
+        # `Lint/LiteralAsCondition` and `Lint/UselessTimes` replace the body with
+        # the statements inside it, which an endless definition may not hold.
         def self.autocorrect_incompatible_with
           [
+            Lint::LiteralAsCondition,
+            Lint::UselessTimes,
             Style::GuardClause,
+            Style::IdenticalConditionalBranches,
             Style::IfUnlessModifier,
             Style::MethodCallWithArgsParentheses,
             Style::MethodDefParentheses,
@@ -291,10 +296,6 @@ module RuboCop
           <<~RUBY.strip
             def #{receiver(node)}#{node.method_name}#{arguments(node)} = #{node.body.source}
           RUBY
-        end
-
-        def receiver(node)
-          node.receiver ? "#{node.receiver.source}#{node.loc.operator.source}" : ''
         end
 
         def arguments(node, missing = '')

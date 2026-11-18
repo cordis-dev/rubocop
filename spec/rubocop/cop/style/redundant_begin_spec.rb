@@ -246,6 +246,116 @@ RSpec.describe RuboCop::Cop::Style::RedundantBegin, :config do
     RUBY
   end
 
+  it 'registers and corrects an offense when using `begin` with a command call for or assignment' do
+    expect_offense(<<~RUBY)
+      var ||= begin
+              ^^^^^ Redundant `begin` block detected.
+        foo bar
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      var ||= foo bar
+
+    RUBY
+  end
+
+  it 'registers and corrects an offense when using `begin` with a command call for or assignment in a method argument' do
+    expect_offense(<<~RUBY)
+      do_something var ||= begin
+                           ^^^^^ Redundant `begin` block detected.
+        foo bar
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      do_something var ||= (foo bar)
+
+    RUBY
+  end
+
+  it 'registers and corrects an offense when using `begin` with a command call for chained assignment in a method argument' do
+    expect_offense(<<~RUBY)
+      do_something(x = var = begin
+                             ^^^^^ Redundant `begin` block detected.
+        foo bar
+      end)
+    RUBY
+
+    expect_correction(<<~RUBY)
+      do_something(x = var = (foo bar))
+    RUBY
+  end
+
+  it 'registers and corrects an offense when using `begin` with a command call for assignment in a `for` body' do
+    expect_offense(<<~RUBY)
+      for x in y
+        var = begin
+              ^^^^^ Redundant `begin` block detected.
+          foo bar
+        end
+      end
+    RUBY
+
+    expect_correction("for x in y\n  var = foo bar\n  \nend\n")
+  end
+
+  it 'registers and corrects an offense when using `begin` with a command call for assignment in a `when` condition' do
+    expect_offense(<<~RUBY)
+      case x
+      when var = begin
+                 ^^^^^ Redundant `begin` block detected.
+        foo bar
+      end
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      case x
+      when var = (foo bar)
+
+      end
+    RUBY
+  end
+
+  it 'registers and corrects an offense when using `begin` with a command call for an optional argument' do
+    expect_offense(<<~RUBY)
+      def m(a = begin
+                ^^^^^ Redundant `begin` block detected.
+        foo bar
+      end, b: begin
+              ^^^^^ Redundant `begin` block detected.
+        foo bar
+      end)
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def m(a = (foo bar), b: (foo bar))
+      end
+    RUBY
+  end
+
+  it 'registers and corrects an offense when using `begin` with a command call with a block for assignment in a condition' do
+    expect_offense(<<~RUBY)
+      if var = begin
+               ^^^^^ Redundant `begin` block detected.
+        foo bar do
+        end
+      end
+        baz
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      if var = (foo bar do
+        end)
+
+        baz
+      end
+    RUBY
+  end
+
   it 'registers and corrects an offense when using modifier `if` single statement in `begin` block' do
     expect_offense(<<~RUBY)
       var ||= begin
@@ -258,6 +368,35 @@ RSpec.describe RuboCop::Cop::Style::RedundantBegin, :config do
       var ||= (foo if condition)
 
     RUBY
+  end
+
+  it 'does not register an offense when using a multiline modifier `while` single statement in a memoization `begin` block' do
+    expect_no_offenses(<<~RUBY)
+      var ||= begin
+        foo while bar &&
+                  baz
+      end
+    RUBY
+  end
+
+  context 'when `Style/MultilineMemoization` is disabled' do
+    let(:other_cops) { { 'Style/MultilineMemoization' => { 'Enabled' => false } } }
+
+    it 'registers and corrects an offense when using a multiline modifier `while` single statement in a memoization `begin` block' do
+      expect_offense(<<~RUBY)
+        var ||= begin
+                ^^^^^ Redundant `begin` block detected.
+          foo while bar &&
+                    baz
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        var ||= (foo while bar &&
+                    baz)
+
+      RUBY
+    end
   end
 
   context 'when the statement would not fit on the assignment line' do
@@ -727,6 +866,40 @@ RSpec.describe RuboCop::Cop::Style::RedundantBegin, :config do
         begin
           foo
           bar
+        ensure
+          baz
+        end
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when using an empty `begin` with `ensure` inside an `if` statement' do
+    expect_no_offenses(<<~RUBY)
+      if condition
+        begin
+        ensure
+          baz
+        end
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when using an empty `begin` with `ensure` inside a `case` statement' do
+    expect_no_offenses(<<~RUBY)
+      case condition
+      when foo
+        begin
+        ensure
+          baz
+        end
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when using an empty `begin` with `ensure` inside a `while` statement' do
+    expect_no_offenses(<<~RUBY)
+      while condition
+        begin
         ensure
           baz
         end

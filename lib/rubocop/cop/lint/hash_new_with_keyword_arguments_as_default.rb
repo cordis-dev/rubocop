@@ -32,6 +32,12 @@ module RuboCop
         MSG = 'Use a hash literal instead of keyword arguments.'
         RESTRICT_ON_SEND = %i[new].freeze
 
+        # The braced hash literal needs the parentheses of the call,
+        # which `Style/MethodCallWithArgsParentheses` removes in the same pass.
+        def self.autocorrect_incompatible_with
+          [Style::MethodCallWithArgsParentheses]
+        end
+
         # @!method hash_new(node)
         def_node_matcher :hash_new, <<~PATTERN
           (send (const {nil? (cbase)} :Hash) :new $[hash !braces?])
@@ -46,7 +52,20 @@ module RuboCop
           end
 
           add_offense(first_argument) do |corrector|
+            autocorrect(corrector, node, first_argument)
+          end
+        end
+
+        private
+
+        def autocorrect(corrector, node, first_argument)
+          if node.parenthesized?
             corrector.wrap(first_argument, '{', '}')
+          else
+            gap = node.loc.selector.end.join(first_argument.source_range.begin)
+
+            corrector.replace(gap, '({')
+            corrector.insert_after(first_argument, '})')
           end
         end
       end

@@ -5,7 +5,10 @@ module RuboCop
     module Style
       # Checks for redundant dot before operator method call.
       # The target operator methods are `|`, `^`, `&`, ``<=>``, `==`, `===`, `=~`, `>`, `>=`, `<`,
-      # ``<=``, `<<`, `>>`, `+`, `-`, `*`, `/`, `%`, `**`, `~`, `!`, `!=`, and `!~`.
+      # ``<=``, `<<`, `>>`, `+`, `-`, `*`, `/`, `%`, `**`, `!=`, and `!~`.
+      #
+      # `!` and `~` are not targeted because they have no binary operator form,
+      # so `foo.! bar` cannot be written as `foo ! bar`, which means `foo(!bar)`.
       #
       # @example
       #
@@ -21,7 +24,7 @@ module RuboCop
         extend AutoCorrector
 
         MSG = 'Redundant dot detected.'
-        RESTRICT_ON_SEND = %i[| ^ & <=> == === =~ > >= < <= << >> + - * / % ** ~ ! != !~].freeze
+        RESTRICT_ON_SEND = %i[| ^ & <=> == === =~ > >= < <= << >> + - * / % ** != !~].freeze
         INVALID_SYNTAX_ARG_TYPES = %i[
           splat kwsplat forwarded_args forwarded_restarg forwarded_kwrestarg block_pass
         ].freeze
@@ -29,8 +32,7 @@ module RuboCop
         # rubocop:disable-next Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
         def on_send(node)
           return unless (dot = node.loc.dot)
-          return if unary_method_no_operator?(node)
-          return if node.receiver.const_type? || !node.arguments.one?
+          return if node.receiver.const_type? || !node.arguments.one? || node.block_literal?
 
           return unless (rhs = node.first_argument)
           return if method_call_with_parenthesized_arg?(rhs)
@@ -47,14 +49,6 @@ module RuboCop
 
         private
 
-        # `foo.~@` and `foo.!@` call the method `~` and `!` respectively. While those
-        # are operator methods, we don't want to actually consider them as such.
-        def unary_method_no_operator?(node)
-          return false unless node.nonmutating_unary_operator_method?
-
-          node.method_name.to_s != node.selector.source
-        end
-
         # Checks for an acceptable case of `foo.+(bar).baz`.
         def method_call_with_parenthesized_arg?(argument)
           return false unless argument.parent.parent&.send_type?
@@ -69,13 +63,12 @@ module RuboCop
         end
 
         def wrap_in_parentheses_if_chained(corrector, node)
-          return unless node.parent&.call_type?
-          return if node.parent.first_argument == node
+          return unless chained?(node)
 
-          operator = node.loc.selector
-
-          ParenthesesCorrector.correct(corrector, node)
-          corrector.insert_after(operator, ' ')
+          if node.parenthesized?
+            ParenthesesCorrector.correct(corrector, node)
+            corrector.insert_after(node.loc.selector, ' ')
+          end
           corrector.wrap(node, '(', ')')
         end
 
@@ -84,14 +77,20 @@ module RuboCop
           selector = node.loc.selector
 
           return true if selector.end_pos == rhs.source_range.begin_pos
-          return false if node.parent&.call_type? # if chained, a space is already added
+          return false if chained?(node) # if chained, a space is already added
 
-          # For `/` operations, if the RHS starts with a `(` without space,
-          # add one to avoid a syntax error.
-          range = selector.end.join(rhs.source_range.begin)
-          return true if node.method?(:/) && range.source == '('
+          # Without a space, `foo +(bar)` is parsed as `foo(+(bar))` and `foo /(bar)` starts
+          # a regexp literal.
+          node.parenthesized?
+        end
 
-          false
+        def chained?(node)
+          parent = node.parent
+          return false unless parent&.call_type?
+
+          return true unless parent.first_argument.equal?(node)
+
+          parent.binary_operation? && !parent.method?(:[])
         end
       end
     end

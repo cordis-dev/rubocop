@@ -241,6 +241,26 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLinesAroundExceptionHandlingKeywords, 
     RUBY
   end
 
+  it 'registers an offense when there is a blank line above `rescue` keyword in an `it` block', :ruby34 do
+    expect_offense(<<~RUBY)
+      foo do
+        f1(it)
+
+      #{message} before the `rescue`.
+      rescue
+        f2
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      foo do
+        f1(it)
+      rescue
+        f2
+      end
+    RUBY
+  end
+
   it_behaves_like 'accepts', 'no empty line', <<~RUBY
     begin
       f1
@@ -315,6 +335,14 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLinesAroundExceptionHandlingKeywords, 
     else foo end
   RUBY
 
+  it 'does not register an offense for a `rescue` modifier after a multiline endless method body', :ruby30 do
+    expect_no_offenses(<<~RUBY)
+      def foo = if bar
+        baz
+      end rescue nil
+    RUBY
+  end
+
   it 'registers an offense for an empty line between an empty `rescue` and `end` in a block' do
     expect_offense(<<~RUBY)
       do_something do
@@ -333,6 +361,24 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLinesAroundExceptionHandlingKeywords, 
     RUBY
   end
 
+  it 'registers an offense for an empty line between the beginning of a block and `rescue`' do
+    expect_offense(<<~RUBY)
+      do_something do
+
+      #{message} before the `rescue`.
+      rescue
+        foo
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      do_something do
+      rescue
+        foo
+      end
+    RUBY
+  end
+
   context 'when `Layout/EmptyLinesAroundBlockBody` is `EnforcedStyle: empty_lines`' do
     let(:other_cops) do
       { 'Layout/EmptyLinesAroundBlockBody' => { 'EnforcedStyle' => 'empty_lines' } }
@@ -345,6 +391,79 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLinesAroundExceptionHandlingKeywords, 
 
       end
     RUBY
+
+    it_behaves_like 'accepts', 'an empty line between the beginning of a block and `rescue`', <<~RUBY
+      do_something do |foo|
+
+      rescue
+        bar
+      end
+    RUBY
+
+    it_behaves_like 'accepts', 'an empty line between multiline block arguments and `ensure`', <<~RUBY
+      do_something do |foo,
+                       bar|
+
+      ensure
+        baz
+      end
+    RUBY
+
+    it 'registers an offense for an empty line between the beginning of a method definition and `rescue`' do
+      expect_offense(<<~RUBY)
+        def do_something
+
+        #{message} before the `rescue`.
+        rescue
+          foo
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def do_something
+        rescue
+          foo
+        end
+      RUBY
+    end
+
+    it 'registers an offense for an empty line between the beginning of a `begin` block and `rescue`' do
+      expect_offense(<<~RUBY)
+        begin
+
+        #{message} before the `rescue`.
+        rescue
+          foo
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        begin
+        rescue
+          foo
+        end
+      RUBY
+    end
+
+    it 'registers an offense for an empty line between the beginning of a block and `rescue` with a comment' do
+      expect_offense(<<~RUBY)
+        do_something do
+          # comment
+
+        #{message} before the `rescue`.
+        rescue
+          foo
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        do_something do
+          # comment
+        rescue
+          foo
+        end
+      RUBY
+    end
 
     it 'registers an offense for an empty line between an empty `ensure` and `end` in a method definition' do
       expect_offense(<<~RUBY)

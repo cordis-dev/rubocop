@@ -434,6 +434,42 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLinesAroundAccessModifier, :config do
               end
             RUBY
           end
+
+          it 'registers an offense and partially corrects for a numbered parameter block', :ruby27 do
+            expect_offense(<<~RUBY, access_modifier: access_modifier)
+              Module.new do
+                _1
+                %{access_modifier}
+                ^{access_modifier} Keep a blank line before and after `%{access_modifier}`.
+              end
+            RUBY
+
+            expect_correction(<<~RUBY)
+              Module.new do
+                _1
+
+                #{access_modifier}
+              end
+            RUBY
+          end
+
+          it 'registers an offense and partially corrects for an `it` parameter block', :ruby34 do
+            expect_offense(<<~RUBY, access_modifier: access_modifier)
+              Module.new do
+                it
+                %{access_modifier}
+                ^{access_modifier} Keep a blank line before and after `%{access_modifier}`.
+              end
+            RUBY
+
+            expect_correction(<<~RUBY)
+              Module.new do
+                it
+
+                #{access_modifier}
+              end
+            RUBY
+          end
         end
       end
 
@@ -507,6 +543,60 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLinesAroundAccessModifier, :config do
   context 'EnforcedStyle is `only_before`' do
     let(:cop_config) { { 'EnforcedStyle' => 'only_before' } }
 
+    context 'when empty lines around block bodies are required' do
+      let(:other_cops) do
+        { 'Layout/EmptyLinesAroundBlockBody' => { 'EnforcedStyle' => 'empty_lines' } }
+      end
+
+      it 'still removes a blank line before another statement' do
+        expect_offense(<<~RUBY)
+          block do
+
+            private
+            ^^^^^^^ Remove a blank line after `private`.
+
+            def foo; end
+
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          block do
+
+            private
+            def foo; end
+
+          end
+        RUBY
+      end
+
+      %w[private protected public module_function].each do |modifier|
+        it "accepts a blank line after a sole #{modifier}" do
+          expect_no_offenses(<<~RUBY)
+            block do
+
+              #{modifier}
+
+            end
+          RUBY
+        end
+
+        %w[something _1 it].each do |body|
+          it "accepts a blank line after trailing #{modifier} with #{body}", :ruby34 do
+            expect_no_offenses(<<~RUBY)
+              block do
+
+                #{body}
+
+                #{modifier}
+
+              end
+            RUBY
+          end
+        end
+      end
+    end
+
     %w[private protected].each do |access_modifier|
       it "accepts missing blank line after #{access_modifier}" do
         expect_no_offenses(<<~RUBY)
@@ -548,6 +638,88 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLinesAroundAccessModifier, :config do
           end
         RUBY
       end
+
+      it "accepts blank line after #{access_modifier} followed by another access modifier" do
+        expect_no_offenses(<<~RUBY)
+          class Test
+            #{access_modifier}
+
+            public
+
+            def test; end
+          end
+        RUBY
+      end
+
+      it "does not register an offense for a trailing blank line after #{access_modifier}" do
+        expect_no_offenses(<<~RUBY)
+          #{access_modifier}
+
+        RUBY
+      end
+
+      it "does not register an offense for a trailing blank line after a conditional #{access_modifier}" do
+        expect_no_offenses(<<~RUBY)
+          #{access_modifier} if condition
+
+        RUBY
+      end
+
+      it "registers an offense for missing blank line before #{access_modifier} followed by a trailing blank line" do
+        expect_offense(<<~RUBY)
+          something
+          #{access_modifier}
+          #{'^' * access_modifier.size} Keep a blank line before `#{access_modifier}`.
+
+        RUBY
+
+        expect_correction(<<~RUBY)
+          something
+
+          #{access_modifier}
+
+        RUBY
+      end
+
+      it "does not register an offense when `end` followed by code immediately after #{access_modifier}" do
+        expect_no_offenses(<<~RUBY)
+          foo(class Test
+            something
+
+            #{access_modifier}
+          end, bar)
+        RUBY
+      end
+
+      it "does not register an offense when an indented `end` immediately after #{access_modifier}" do
+        expect_no_offenses(<<~RUBY)
+          module Foo
+            class Test
+              something
+
+              #{access_modifier}
+            end
+          end
+        RUBY
+      end
+
+      it "registers an offense for missing blank line before #{access_modifier} followed by `end`" do
+        expect_offense(<<~RUBY)
+          class Test
+            something
+            #{access_modifier}
+            #{'^' * access_modifier.size} Keep a blank line before `#{access_modifier}`.
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          class Test
+            something
+
+            #{access_modifier}
+          end
+        RUBY
+      end
     end
 
     %w[public module_function].each do |access_modifier|
@@ -580,6 +752,52 @@ RSpec.describe RuboCop::Cop::Layout::EmptyLinesAroundAccessModifier, :config do
 
             #{access_modifier}
             def test; end
+          end
+        RUBY
+      end
+
+      it "registers an offense for missing blank line before #{access_modifier} followed by another access modifier" do
+        expect_offense(<<~RUBY)
+          class Test
+            something
+            #{access_modifier}
+            #{'^' * access_modifier.size} Keep a blank line before `#{access_modifier}`.
+
+            private
+            def test; end
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          class Test
+            something
+
+            #{access_modifier}
+
+            private
+            def test; end
+          end
+        RUBY
+      end
+
+      it "registers an offense for missing blank line before #{access_modifier} followed by an indented `end`" do
+        expect_offense(<<~RUBY)
+          module Foo
+            class Test
+              something
+              #{access_modifier}
+              #{'^' * access_modifier.size} Keep a blank line before `#{access_modifier}`.
+            end
+          end
+        RUBY
+
+        expect_correction(<<~RUBY)
+          module Foo
+            class Test
+              something
+
+              #{access_modifier}
+            end
           end
         RUBY
       end

@@ -423,10 +423,178 @@ RSpec.describe RuboCop::Cop::Style::GuardClause, :config do
     end
   end
 
+  it 'does not register an offense when a branch is a guard clause in a hash value' do
+    expect_no_offenses(<<~RUBY)
+      { key: if something
+        work
+      else
+        raise 'error'
+      end }
+    RUBY
+  end
+
+  it 'does not register an offense when a branch is a guard clause in a method argument' do
+    expect_no_offenses(<<~RUBY)
+      do_something(if something
+        work
+      else
+        raise 'error'
+      end)
+    RUBY
+  end
+
+  it 'does not register an offense when a branch is a guard clause in a ternary branch' do
+    expect_no_offenses(<<~RUBY)
+      foo ? bar : if something
+        work
+      else
+        raise 'error'
+      end
+    RUBY
+  end
+
+  it 'registers an offense when a branch is a guard clause in a `when` body' do
+    expect_offense(<<~RUBY)
+      case foo
+      when bar
+        if something
+        ^^ Use a guard clause (`raise 'error' unless something`) instead of wrapping the code inside a conditional expression.
+          work
+        else
+          raise 'error'
+        end
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      case foo
+      when bar
+        raise 'error' unless something
+          work
+      #{'  '}
+      #{'    '}
+      #{'  '}
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when a branch is a guard clause in an array element' do
+    expect_no_offenses(<<~RUBY)
+      [if something
+        work
+      else
+        raise 'error'
+      end]
+    RUBY
+  end
+
+  it 'does not register an offense when a branch is a guard clause in the body of a `rescue` modifier' do
+    expect_no_offenses(<<~RUBY)
+      if something
+        work
+      else
+        raise 'error'
+      end rescue nil
+    RUBY
+  end
+
+  it 'does not register an offense when a branch is a guard clause in the rescue value of a `rescue` modifier' do
+    expect_no_offenses(<<~RUBY)
+      foo rescue if something
+        work
+      else
+        raise 'error'
+      end
+    RUBY
+  end
+
+  it 'registers an offense when a branch is a guard clause in a `rescue` clause' do
+    expect_offense(<<~RUBY)
+      begin
+        foo
+      rescue
+        if something
+        ^^ Use a guard clause (`raise 'error' unless something`) instead of wrapping the code inside a conditional expression.
+          work
+        else
+          raise 'error'
+        end
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      begin
+        foo
+      rescue
+        raise 'error' unless something
+          work
+      #{'  '}
+      #{'    '}
+      #{'  '}
+      end
+    RUBY
+  end
+
+  it 'registers an offense when a branch is a guard clause in a `begin` body with `rescue`' do
+    expect_offense(<<~RUBY)
+      begin
+        if something
+        ^^ Use a guard clause (`raise 'error' unless something`) instead of wrapping the code inside a conditional expression.
+          work
+        else
+          raise 'error'
+        end
+      rescue
+        foo
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      begin
+        raise 'error' unless something
+          work
+      #{'  '}
+      #{'    '}
+      #{'  '}
+      rescue
+        foo
+      end
+    RUBY
+  end
+
+  it 'does not register an offense when a branch is a guard clause in an operand of `&&`' do
+    expect_no_offenses(<<~RUBY)
+      condition && if something
+        raise 'error'
+      else
+        work
+      end
+    RUBY
+  end
+
   it 'accepts a method with empty parentheses as its body' do
     expect_no_offenses(<<~RUBY)
       def func
         ()
+      end
+    RUBY
+  end
+
+  it 'registers an offense and corrects an ending `if` with empty parentheses as its body' do
+    expect_offense(<<~RUBY)
+      def func
+        if something
+        ^^ Use a guard clause (`return unless something`) instead of wrapping the code inside a conditional expression.
+          ()
+        end
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def func
+        return unless something
+          ()
+       #{trailing_whitespace}
       end
     RUBY
   end
@@ -561,6 +729,93 @@ RSpec.describe RuboCop::Cop::Style::GuardClause, :config do
     expect_correction(<<~RUBY)
       def func
         raise do_something(<<~MESSAGE) unless condition
+            text
+          MESSAGE
+      foo
+      end
+    RUBY
+  end
+
+  it 'registers an offense when using heredoc in `else` branch and code follows `end` on its line' do
+    expect_offense(<<~'RUBY')
+      "#{if condition
+         ^^ Use a guard clause (`raise(<<~MESSAGE) unless condition`) instead of wrapping the code inside a conditional expression.
+        foo
+      else
+        raise(<<~MESSAGE)
+          text
+        MESSAGE
+      end}"
+    RUBY
+
+    expect_correction(<<~'RUBY')
+      "#{raise(<<~MESSAGE) unless condition
+          text
+        MESSAGE
+      foo
+      }"
+    RUBY
+  end
+
+  it 'registers an offense when using heredoc in `else` branch and a statement follows `end` on its line' do
+    expect_offense(<<~RUBY)
+      def func
+        if condition
+        ^^ Use a guard clause (`raise(<<~MESSAGE) unless condition`) instead of wrapping the code inside a conditional expression.
+          foo
+        else
+          raise(<<~MESSAGE)
+            text
+          MESSAGE
+        end; bar
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def func
+        raise(<<~MESSAGE) unless condition
+            text
+          MESSAGE
+      foo
+        ; bar
+      end
+    RUBY
+  end
+
+  it 'registers an offense but does not correct when using heredoc in `else` branch and a modifier follows `end`' do
+    expect_offense(<<~RUBY)
+      def func
+        if condition
+        ^^ Use a guard clause (`raise(<<~MESSAGE) unless condition`) instead of wrapping the code inside a conditional expression.
+          foo
+        else
+          raise(<<~MESSAGE)
+            text
+          MESSAGE
+        end if other_condition
+      end
+    RUBY
+
+    expect_no_corrections
+  end
+
+  it 'does not move comments before `else` into the heredoc when using heredoc in `else` branch' do
+    expect_offense(<<~RUBY)
+      def func
+        if condition
+        ^^ Use a guard clause (`raise(<<~MESSAGE) unless condition`) instead of wrapping the code inside a conditional expression.
+          foo # comment
+        else # comment
+          raise(<<~MESSAGE)
+            text
+          MESSAGE
+        end
+      end
+    RUBY
+
+    expect_correction(<<~RUBY)
+      def func
+        raise(<<~MESSAGE) unless condition
             text
           MESSAGE
       foo
