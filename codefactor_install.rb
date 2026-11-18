@@ -25,8 +25,8 @@ module CodeFactorInstall
       step('Concatenate rubocop files') { concatenate(staged['lib']) }
       step('Switch to the new lib and config') { staged.each { |folder, dir| swap(File.join(gem_dir, folder), dir) } }
       step('Build startup snapshot') { build_snapshot(lib) }
-      launcher = File.join(bin_dir, 'rubocop.bat')
-      step("Write #{launcher}") { write_launcher(launcher, File.join(lib, 'rubocop_fast.rb')) }
+      launcher = File.join(bin_dir, 'rubocop_fast.rb')
+      step("Write #{launcher}") { write_launchers(launcher, File.join(lib, 'rubocop_fast.rb')) }
       step('Verify') { verify(launcher, version) }
     end
 
@@ -123,16 +123,22 @@ module CodeFactorInstall
       print "\n#{summary.map { |line| "  #{line}" }.join}"
     end
 
-    def write_launcher(launcher, script)
-      ruby = RbConfig.ruby.tr('/', '\\')
-      temp = "#{launcher}.#{Process.pid}.tmp"
-      File.binwrite(temp, "@ECHO OFF\r\n@\"#{ruby}\" --disable-gems \"#{script.tr('/', '\\')}\" %*\r\n")
-      retrying { File.rename(temp, launcher) }
+    # CodeFactor runs `ruby --disable-gems bin/rubocop_fast.rb`, a path that stays the same across rubocop versions.
+    def write_launchers(launcher, script)
+      write_atomically(launcher, "# frozen_string_literal: true\n\nload #{script.inspect}\n")
+      batch = File.join(File.dirname(launcher), 'rubocop.bat')
+      write_atomically(batch, "@ECHO OFF\r\n@\"#{RbConfig.ruby.tr('/', '\\')}\" --disable-gems \"#{launcher.tr('/', '\\')}\" %*\r\n")
+    end
+
+    def write_atomically(path, content)
+      temp = "#{path}.#{Process.pid}.tmp"
+      File.binwrite(temp, content)
+      retrying { File.rename(temp, path) }
     end
 
     def verify(launcher, version)
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      output, status = Open3.capture2e({ 'RUBOCOP_FAST_STRICT' => '1' }, 'cmd.exe', '/D', '/C', launcher, '-v')
+      output, status = Open3.capture2e({ 'RUBOCOP_FAST_STRICT' => '1' }, RbConfig.ruby, '--disable-gems', launcher, '-v')
       elapsed = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000
       abort "\nrubocop -v failed:\n#{output}" unless status.success? && output.strip == version
 
