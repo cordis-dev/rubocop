@@ -10,6 +10,8 @@ module RuboCop
     def self.root_dir
       root = ENV.fetch('RUBOCOP_CACHE_ROOT', nil)
       root ||= yield
+      # CodeFactor: ERB is not evaluated, so a templated value is not a usable path.
+      root = nil if root.is_a?(String) && root.include?('<%')
       root ||= if ENV.key?('XDG_CACHE_HOME')
                  # Include user ID in the path to make sure the user has write
                  # access.
@@ -41,21 +43,27 @@ module RuboCop
         config_path = ConfigFinder.find_config_path(PathUtil.pwd)
         file_contents = File.read(config_path)
 
-        # Returns early if `CacheRootDirectory` is not used before requiring `erb` or `yaml`.
+        # Returns early if `CacheRootDirectory` is not used before requiring `yaml`.
         next unless file_contents.include?('CacheRootDirectory')
 
-        require 'erb'
         require 'yaml'
-        yaml_code = ERB.new(file_contents).result
-        config_yaml = YAML.safe_load(yaml_code, permitted_classes: [Regexp, Symbol], aliases: true)
+        config_yaml = load_yaml(file_contents, config_path)
+        # Also covers Psych < 4 (Ruby 3.0 or lower), which returns `false` for an empty document.
+        all_cops = config_yaml['AllCops'] if config_yaml.is_a?(Hash)
+        next unless all_cops.is_a?(Hash)
 
-        # For compatibility with Ruby 3.0 or lower.
-        if Gem::Version.new(Psych::VERSION) < Gem::Version.new('4.0.0')
-          config_yaml == false ? nil : config_yaml
-        end
-
-        config_yaml&.dig('AllCops', 'CacheRootDirectory')
+        all_cops['CacheRootDirectory']
       end
     end
+
+    # CodeFactor: plain YAML, no ERB (see ConfigLoader). The cache-root lookup is best-effort:
+    # a config that does not parse falls back to the default root, and the full config load
+    # reports the error.
+    def self.load_yaml(contents, path)
+      YAML.safe_load(contents, permitted_classes: [Regexp, Symbol], aliases: true, filename: path)
+    rescue Psych::Exception
+      nil
+    end
+    private_class_method :load_yaml
   end
 end

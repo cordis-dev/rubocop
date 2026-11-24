@@ -369,23 +369,6 @@ RSpec.describe 'RuboCop::CLI --auto-gen-config', :isolated_environment do # rubo
                     'only the inherit_from line',
                     ['inherit_from: .rubocop_todo.yml']
 
-    # Makes the shared example work the same with the conditional as without.
-    ENV['HZPKCEAXTFQLOWB'] = 'true'
-
-    it_behaves_like 'overwrites todo file',
-                    'a single line inherit_from in an ERB conditional',
-                    ['<% if ENV["HZPKCEAXTFQLOWB"] %>',
-                     'inherit_from: .rubocop_todo.yml',
-                     '<% end %>']
-
-    it_behaves_like 'overwrites todo file',
-                    'a multiline inherit_from in an ERB conditional',
-                    ['<% if ENV["HZPKCEAXTFQLOWB"] %>',
-                     'inherit_from:',
-                     '  - .rubocop_todo.yml',
-                     '  - other.yml',
-                     '<% end %>']
-
     it 'honors rubocop:disable comments' do
       create_file('example1.rb', ['#' * 121,
                                   '# rubocop:disable LineLength',

@@ -1959,33 +1959,35 @@ RSpec.describe RuboCop::ConfigLoader do
       expect(configuration['Style/Encoding']).to eq('Enabled' => true)
     end
 
-    it 'does ERB pre-processing of the configuration file' do
-      %w[a.rb b.rb].each { |file| create_file(file, 'puts 1') }
+    it 'does not run ERB in the configuration file' do
       create_file(configuration_path, <<~YAML)
         Style/Encoding:
-          Enabled: <%= 1 == 1 %>
+          Enabled: true
           Exclude:
-          <% Dir['*.rb'].sort.each do |name| %>
-            - <%= name %>
-          <% end %>
+            - "<%= File.write('erb_ran.txt', '') %>.rb"
       YAML
       configuration = load_file
-      expect(configuration['Style/Encoding'])
-        .to eq('Enabled' => true,
-               'Exclude' => [abs('a.rb'), abs('b.rb')])
+      expect(File).not_to exist('erb_ran.txt')
+      expect(configuration['Style/Encoding']['Enabled']).to be(true)
     end
 
-    it 'does ERB pre-processing of a configuration file in a subdirectory' do
-      create_file('dir/c.rb', 'puts 1')
-      create_file('dir/.rubocop.yml', <<~YAML)
-        Style/Encoding:
-          Exclude:
-          <% Dir['*.rb'].each do |name| %>
-            - <%= name %>
-          <% end %>
+    it 'says ERB is not evaluated when ERB control flow makes the file invalid YAML' do
+      create_file(configuration_path, <<~YAML)
+        <% if ENV['CI'] %>
+        inherit_from: .rubocop_todo.yml
+        <% end %>
       YAML
-      configuration = described_class.load_file('dir/.rubocop.yml')
-      expect(configuration['Style/Encoding']).to eq('Exclude' => [abs('dir/c.rb')])
+      expect { load_file }
+        .to raise_error(RuboCop::ValidationError, /mapping values.*ERB is not evaluated/)
+    end
+
+    it 'says ERB is not evaluated when a file of ERB tags is not a mapping' do
+      create_file(configuration_path, <<~YAML)
+        <% if true %>
+        <% end %>
+      YAML
+      expect { load_file }
+        .to raise_error(RuboCop::ValidationError, /Malformed configuration.*ERB is not evaluated/)
     end
 
     it 'fails with a ValidationError when loading a malformed configuration file' do

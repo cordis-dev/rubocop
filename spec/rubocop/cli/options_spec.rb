@@ -461,8 +461,9 @@ RSpec.describe 'RuboCop::CLI options', :isolated_environment do # rubocop:disabl
     context 'when the config contains erb' do
       before do
         create_file('.rubocop.yml', <<~YAML)
-          <% if true %>
-          <% end %>
+          Style/Encoding:
+            Exclude:
+              - "<%= 1 %>.rb"
         YAML
       end
 

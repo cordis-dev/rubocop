@@ -63,10 +63,17 @@ configuration file will be the one passed to the CLI.
 
 == Pre-processing
 
-Configuration files are pre-processed using the ERB templating mechanism. This
-makes it possible to add dynamic content that will be evaluated when the
-configuration file is read. For example, you could let RuboCop ignore all files
-ignored by Git.
+NOTE: This build reads configuration files as plain YAML and does not evaluate
+ERB, because configuration comes from the repositories it analyses. A `<%= %>`
+tag inside a value stays literal text. ERB control flow such as `<% if %>` or a
+loop is usually not valid YAML, so the file fails to load; written inline in a
+value, it is read as literal text instead. Either way, rewrite the file as plain
+YAML. The example below does not work here.
+
+Upstream RuboCop pre-processes configuration files using the ERB templating
+mechanism. This makes it possible to add dynamic content that will be evaluated
+when the configuration file is read. For example, you could let RuboCop ignore
+all files ignored by Git.
 
 [source,yaml]
 ----

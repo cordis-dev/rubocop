@@ -144,22 +144,26 @@ RSpec.describe RuboCop::Server::Cache do
         end
       end
 
-      context 'when ERB pre-processing of the configuration file', :isolated_environment do
-        context 'when `CacheRootDirectory` configure value is set' do
-          it 'does not raise an error' do
-            create_file('.rubocop.yml', <<~YAML)
-              AllCops:
-                CacheRootDirectory: '/tmp/cache-root-directory'
-              Style/Encoding:
-                Enabled: <%= 1 == 1 %>
-                Exclude:
-                <% Dir['*.rb'].sort.each do |name| %>
-                  - <%= name %>
-                <% end %>
-            YAML
+      context 'when the configuration file contains ERB', :isolated_environment do
+        it 'does not run it' do
+          create_file('.rubocop.yml', <<~YAML)
+            Style/Encoding:
+              Exclude:
+                - "<%= File.write('erb_ran.txt', '') %>.rb"
+          YAML
 
-            expect { restart_key }.not_to raise_error
-          end
+          restart_key
+          expect(File).not_to exist('erb_ran.txt')
+        end
+
+        it 'does not raise an error when ERB control flow makes the file invalid YAML' do
+          create_file('.rubocop.yml', <<~YAML)
+            <% if ENV['CI'] %>
+            inherit_from: .rubocop_todo.yml
+            <% end %>
+          YAML
+
+          expect { restart_key }.not_to raise_error
         end
       end
 

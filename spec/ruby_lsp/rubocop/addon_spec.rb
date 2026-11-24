@@ -91,12 +91,16 @@ describe 'RubyLSP::RuboCop::Addon', :isolated_environment, :lsp do
       before do
         create_file('.rubocop', '-c custom.yml')
         create_file('custom.yml', <<~YML)
-          <%= warn "Hello from 'custom.yml'" %>
+          Style/StringLiterals:
+            Enabled: true
+          Style/StringLiterals:
+            Enabled: true
         YML
       end
 
       it 'uses the config file' do
-        expect { result }.to output(/Hello from 'custom\.yml'/).to_stderr
+        expect { result }
+          .to output(%r{custom\.yml:1: `Style/StringLiterals` is concealed}).to_stderr
       end
     end
   end

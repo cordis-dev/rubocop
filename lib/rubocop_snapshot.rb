@@ -10,7 +10,7 @@ require_relative 'rubocop/version'
 module RuboCopSnapshot
   OUTPUT = File.join(__dir__, 'rubocop_snapshot.bin')
   PRECOMPILED_GEMS = %w[ast lint_roller parser prism regexp_parser rubocop-ast].freeze
-  LAZY_FEATURES = %w[unicode/display_width uri digest/sha1 zlib find erb].freeze
+  LAZY_FEATURES = %w[unicode/display_width uri digest/sha1 zlib find].freeze
   SAMPLE_SOURCE = <<~RUBY
     # frozen_string_literal: true
 
@@ -76,8 +76,6 @@ module RuboCopSnapshot
       roots << File.expand_path('..', __dir__)
       roots.flat_map { |root| Dir["#{root}/config/**/*.yml"] }.each_with_object({}) do |path, configs|
         path = File.expand_path(path)
-        next if File.read(path).include?('<%')
-
         configs[path] = [stamp_of(path), Marshal.dump(RuboCop::ConfigLoader.load_yaml_configuration(path))]
       rescue StandardError => e
         warn "config not cached: #{path} (#{e.class})"

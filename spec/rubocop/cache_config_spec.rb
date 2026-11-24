@@ -17,9 +17,9 @@ RSpec.describe RuboCop::CacheConfig do
         expect(described_class.root_dir_from_toplevel_config).to eq(expected)
       end
 
-      it 'does not require erb and yaml' do
-        expect(described_class).not_to receive(:require).with('erb')
+      it 'does not require yaml' do
         expect(described_class).not_to receive(:require).with('yaml')
+        described_class.root_dir_from_toplevel_config
       end
 
       context 'when cache_root_override is given' do
@@ -176,20 +176,29 @@ RSpec.describe RuboCop::CacheConfig do
     end
 
     context 'when .rubocop.yml contains ERB templates', :isolated_environment do
-      it 'does not raise an error' do
+      it 'ignores a templated `CacheRootDirectory` and uses the default root' do
         create_file('.rubocop.yml', <<~YAML)
           AllCops:
             CacheRootDirectory: '/tmp/cache-<%= "test" %>'
+        YAML
+
+        expect(described_class.root_dir_from_toplevel_config)
+          .to eq(described_class.root_dir { nil })
+      end
+
+      it 'uses the default root when ERB control flow makes the file invalid YAML' do
+        create_file('.rubocop.yml', <<~YAML)
+          AllCops:
+            CacheRootDirectory: '/tmp/cache-root-directory'
           Style/Encoding:
-            Enabled: <%= 1 == 1 %>
             Exclude:
             <% Dir['*.rb'].sort.each do |name| %>
               - <%= name %>
             <% end %>
         YAML
 
-        expect { described_class.root_dir_from_toplevel_config }.not_to raise_error
-        expect(described_class.root_dir_from_toplevel_config).to eq('/tmp/cache-test/rubocop_cache')
+        expect(described_class.root_dir_from_toplevel_config)
+          .to eq(described_class.root_dir { nil })
       end
     end
 

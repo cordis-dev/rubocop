@@ -56,7 +56,7 @@ module RuboCop
           config_path = Pathname(args_config_file_path || ConfigFinder.find_config_path(Dir.pwd))
           # NOTE: A missing config file is reported by `RuboCop::CLI` with a friendly message.
           config_data = config_path.exist? ? config_path.read : ''
-          yaml = load_erb_templated_yaml(config_data)
+          yaml = load_yaml(config_data, config_path.to_s)
 
           inherit_from_data = inherit_from_data(yaml)
           require_data = require_data(yaml)
@@ -187,12 +187,15 @@ module RuboCop
 
         private
 
-        def load_erb_templated_yaml(content)
-          require 'erb'
-          yaml_code = ERB.new(content).result
-
-          require 'yaml'
-          YAML.safe_load(yaml_code, permitted_classes: [Regexp, Symbol], aliases: true) || {}
+        # CodeFactor: plain YAML, no ERB (see ConfigLoader). A config that does not parse
+        # to a Hash is left to `RuboCop::CLI` to report, so the client does not crash here.
+        def load_yaml(content, filename)
+          yaml = YAML.safe_load(
+            content, permitted_classes: [Regexp, Symbol], aliases: true, filename: filename
+          )
+          yaml.is_a?(Hash) ? yaml : {}
+        rescue Psych::Exception
+          {}
         end
 
         def remove_dir

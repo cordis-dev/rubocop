@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-autoload :ERB, 'erb'
 require 'yaml'
 require_relative 'cache_config'
 require_relative 'config_finder'
@@ -76,13 +75,10 @@ module RuboCop
         Config.create(hash, path, check: check)
       end
 
+      # CodeFactor: configs come from analysed repositories, so they are read
+      # as plain YAML; ERB would run their code.
       def load_yaml_configuration(absolute_path)
-        file_contents = read_file(absolute_path)
-        yaml_code = if file_contents.include?('<%')
-                      Dir.chdir(File.dirname(absolute_path)) { ERB.new(file_contents).result }
-                    else
-                      file_contents
-                    end
+        yaml_code = read_file(absolute_path)
         yaml_tree = check_duplication(yaml_code, absolute_path)
         hash = yaml_tree_to_hash(yaml_tree) || {}
 
@@ -93,6 +89,13 @@ module RuboCop
         end
 
         hash
+      rescue Psych::SyntaxError, ValidationError => e
+        # CodeFactor: a config written for upstream's ERB pre-processing fails here, so say why.
+        raise unless yaml_code.include?('<%')
+
+        raise ValidationError,
+              "#{e.message} (the file contains `<%`; ERB is not evaluated in this build, " \
+              'so rewrite any ERB as plain YAML)'
       end
 
       def add_missing_namespaces(path, hash)
