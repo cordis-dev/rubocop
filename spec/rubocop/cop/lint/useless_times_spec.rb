@@ -59,6 +59,43 @@ RSpec.describe RuboCop::Cop::Lint::UselessTimes, :config do
     RUBY
   end
 
+  it 'replaces references to the block argument without changing other uses of its name' do
+    expect_offense(<<~'RUBY')
+      1.times do |i|
+      ^^^^^^^^^^^^^^ Useless call to `1.times` detected.
+        log.i(:i, "i = #{i}")
+        items.each { use(i) }
+      end
+    RUBY
+
+    expect_correction(<<~'RUBY')
+      log.i(:i, "i = #{0}")
+      items.each { use(0) }
+    RUBY
+  end
+
+  it 'does not replace a shadowed block argument' do
+    expect_offense(<<~RUBY)
+      1.times do |i|
+      ^^^^^^^^^^^^^^ Useless call to `1.times` detected.
+        items.each { |i| log(i) }
+      end
+    RUBY
+
+    expect_no_corrections
+  end
+
+  it 'does not replace an omitted hash value with an integer key', :ruby31 do
+    expect_offense(<<~RUBY)
+      1.times do |i|
+      ^^^^^^^^^^^^^^ Useless call to `1.times` detected.
+        log(i:)
+      end
+    RUBY
+
+    expect_no_corrections
+  end
+
   it 'registers an offense but does not correct with 1.times with method chain' do
     expect_offense(<<~RUBY)
       1.times.reverse_each do
@@ -324,6 +361,59 @@ RSpec.describe RuboCop::Cop::Lint::UselessTimes, :config do
       RUBY
     end
 
+    it 'corrects properly when the block body is inconsistently indented' do
+      expect_offense(<<~RUBY)
+        def my_method
+          1.times do
+          ^^^^^^^^^^ Useless call to `1.times` detected.
+              do_something
+            foo = bar
+            do_something_else(foo)
+          end
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def my_method
+          do_something
+          foo = bar
+          do_something_else(foo)
+        end
+      RUBY
+    end
+
+    it 'keeps the indentation of a continuation line when the block body starts on the opening line' do
+      expect_offense(<<~RUBY)
+        1.times { do_something(
+        ^^^^^^^^^^^^^^^^^^^^^^^ Useless call to `1.times` detected.
+          foo) }
+      RUBY
+
+      expect_correction(<<~RUBY)
+        do_something(
+          foo)
+      RUBY
+    end
+
+    it 'aligns the body lines when the block body starts on the opening line' do
+      expect_offense(<<~RUBY)
+        def my_method
+          1.times { do_something
+          ^^^^^^^^^^^^^^^^^^^^^^ Useless call to `1.times` detected.
+                    do_something_else(
+                      foo) }
+        end
+      RUBY
+
+      expect_correction(<<~RUBY)
+        def my_method
+          do_something
+          do_something_else(
+            foo)
+        end
+      RUBY
+    end
+
     context 'inline `Integer#times` calls' do
       it 'does not try to correct `0.times`' do
         expect_offense(<<~RUBY)
@@ -460,6 +550,71 @@ RSpec.describe RuboCop::Cop::Lint::UselessTimes, :config do
         expect_offense(<<~RUBY)
           1.times { |*a| do_something(a) }
           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Useless call to `1.times` detected.
+        RUBY
+
+        expect_no_corrections
+      end
+
+      it 'does not correct a block without arguments whose body has a heredoc' do
+        expect_offense(<<~RUBY)
+          1.times do
+          ^^^^^^^^^^ Useless call to `1.times` detected.
+            do_something(<<~EOS)
+              text
+            EOS
+          end
+        RUBY
+
+        expect_no_corrections
+      end
+
+      it 'does not correct a block with an argument whose body has a heredoc' do
+        expect_offense(<<~RUBY)
+          1.times do |i|
+          ^^^^^^^^^^^^^^ Useless call to `1.times` detected.
+            do_something(i, <<~EOS)
+              text
+            EOS
+          end
+        RUBY
+
+        expect_no_corrections
+      end
+
+      it 'does not correct a block with a `rescue` clause' do
+        expect_offense(<<~RUBY)
+          1.times do
+          ^^^^^^^^^^ Useless call to `1.times` detected.
+            do_something
+          rescue StandardError
+            do_something_else
+          end
+        RUBY
+
+        expect_no_corrections
+      end
+
+      it 'does not correct a block with an `ensure` clause' do
+        expect_offense(<<~RUBY)
+          1.times do
+          ^^^^^^^^^^ Useless call to `1.times` detected.
+            do_something
+          ensure
+            do_something_else
+          end
+        RUBY
+
+        expect_no_corrections
+      end
+
+      it 'does not correct a block with an argument and an `ensure` clause' do
+        expect_offense(<<~RUBY)
+          1.times do |i|
+          ^^^^^^^^^^^^^^ Useless call to `1.times` detected.
+            do_something(i)
+          ensure
+            do_something_else
+          end
         RUBY
 
         expect_no_corrections

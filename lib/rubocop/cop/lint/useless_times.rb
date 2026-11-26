@@ -38,9 +38,12 @@ module RuboCop
           (block _ (args (arg $_)) ...)
         PATTERN
 
-        # @!method block_reassigns_arg?(node)
-        def_node_search :block_reassigns_arg?, <<~PATTERN
-          {(lvasgn % ...) (match_var %) (match_with_lvasgn #named_capture?(%) _)}
+        # @!method argument_references(node, name)
+        def_node_search :argument_references, '$(lvar %)'
+
+        # @!method writes_argument?(node, name)
+        def_node_search :writes_argument?, <<~PATTERN
+          {(argument % ...) (lvasgn % ...) (match_var %) (match_with_lvasgn #named_capture?(%) _)}
         PATTERN
 
         def on_send(node)
@@ -93,10 +96,28 @@ module RuboCop
           block_arg = block_arg(node)
           return unless reducible_to_body?(node, block_arg)
 
-          source = node.body.source
-          source.gsub!(/\b#{block_arg}\b/, '0') if block_arg
+          source = block_arg ? substituted_body(node.body, block_arg) : node.body.source
+          return unless source
 
-          corrector.replace(node, fix_indentation(source, node.loc.column...node.body.loc.column))
+          corrector.replace(node, fix_indentation(source, node))
+        end
+
+        def substituted_body(body, name)
+          references = argument_references(body, name).sort_by(&:source_range)
+          return unless references.all? { |variable| replaceable_reference?(variable) }
+
+          source = body.source
+          references.reverse_each do |variable|
+            offset = variable.source_range.begin_pos - body.source_range.begin_pos
+            source[offset, variable.source_length] = '0'
+          end
+          source
+        end
+
+        def replaceable_reference?(variable)
+          return false if variable.parent.pin_type? || variable.each_ancestor(:defined?).any?
+
+          !variable.parent.pair_type? || !variable.parent.value_omission?
         end
 
         def reducible_to_body?(node, block_arg)
@@ -109,8 +130,15 @@ module RuboCop
           # substituted either, so reducing to the body would leave it referencing an
           # undefined variable.
           return false if node.arguments.one? && block_arg.nil?
+          return false if needs_enclosing_block?(node.body)
 
-          !block_reassigns_arg?(node, block_arg)
+          !block_arg || !writes_argument?(node.body, block_arg)
+        end
+
+        # A `rescue` or `ensure` clause is only valid inside the block, and the source of
+        # the body doesn't cover the body of a heredoc that ends it.
+        def needs_enclosing_block?(body)
+          body.type?(:rescue, :ensure) || body.each_node(:any_str, :xstr).any?(&:heredoc?)
         end
 
         def orphans_loop_control_keyword?(node)
@@ -124,14 +152,14 @@ module RuboCop
           regexp.to_regexp.names.include?(name.to_s)
         end
 
-        def fix_indentation(source, range)
-          # Cleanup indentation in a multiline block
+        def fix_indentation(source, node)
+          shift = node.body.loc.column - node.loc.column
+          shift_range = begins_its_line?(node.body.source_range) ? "0,#{shift}" : shift
+          excess_indentation = /\A([ \t]{#{node.loc.column}})[ \t]{#{shift_range}}/
           source_lines = source.split("\n")
 
           source_lines[1..].each do |line|
-            next if line.empty?
-
-            line[range] = ''
+            line.sub!(excess_indentation, '\1')
           end
           source_lines.join("\n")
         end

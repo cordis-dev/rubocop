@@ -45,6 +45,29 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     expect($stdout.string).to include('no offenses detected')
   end
 
+  it 'does not introduce destructuring when For is corrected with HashEachMethods' do
+    create_file('.rubocop.yml', <<~YAML)
+      AllCops:
+        DisabledByDefault: true
+      Style/For:
+        Enabled: true
+      Style/HashEachMethods:
+        Enabled: true
+    YAML
+    create_file('example.rb', <<~RUBY)
+      for key, value, in hash
+        puts key
+      end
+    RUBY
+
+    expect(cli.run(['-A'])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      hash.each_key do |key|
+        puts key
+      end
+    RUBY
+  end
+
   it 'does not correct ExtraSpacing in a hash that would be changed back' do
     create_file('.rubocop.yml', <<~YAML)
       Layout/HashAlignment:
@@ -588,6 +611,19 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'keeps an escaped quote when correcting `Style/RedundantPercentQ` with `Style/RedundantStringEscape`' do
+    create_file('example.rb', <<~'RUBY')
+      %Q(a\"b)
+    RUBY
+
+    expect(
+      cli.run(['-A', '--only', 'Style/RedundantPercentQ,Style/RedundantStringEscape'])
+    ).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~'RUBY')
+      "a\"b"
+    RUBY
+  end
+
   it 'corrects `Lint/LiteralInInterpolation` with `Style/PercentLiteralDelimiters`' do
     create_file('example.rb', <<~'RUBY')
       %r[foo#{"}"}bar]
@@ -740,6 +776,65 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
                     'Style/MultilineMethodSignature'])).to eq(0)
     expect(File.read('example.rb')).to eq(<<~RUBY)
       def foo(a, b)
+        c
+      end
+    RUBY
+  end
+
+  it 'corrects `Style/MultilineMethodSignature` with `EnforcedStyle: require_no_parentheses` of `Style/MethodDefParentheses`' do
+    create_file('.rubocop.yml', <<~YAML)
+      Style/MultilineMethodSignature:
+        Enabled: true
+      Style/MethodDefParentheses:
+        EnforcedStyle: require_no_parentheses
+    YAML
+    create_file('example.rb', <<~RUBY)
+      def foo(a, b
+      )
+        c
+      end
+
+      def bar(a,
+              b)
+        c
+      end
+
+      def baz(a, b # comment
+        # another comment
+      )
+        c
+      end
+
+      def qux(a, b = <<~TEXT
+        text
+      TEXT
+      )
+        c
+      end
+    RUBY
+
+    expect(
+      cli.run(
+        ['--autocorrect', '--only', 'Style/MultilineMethodSignature,Style/MethodDefParentheses']
+      )
+    ).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      def foo a, b
+        c
+      end
+
+      def bar a, b
+        c
+      end
+
+      def baz a, b # comment
+        # another comment
+        c
+      end
+
+      def qux a, b = <<~TEXT
+        text
+      TEXT
         c
       end
     RUBY
@@ -1412,6 +1507,46 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'corrects `EnforcedStyle: omit_parentheses` of `Style/MethodCallWithArgsParentheses` with `Lint/UselessAssignment` for an `if` value' do
+    create_file('.rubocop.yml', <<~YAML)
+      Style/MethodCallWithArgsParentheses:
+        EnforcedStyle: omit_parentheses
+    YAML
+    create_file('example.rb', <<~RUBY)
+      do_something(foo = if bar
+        baz
+      end)
+    RUBY
+
+    expect(
+      cli.run(['-A', '--only', 'Lint/UselessAssignment,Style/MethodCallWithArgsParentheses'])
+    ).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      do_something(if bar
+        baz
+      end)
+    RUBY
+  end
+
+  it 'corrects `Lint/UselessAssignment` with `Style/RescueModifier` for a heredoc value with a modifier `rescue`' do
+    create_file('example.rb', <<~RUBY)
+      do_something foo = bar(<<~EOS) rescue baz
+        text
+      EOS
+    RUBY
+
+    expect(cli.run(['-A', '--only', 'Lint/UselessAssignment,Style/RescueModifier'])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      do_something begin
+                     bar(<<~EOS)
+        text
+      EOS
+                   rescue
+                     baz
+                   end
+    RUBY
+  end
+
   it 'corrects `Layout/LineLength` with `EnforcedStyle: omit_parentheses` of ' \
      '`Style/MethodCallWithArgsParentheses`' do
     create_file('.rubocop.yml', <<~YAML)
@@ -2051,6 +2186,27 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'corrects `Style/OperatorMethodCall` with `Style/TrailingCommaInArguments`' do
+    create_file('.rubocop.yml', <<~YAML)
+      Style/TrailingCommaInArguments:
+        EnforcedStyleForMultiline: comma
+    YAML
+    create_file('example.rb', <<~RUBY)
+      foo.<<(
+        bar
+      )
+    RUBY
+
+    expect(
+      cli.run(['-A', '--only', 'Style/OperatorMethodCall,Style/TrailingCommaInArguments'])
+    ).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      foo << (
+        bar
+      )
+    RUBY
+  end
+
   it 'corrects `Layout/FirstMethodArgumentLineBreak` with `EnforcedStyle: omit_parentheses` of `Style/MethodCallWithArgsParentheses`' do
     create_file('.rubocop.yml', <<~YAML)
       Layout/FirstMethodArgumentLineBreak:
@@ -2516,6 +2672,26 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     RUBY
   end
 
+  it 'corrects `Style/RedundantArrayConstructor` with `Style/TrailingCommaInArguments`' do
+    create_file('.rubocop.yml', <<~YAML)
+      Style/TrailingCommaInArguments:
+        EnforcedStyleForMultiline: comma
+    YAML
+    create_file('example.rb', <<~RUBY)
+      values = Array.new(
+        [name]
+      )
+      register(values)
+    RUBY
+
+    cops = 'Style/RedundantArrayConstructor,Style/TrailingCommaInArguments'
+    expect(cli.run(['-A', '--only', cops])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      values = [name]
+      register(values)
+    RUBY
+  end
+
   it 'corrects `Style/RedundantInterpolationUnfreeze` with `Layout/MultilineMethodCallBraceLayout` with `EnforcedStyle: same_line`' do
     create_file('.rubocop.yml', <<~YAML)
       AllCops:
@@ -2535,6 +2711,29 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
           '-A', '--only',
           'Layout/MultilineMethodCallBraceLayout,Style/RedundantInterpolationUnfreeze'
         ]
+      )
+    ).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~'RUBY')
+      x = "#{foo} bar"
+    RUBY
+  end
+
+  it 'corrects `Style/RedundantInterpolationUnfreeze` with `Style/TrailingCommaInArguments` with `EnforcedStyleForMultiline: comma`' do
+    create_file('.rubocop.yml', <<~YAML)
+      AllCops:
+        TargetRubyVersion: 3.4
+      Style/TrailingCommaInArguments:
+        EnforcedStyleForMultiline: comma
+    YAML
+    create_file('example.rb', <<~'RUBY')
+      x = String.new(
+        "#{foo} bar"
+      )
+    RUBY
+
+    expect(
+      cli.run(
+        ['-A', '--only', 'Style/RedundantInterpolationUnfreeze,Style/TrailingCommaInArguments']
       )
     ).to eq(0)
     expect(File.read('example.rb')).to eq(<<~'RUBY')
@@ -3257,6 +3456,46 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     expect(File.read('example.rb')).to eq(<<~RUBY)
       foo(bar,
           baz, &:do_something)
+    RUBY
+  end
+
+  it 'corrects `Style/RaiseArgs` with a heredoc and `EnforcedStyleForMultiline: comma` of `Style/TrailingCommaInArguments`' do
+    create_file('.rubocop.yml', <<~YAML)
+      Style/TrailingCommaInArguments:
+        EnforcedStyleForMultiline: comma
+    YAML
+    create_file('example.rb', <<~RUBY)
+      raise Foo.new(
+        <<~MSG
+          message
+        MSG
+      )
+    RUBY
+
+    expect(cli.run(['-A', '--only', 'Style/RaiseArgs,Style/TrailingCommaInArguments'])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      raise Foo, <<~MSG
+          message
+        MSG
+
+    RUBY
+  end
+
+  it 'corrects `Style/RaiseArgs` with a heredoc followed by a comma and `Style/TrailingCommaInArguments`' do
+    create_file('example.rb', <<~RUBY)
+      raise Foo.new(
+        <<~MSG,
+          message
+        MSG
+      )
+    RUBY
+
+    expect(cli.run(['-A', '--only', 'Style/RaiseArgs,Style/TrailingCommaInArguments'])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      raise Foo, <<~MSG
+          message
+        MSG
+
     RUBY
   end
 
@@ -4332,6 +4571,37 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
       # frozen_string_literal: true
       foo
       bar
+    RUBY
+  end
+
+  it 'corrects a disabled cop that becomes redundant once other redundant cops are removed from the directive' do
+    create_file('.rubocop.yml', <<~YAML)
+      AllCops:
+        DisabledByDefault: true
+      Layout/LineLength:
+        Enabled: true
+        Max: 60
+        AllowCopDirectives: false
+      Lint/RedundantCopDisableDirective:
+        Enabled: true
+      Lint/RedundantCopEnableDirective:
+        Enabled: true
+      Metrics/AbcSize:
+        Enabled: true
+      Style/GlobalVars:
+        Enabled: true
+    YAML
+    create_file('example.rb', <<~RUBY)
+      # rubocop:disable Layout/LineLength, Style/GlobalVars, Metrics/AbcSize
+      $foo = 1
+      # rubocop:enable Layout/LineLength, Style/GlobalVars, Metrics/AbcSize
+    RUBY
+
+    expect(cli.run(['--autocorrect-all'])).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      # rubocop:disable Style/GlobalVars
+      $foo = 1
+      # rubocop:enable Style/GlobalVars
     RUBY
   end
 
@@ -7410,6 +7680,63 @@ RSpec.describe 'RuboCop::CLI --autocorrect', :isolated_environment do # rubocop:
     expect(File.read('example.rb')).to eq(<<~RUBY)
       obj.do_something foo,
         bar
+    RUBY
+  end
+
+  it 'corrects `Style/FileWrite` with a heredoc argument followed by code and line break cops' do
+    create_file('.rubocop.yml', <<~YAML)
+      Layout/MultilineArrayLineBreaks:
+        Enabled: true
+      Layout/MultilineMethodArgumentLineBreaks:
+        Enabled: true
+    YAML
+    create_file('example.rb', <<~RUBY)
+      foo(File.open(filename, 'w') do |f|
+        f.write(<<~EOS)
+          content
+        EOS
+      end, bar)
+      [File.open(filename, 'w') do |f|
+        f.write(<<~EOS)
+          content
+        EOS
+      end, bar]
+    RUBY
+
+    expect(
+      cli.run(
+        [
+          '-A', '--only',
+          'Layout/MultilineArrayLineBreaks,Layout/MultilineMethodArgumentLineBreaks,Style/FileWrite'
+        ]
+      )
+    ).to eq(0)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      foo(File.write(filename, <<~EOS),#{trailing_whitespace}
+          content
+        EOS
+      bar)
+      [File.write(filename, <<~EOS),#{trailing_whitespace}
+          content
+        EOS
+      bar]
+    RUBY
+  end
+
+  it 'corrects `Style/FileWrite` with a heredoc argument followed by a semicolon and `Style/Semicolon`' do
+    create_file('example.rb', <<~RUBY)
+      x = File.open(filename, 'w') do |f|
+        f.write(<<~EOS)
+          content
+        EOS
+      end; foo(x)
+    RUBY
+
+    expect(cli.run(['-A', '--only', 'Style/FileWrite,Style/Semicolon'])).to eq(1)
+    expect(File.read('example.rb')).to eq(<<~RUBY)
+      x = File.write(filename, <<~EOS); foo(x)
+          content
+        EOS
     RUBY
   end
 

@@ -153,14 +153,16 @@ module RuboCop
         BLOCK_MSG = 'Use anonymous block arguments forwarding (`&`).'
 
         def self.autocorrect_incompatible_with
-          [Naming::BlockForwarding, Style::EndlessMethod, Style::MethodDefParentheses]
+          [Style::EndlessMethod, Style::MethodDefParentheses]
         end
 
         def on_def(node)
           return unless node.body
 
-          restarg, kwrestarg, blockarg = extract_forwardable_args(node.arguments)
-          forwardable_args = redundant_forwardable_named_args(restarg, kwrestarg, blockarg)
+          forwardable_args =
+            redundant_forwardable_named_args(*extract_forwardable_args(node.arguments))
+          return if forwardable_args.none?
+
           send_nodes = node.each_descendant(:call, :super, :yield).to_a
 
           send_classifications = classify_send_nodes(
@@ -423,17 +425,16 @@ module RuboCop
 
           # @!method def_all_anonymous_args?(node)
           def_node_matcher :def_all_anonymous_args?, <<~PATTERN
-            (
-              def _
-              (args ... (restarg) (kwrestarg) (blockarg nil?))
-              _
-            )
+            {
+              (def _ (args ... (restarg) (kwrestarg) (blockarg nil?)) _)
+              (defs _ _ (args ... (restarg) (kwrestarg) (blockarg nil?)) _)
+            }
           PATTERN
 
           # @!method send_all_anonymous_args?(node)
           def_node_matcher :send_all_anonymous_args?, <<~PATTERN
             (
-              send _ _
+              call _ _
               ... (forwarded_restarg) (hash (forwarded_kwrestarg)) (block_pass nil?)
             )
           PATTERN

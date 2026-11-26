@@ -31,14 +31,14 @@ module RuboCop
         minimum_target_ruby_version 3.0
 
         def self.autocorrect_incompatible_with
-          [Layout::MultilineMethodCallBraceLayout]
+          [Layout::MultilineMethodCallBraceLayout, Style::TrailingCommaInArguments]
         end
 
         # @!method redundant_unfreeze?(node)
         def_node_matcher :redundant_unfreeze?, <<~PATTERN
           {
             (send dstr_type? {:+@ :dup})
-            (send (const nil? :String) :new dstr_type?)
+            (send (const {nil? cbase} :String) :new dstr_type?)
           }
         PATTERN
 

@@ -3,7 +3,7 @@
 module RuboCop
   # This module holds the RuboCop version information.
   module Version
-    STRING = '1.92.3'
+    STRING = '1.93.0'
 
     MSG = '%<version>s (using %<parser_version>s, ' \
           'rubocop-ast %<rubocop_ast_version>s, ' \
@@ -60,14 +60,24 @@ module RuboCop
       yaml = Util.silence_warnings do
         ConfigLoader.load_yaml_configuration(config_path)
       end
-      parser_engine = yaml.dig('AllCops', 'ParserEngine')
-      parser_engine_text = ", #{parser_engine}" if parser_engine
+      # Without the `parser` gem its version is that of the copy of its source
+      # layer in RuboCop AST, which is not what parses the code.
+      parser = "Parser #{Parser::VERSION}" if ProcessedSource.parser_gem_available?
+      prism = "Prism #{Prism::VERSION}"
+      return parser || prism if target_ruby_version < MINIMUM_PARSABLE_PRISM_VERSION
 
-      if target_ruby_version >= MINIMUM_PARSABLE_PRISM_VERSION
-        "Parser #{Parser::VERSION}, Prism #{Prism::VERSION}#{parser_engine_text}"
-      else
-        "Parser #{Parser::VERSION}"
-      end
+      parser_engine = parser_engine(yaml.dig('AllCops', 'ParserEngine'), target_ruby_version)
+
+      [parser, prism, parser_engine].compact.join(', ')
+    end
+
+    # The default parser engine depends on the target Ruby version and on the
+    # version of Prism, so the one that is used is asked from RuboCop AST.
+    # @api private
+    def self.parser_engine(configured, target_ruby_version)
+      return configured unless configured.nil? || configured.to_s == 'default'
+
+      ProcessedSource.default_parser_engine(target_ruby_version)
     end
 
     # @api private

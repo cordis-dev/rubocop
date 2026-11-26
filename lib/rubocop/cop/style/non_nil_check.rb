@@ -91,6 +91,9 @@ module RuboCop
         end
 
         def autocorrect(corrector, node)
+          receiver = node.method?(:!) ? node.receiver.receiver : node.receiver
+          return if receiver && correction_removes_heredoc?(node, receiver)
+
           case node.method_name
           when :!=
             autocorrect_comparison(corrector, node)
@@ -98,6 +101,16 @@ module RuboCop
             autocorrect_non_nil(corrector, node, node.receiver)
           when :nil?
             autocorrect_unless_nil(corrector, node, node.receiver)
+          end
+        end
+
+        def correction_removes_heredoc?(node, receiver)
+          return false if node.single_line?
+
+          # Only the receiver is kept, so a heredoc terminator anywhere else in the
+          # node is lost, whether the heredoc was opened in the receiver or before it.
+          processed_source.tokens_within(node).any? do |token|
+            token.type == :tSTRING_END && !receiver.source_range.contains?(token.pos)
           end
         end
 

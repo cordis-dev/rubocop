@@ -29,6 +29,10 @@ module RuboCop
 
         RESTRICT_ON_SEND = %i[new [] Array].freeze
 
+        def self.autocorrect_incompatible_with
+          [Style::TrailingCommaInArguments]
+        end
+
         # @!method redundant_array_constructor(node)
         def_node_matcher :redundant_array_constructor, <<~PATTERN
           {
@@ -70,8 +74,18 @@ module RuboCop
           replacement = replacement.source_range if replacement.is_a?(AST::Node)
 
           add_offense(range) do |corrector|
+            next if removes_comment_or_heredoc?(node, replacement)
+
             corrector.remove(node.source_range.begin.join(replacement.begin))
             corrector.remove(replacement.end.join(node.source_range.end))
+          end
+        end
+
+        def removes_comment_or_heredoc?(node, literal)
+          return false if node.single_line?
+
+          processed_source.tokens_within(node).any? do |token|
+            (token.comment? || token.type == :tSTRING_END) && !literal.contains?(token.pos)
           end
         end
       end
